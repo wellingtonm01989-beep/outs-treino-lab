@@ -1,0 +1,95 @@
+/* ==========================================================================
+   OUTS · Treino Lab — paineis.css
+   Telas fora da mesa: treino relâmpago, estatísticas, histórico com replay,
+   auditoria, cola de consulta e configurações.
+   ========================================================================== */
+
+.grade-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grade-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.cartao { background: var(--superficie); border: 1px solid var(--borda); border-radius: 12px; padding: 16px; display: grid; gap: 10px; align-content: start; }
+.cartao > h3 { margin: 0; }
+.vazio-msg { color: var(--texto-3); text-align: center; padding: 40px 10px; }
+
+/* ------------------------------------------------------- treino relâmpago */
+.treino-layout { display: grid; grid-template-columns: 1fr 340px; gap: 16px; align-items: start; }
+.tipos-treino { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.tipos-treino label { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--borda); border-radius: 8px; cursor: pointer; font-size: 13px; background: var(--fundo-2); }
+.tipos-treino input { accent-color: var(--ouro); }
+.placar-treino { display: flex; gap: 10px; }
+.placar-treino .kpi { flex: 1; }
+.cartao-pergunta { min-height: 340px; }
+.grafico svg { width: 100%; height: 170px; display: block; }
+.grafico .eixo { stroke: var(--borda); }
+.grafico .linha-tempo { fill: none; stroke: var(--ouro); stroke-width: 2.5; }
+.grafico .linha-acerto { fill: none; stroke: var(--ok); stroke-width: 2.5; stroke-dasharray: 5 4; }
+.grafico text { fill: var(--texto-3); font-size: 10px; }
+.legenda-grafico { display: flex; gap: 14px; font-size: 11.5px; color: var(--texto-3); }
+.legenda-grafico span::before { content: ''; display: inline-block; width: 14px; height: 3px; margin-right: 6px; vertical-align: 3px; background: var(--c); }
+
+/* ---------------------------------------------------------- estatísticas */
+.kpis-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.kpis-grade .kpi { background: var(--superficie); padding: 12px 14px; }
+.kpis-grade .kpi em { display: block; font-style: normal; font-size: 11px; color: var(--texto-3); margin-top: 2px; }
+.barras-ruas { display: grid; gap: 10px; }
+.barra-rua { display: grid; grid-template-columns: 70px 1fr 64px; gap: 10px; align-items: center; font-size: 13px; }
+.barra-rua .trilho { height: 14px; border-radius: 7px; background: var(--fundo-2); overflow: hidden; display: flex; }
+.barra-rua .trilho i { display: block; height: 100%; }
+.erros-lista { display: grid; gap: 6px; }
+.erro-item { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; font-size: 13px; padding: 8px 10px; background: var(--fundo-2); border-radius: 8px; }
+.erro-item b { color: var(--erro); }
+
+/* -------------------------------------------------------------- histórico */
+.historico-layout { display: grid; grid-template-columns: 330px 1fr; gap: 16px; align-items: start; height: 100%; }
+.lista-maos { display: grid; gap: 6px; max-height: calc(100vh - 200px); overflow: auto; padding-right: 4px; }
+.item-mao { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--borda); background: var(--superficie); cursor: pointer; text-align: left; color: var(--texto); font: inherit; }
+.item-mao:hover { border-color: var(--borda-forte); }
+.item-mao.ativo { border-color: var(--ouro); background: rgba(216,178,90,.06); }
+.item-mao .meta { font-size: 11.5px; color: var(--texto-3); }
+.item-mao .res { font-weight: 800; font-variant-numeric: tabular-nums; }
+.pontos-notas { display: flex; gap: 3px; margin-top: 3px; }
+.pontos-notas i { width: 8px; height: 8px; border-radius: 50%; display: block; }
+.replay { display: grid; gap: 12px; }
+.mini-mesa-replay { position: relative; height: 330px; border-radius: 14px; overflow: hidden; background: radial-gradient(ellipse at 50% 120%, #0b1118, #070a0e 70%); border: 1px solid var(--borda); --carta-l: 44px; }
+.mini-mesa-replay .oval-r {
+  position: absolute; left: 13%; right: 13%; top: 17%; bottom: 17%; border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 45%, #2f9a62, #145536 65%, #0c3622);
+  box-shadow: 0 0 0 10px #2b1e14, 0 0 0 12px #0d0906, 0 20px 40px rgba(0,0,0,.6), inset 0 0 30px rgba(0,0,0,.5);
+}
+.mini-mesa-replay .centro-r { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: grid; justify-items: center; gap: 6px; }
+.mini-mesa-replay .board-r { display: flex; gap: 4px; min-height: 62px; }
+.lugar-r { position: absolute; transform: translate(-50%, -50%); width: 128px; text-align: center; font-size: 11.5px; }
+.lugar-r .caixa { background: rgba(14,19,26,.94); border: 1px solid #2f3b4b; border-radius: 10px; padding: 4px 6px; }
+.lugar-r.foldou .caixa { opacity: .45; }
+.lugar-r.ativo .caixa { border-color: var(--ouro); box-shadow: 0 0 12px rgba(216,178,90,.4); }
+.lugar-r.heroi .caixa { border-color: rgba(216,178,90,.5); }
+.lugar-r .n { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lugar-r .s { color: var(--ouro-2); font-weight: 800; }
+.lugar-r .cs { display: flex; justify-content: center; gap: 2px; margin-bottom: 3px; --carta-l: 26px; }
+.lugar-r .ult { font-size: 10.5px; color: var(--texto-2); }
+.lugar-r .ap { font-size: 11px; font-weight: 800; color: #fff; }
+.controles-replay { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.controles-replay input[type=range] { flex: 1; min-width: 160px; }
+.passo-txt { font-size: 14px; font-weight: 600; min-height: 22px; }
+.analise-replay { border-color: rgba(216,178,90,.4); }
+.texto-mao { margin: 0; padding: 12px 14px; max-height: 360px; overflow: auto; background: var(--fundo-2); border: 1px solid var(--borda); border-radius: 8px; font: 12px/1.55 var(--fonte-mono); color: var(--texto-2); white-space: pre-wrap; }
+
+/* ------------------------------------------- análise de fim de partida */
+.relatorio { display: grid; gap: 14px; }
+.relatorio .conceito { margin: 0; font-size: 15px; }
+.barra-notas { display: flex; height: 16px; border-radius: 8px; overflow: hidden; background: var(--fundo-2); }
+.barra-notas i { display: block; height: 100%; }
+.vazamento { padding: 8px 10px; background: var(--fundo-2); border-radius: 8px; display: grid; gap: 4px; }
+.vazamento p, .nota-rel { margin: 0; color: var(--texto-2); font-size: 13px; }
+.decisao-rel { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 8px 10px; background: var(--fundo-2); border-radius: 8px; font-size: 13px; }
+.decisao-rel p { margin: 3px 0 0; color: var(--texto-2); }
+.cartas-rel { white-space: nowrap; }
+.lista-rel { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--texto-2); font-size: 13px; }
+
+/* ----------------------------------------------------------- cola rápida */
+.cola { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.cola .tabela td, .cola .tabela th { padding: 5px 8px; font-size: 12.5px; }
+
+@media (max-width: 1050px) {
+  .treino-layout, .historico-layout, .grade-2 { grid-template-columns: 1fr; }
+  .cola, .grade-3 { grid-template-columns: 1fr; }
+}

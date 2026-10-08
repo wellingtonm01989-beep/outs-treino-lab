@@ -1,0 +1,103 @@
+/* ==========================================================================
+   OUTS · Treino Lab — lobby.css
+   Lobby: abas por tipo de jogo, níveis, cartões de limite/buy-in,
+   seletor visual de 2 a 9 lugares e opções da mesa.
+   ========================================================================== */
+
+.lobby { max-width: 1280px; margin: 0 auto; padding: 18px 24px 30px; display: grid; gap: 18px; }
+
+/* faixa de boas-vindas */
+.lobby-faixa {
+  position: relative; overflow: hidden; border-radius: 16px; padding: 22px 26px;
+  display: grid; grid-template-columns: auto 1fr auto; gap: 22px; align-items: center;
+  background:
+    radial-gradient(500px 220px at 85% 120%, rgba(42,138,92,.35), transparent 70%),
+    radial-gradient(420px 200px at 0% -20%, rgba(216,178,90,.22), transparent 70%),
+    linear-gradient(135deg, #121a24, #0d131a);
+  border: 1px solid var(--borda);
+}
+.lobby-faixa::after {
+  content: '\2660'; position: absolute; right: 26%; top: -38px; font-size: 220px; color: rgba(255,255,255,.025); pointer-events: none;
+}
+.lobby-faixa .logo-grande { width: 70px; height: 70px; }
+.lobby-faixa h1 { font-size: 26px; letter-spacing: .02em; }
+.lobby-faixa h1 b { color: var(--ouro); }
+.lobby-faixa p { color: var(--texto-2); margin: 4px 0 0; max-width: 620px; }
+.lobby-kpis { display: flex; gap: 10px; }
+.kpi { background: rgba(0,0,0,.25); border: 1px solid var(--borda); border-radius: 10px; padding: 10px 14px; min-width: 112px; }
+.kpi small { display: block; color: var(--texto-3); font-size: 10.5px; text-transform: uppercase; letter-spacing: .1em; }
+.kpi b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.kpi b.pos { color: var(--ok); } .kpi b.neg { color: var(--erro); }
+
+.lobby-grade { display: grid; grid-template-columns: 1fr 360px; gap: 18px; align-items: start; }
+.lobby-principal { display: grid; gap: 16px; }
+.lobby-cab { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.lobby-cab .desc { color: var(--texto-2); font-size: 13px; }
+
+/* níveis */
+.niveis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.nivel {
+  text-align: left; cursor: pointer; border-radius: 12px; padding: 12px 14px; border: 1px solid var(--borda);
+  background: var(--superficie); color: var(--texto); font: inherit; transition: border-color var(--transicao), transform var(--transicao);
+}
+.nivel:hover { border-color: var(--borda-forte); transform: translateY(-1px); }
+.nivel.ativo { border-color: var(--ouro); box-shadow: 0 0 0 1px var(--ouro) inset, 0 8px 22px rgba(216,178,90,.12); }
+.nivel h3 { color: var(--texto); text-transform: none; letter-spacing: 0; font-size: 15px; }
+.nivel p { color: var(--texto-3); font-size: 12px; margin: 4px 0 8px; min-height: 32px; }
+.composicao { display: flex; height: 6px; border-radius: 3px; overflow: hidden; }
+.composicao i { display: block; height: 100%; }
+.legenda-perfis { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11.5px; color: var(--texto-3); }
+.legenda-perfis span::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 2px; background: var(--c); margin-right: 5px; }
+
+/* cartões de limite / buy-in */
+.limites { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+.limite {
+  position: relative; text-align: left; cursor: pointer; border-radius: 14px; padding: 16px; border: 1px solid var(--borda);
+  background: linear-gradient(160deg, rgba(255,255,255,.035), transparent 60%), var(--superficie);
+  color: var(--texto); font: inherit; overflow: hidden; transition: transform var(--transicao), border-color var(--transicao);
+}
+.limite::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 4px; background: var(--faixa, var(--feltro-claro)); }
+.limite:hover { transform: translateY(-2px); border-color: var(--borda-forte); }
+.limite.ativo { border-color: var(--ouro); box-shadow: 0 0 0 1px var(--ouro) inset, 0 10px 26px rgba(0,0,0,.35); }
+.limite .nome { font-size: 22px; font-weight: 800; letter-spacing: .02em; }
+.limite .sub { color: var(--ouro-2); font-weight: 700; font-size: 13px; }
+.limite ul { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 3px; font-size: 12px; color: var(--texto-2); }
+.limite ul b { color: var(--texto); font-weight: 600; }
+
+/* painel lateral */
+.lobby-config { position: sticky; top: 0; display: grid; gap: 14px; padding: 18px; }
+.lobby-config h3 { margin-bottom: 2px; }
+.seletor-lugares { display: grid; gap: 10px; }
+.mini-mesa { position: relative; height: 128px; margin: 4px 8px; }
+.mini-mesa .oval {
+  position: absolute; inset: 18px 34px; border-radius: 999px;
+  background: radial-gradient(ellipse at 50% 40%, var(--feltro-claro), var(--feltro) 70%);
+  box-shadow: 0 0 0 7px #2a1d14, 0 0 0 8px #120c08, 0 8px 18px rgba(0,0,0,.5);
+}
+.mini-mesa .lugar { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; background: var(--superficie-3); border: 2px solid var(--borda-forte); transition: all 200ms; }
+.mini-mesa .lugar.ocupado { background: var(--texto-2); border-color: var(--texto); }
+.mini-mesa .lugar.voce { background: var(--ouro); border-color: var(--ouro-2); box-shadow: 0 0 10px rgba(216,178,90,.7); }
+.botoes-lugares { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; }
+.botoes-lugares .opcao { padding: 7px 0; text-align: center; }
+.resumo-mesa { background: var(--fundo-2); border: 1px solid var(--borda); border-radius: 10px; padding: 12px; display: grid; gap: 5px; font-size: 13px; }
+.resumo-mesa div { display: flex; justify-content: space-between; gap: 10px; }
+.resumo-mesa span { color: var(--texto-2); }
+.btn-sentar { height: 46px; font-size: 15px; letter-spacing: .02em; }
+.premios-lista { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: 12.5px; max-height: 140px; overflow: auto; }
+.premios-lista span:nth-child(odd) { color: var(--texto-3); }
+
+/* atalhos */
+.atalhos { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+.atalho { text-align: left; border: 1px solid var(--borda); background: var(--superficie); border-radius: 12px; padding: 14px; cursor: pointer; color: var(--texto); font: inherit; }
+.atalho:hover { border-color: var(--borda-forte); background: var(--superficie-2); }
+.atalho b { display: block; font-size: 14px; }
+.atalho span { color: var(--texto-3); font-size: 12px; }
+.atalho i { font-style: normal; font-size: 20px; display: block; margin-bottom: 6px; color: var(--ouro); }
+
+@media (max-width: 1100px) {
+  .lobby-grade { grid-template-columns: 1fr; }
+  .lobby-config { position: static; }
+  .atalhos { grid-template-columns: repeat(3, 1fr); }
+  .lobby-faixa { grid-template-columns: auto 1fr; }
+  .lobby-kpis { grid-column: 1 / -1; }
+}

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OUTS · Treino Lab</title>
+<script>
+  /* registra erros de JavaScript (útil para diagnóstico e para os testes automáticos) */
+  window.__errosGlobais = [];
+  /* o roteiro automático de testes usa armazenamento separado */
+  if (/[?&]roteiro=1/.test(location.search)) window.__OUTS_PREFIXO = 'outs.roteiro.';
+  window.addEventListener('error', function (e) {
+    window.__errosGlobais.push((e.message || 'erro') + (e.filename ? ' (' + e.filename.split('/').pop() + ':' + e.lineno + ')' : ''));
+    document.documentElement.setAttribute('data-erros', String(window.__errosGlobais.length));
+    document.documentElement.setAttribute('data-ultimo-erro', window.__errosGlobais[window.__errosGlobais.length - 1]);
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    var m = e.reason && (e.reason.stack || e.reason.message) || String(e.reason);
+    window.__errosGlobais.push('Promise: ' + m);
+    document.documentElement.setAttribute('data-erros', String(window.__errosGlobais.length));
+    document.documentElement.setAttribute('data-ultimo-erro', String(m).slice(0, 300));
+  });
+</script>
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/lobby.css">
+<link rel="stylesheet" href="css/mesa.css">
+<link rel="stylesheet" href="css/coach.css">
+<link rel="stylesheet" href="css/paineis.css">
+</head>
+<body>
+<div class="app" id="app">
+  <header class="topo">
+    <a class="marca" href="#" id="marca" title="Lobby">
+      <span id="logo-topo"></span>
+      <span><span class="marca-nome"><b>OUTS</b></span><span class="marca-sub">Treino Lab</span></span>
+    </a>
+    <nav class="nav" id="nav">
+      <button data-tela="lobby" class="ativo">Lobby</button>
+      <button data-tela="treino">Treino relâmpago</button>
+      <button data-tela="estatisticas">Estatísticas</button>
+      <button data-tela="historico">Histórico</button>
+      <button data-tela="auditoria">Auditoria</button>
+    </nav>
+    <span class="espaco"></span>
+    <button class="btn" id="btn-cola" title="Cola de consulta rápida">Cola</button>
+    <div class="saldo"><small>Banca fictícia</small><b id="saldo">$0,00</b></div>
+    <button class="btn btn-icone" id="btn-som" title="Som ligado/desligado"></button>
+    <button class="btn btn-icone" id="btn-config" title="Configurações">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </header>
+  <main class="app-corpo">
+    <section class="tela" id="tela-lobby"></section>
+    <section class="tela tela-mesa oculto" id="tela-mesa"></section>
+    <section class="tela oculto" id="tela-treino"></section>
+    <section class="tela oculto" id="tela-estatisticas"></section>
+    <section class="tela oculto" id="tela-historico"></section>
+    <section class="tela oculto" id="tela-auditoria"></section>
+  </main>
+</div>
+
+<!-- núcleo -->
+<script src="js/rng.js"></script>
+<script src="js/baralho.js"></script>
+<script src="js/avaliador.js"></script>
+<script src="js/ranges.js"></script>
+<script src="js/equity.js"></script>
+<script src="js/auditoria.js"></script>
+<!-- motor e regras -->
+<script src="js/motor.js"></script>
+<script src="js/historico.js"></script>
+<script src="js/armazenamento.js"></script>
+<!-- inteligência -->
+<script src="js/analise.js"></script>
+<script src="js/icm.js"></script>
+<script src="js/torneio.js"></script>
+<script src="js/bots.js"></script>
+<script src="js/coach.js"></script>
+<script src="js/estatisticas.js"></script>
+<script src="js/treino.js"></script>
+<script src="js/relatorio.js"></script>
+<!-- interface -->
+<script src="js/ui-comum.js"></script>
+<script src="js/som.js"></script>
+<script src="js/partida.js"></script>
+<script src="js/ui-coach.js"></script>
+<script src="js/ui-mesa.js"></script>
+<script src="js/ui-lobby.js"></script>
+<script src="js/ui-paineis.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
