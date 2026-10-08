@@ -1,0 +1,225 @@
+/* ==========================================================================
+   OUTS · Treino Lab — celular.css
+   Ajustes para celular e telas pequenas.
+   - Em pé (até 640 px de largura): menu de abas embaixo, telas em uma coluna,
+     mesa vertical, barra de ações em linhas e coach abrindo por cima da mesa.
+   - Deitado (até 500 px de altura): mesa à esquerda, ações numa coluna à
+     direita e coach abrindo pela lateral.
+   A geometria da mesa (assentos compactos) é feita em ui-mesa.js
+   (classe .compacto no palco).
+   ========================================================================== */
+
+.nav .icone-nav { display: none; }
+@media (min-width: 641px) and (min-height: 501px) {
+  .so-celular { display: none !important; }
+}
+
+/* ===================================================== mesa compacta (JS) */
+.mesa-palco.compacto .assento:not(.heroi) .corpo { flex-direction: column; gap: 0; padding: 0; background: none; border: 0; box-shadow: none; border-radius: 0; }
+.mesa-palco.compacto .assento:not(.heroi) .avatar { position: relative; z-index: 1; margin-bottom: -7px; box-shadow: 0 3px 8px rgba(0,0,0,.5); }
+.mesa-palco.compacto .assento:not(.heroi) .info {
+  flex: none; width: 100%; text-align: center; padding: 7px 3px 3px; border-radius: 8px; border: 1px solid #2f3b4b;
+  background: linear-gradient(180deg, rgba(30,38,49,.97), rgba(15,20,27,.97)); box-shadow: 0 4px 10px rgba(0,0,0,.5);
+  transition: box-shadow 200ms, border-color 200ms;
+}
+.mesa-palco.compacto .assento .nome { font-size: 10.5px; justify-content: center; gap: 3px; }
+.mesa-palco.compacto .assento .bandeira { width: 12px; height: 8px; }
+.mesa-palco.compacto .assento .stack { font-size: 12px; }
+.mesa-palco.compacto .assento .linha2 { justify-content: center; gap: 3px; }
+.mesa-palco.compacto .assento .tag-perfil { font-size: 8px; padding: 0 3px; }
+.mesa-palco.compacto .assento.vez:not(.heroi) .corpo,
+.mesa-palco.compacto .assento.vencedor:not(.heroi) .corpo { box-shadow: none; }
+.mesa-palco.compacto .assento.vez:not(.heroi) .info { border-color: var(--ouro); box-shadow: 0 0 0 2px rgba(216,178,90,.55), 0 0 16px rgba(216,178,90,.35); }
+.mesa-palco.compacto .assento.vencedor:not(.heroi) .info { border-color: var(--ouro-2); box-shadow: 0 0 0 2px var(--ouro-2), 0 0 20px rgba(242,216,146,.6); }
+.mesa-palco.compacto .assento.vazio:not(.heroi) .info { border-style: dashed; }
+.mesa-palco.compacto .assento .marca-blind { top: -4px; right: 0; font-size: 8.5px; z-index: 2; }
+.mesa-palco.compacto .assento .allin { z-index: 2; font-size: 8.5px; }
+.mesa-palco.compacto .assento .tempo { left: 8px; right: 8px; bottom: -4px; height: 3px; }
+.mesa-palco.compacto .assento:not(.heroi) .cartas { left: calc(50% + var(--avatar-l) * .18); bottom: auto; top: -3px; transform: none; }
+.mesa-palco.compacto .assento.mostrou:not(.heroi) .cartas { left: 50%; top: calc(var(--avatar-l) * -.3); transform: translateX(-50%); z-index: 3; }
+.mesa-palco.compacto .assento.mostrou:not(.heroi) .cartas .carta { --l: calc(var(--carta-bot-l) * 1.45); }
+.mesa-palco.compacto .assento .balao { font-size: 11px; padding: 2px 7px; top: -8px; }
+.mesa-palco.compacto .assento .desc-mao { font-size: 10px; padding: 1px 6px; z-index: 3; }
+.mesa-palco.compacto .assento.heroi .corpo { padding: 3px 8px 3px 3px; gap: 6px; }
+.mesa-palco.compacto .assento.heroi .nome { font-size: 11px; }
+.mesa-palco.compacto .assento.heroi .stack { font-size: 14px; }
+.mesa-palco.compacto .assento.heroi .cartas { bottom: calc(100% - 8px); gap: 3px; }
+.mesa-palco.compacto .aposta { gap: 3px; }
+.mesa-palco.compacto .aposta .valor { font-size: 11px; padding: 0 6px; }
+.mesa-palco.compacto .pote { gap: 5px; min-height: 22px; }
+.mesa-palco.compacto .pote-principal { font-size: 13px; padding: 2px 10px 2px 5px; }
+.mesa-palco.compacto .pote-principal small { font-size: 9.5px; }
+.mesa-palco.compacto .side-pot { font-size: 11px; padding: 1px 7px; }
+.mesa-palco.compacto .pote-total { font-size: 11px; }
+.mesa-palco.compacto .botao-dealer { width: 20px; height: 20px; margin: -10px 0 0 -10px; font-size: 10.5px; line-height: 20px; }
+.mesa-palco.compacto .mesa-msgs { max-width: 64%; left: 6px; bottom: 6px; }
+.mesa-palco.compacto .mesa-msg { font-size: 11px; padding: 3px 8px; }
+.mesa-palco.compacto .faixa-vencedor { font-size: 13px; padding: 6px 12px; max-width: 92%; }
+/* HUD do torneio dentro da barra de cima (tela pequena) */
+.mesa-barra .hud-torneio {
+  position: static; transform: none; max-width: none; flex: 0 1 auto; min-width: 0; gap: 10px; padding: 0;
+  background: none; border: 0; border-radius: 0; backdrop-filter: none; font-size: 11px;
+}
+.mesa-barra .hud-torneio > * { flex: none; }
+.mesa-barra .btn { flex: none; white-space: nowrap; }
+.mesa-barra .hud-torneio .item span { font-size: 9px; letter-spacing: .05em; }
+.mesa-barra .hud-torneio .item b { font-size: 12px; }
+.mesa-barra .hud-torneio .relogio { font-size: 15px; min-width: 38px; }
+.mesa-barra .hud-torneio .estado { font-size: 9.5px; padding: 2px 6px; }
+.mesa-barra.com-hud .rotulo, .mesa-barra.com-hud .detalhe { display: none; }
+
+/* ================================================== celular (os dois jeitos) */
+@media (max-width: 640px), (max-height: 500px) {
+  .so-largo { display: none !important; }
+  .app { padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
+  .app .topo { height: 48px; padding: 0 10px; gap: 8px; }
+  .app .marca svg { width: 28px; height: 28px; }
+  .marca-nome { font-size: 16px; }
+  .marca-sub { font-size: 8.5px; letter-spacing: .24em; }
+  .saldo { margin-right: 0; }
+  .saldo small { display: none; }
+  .saldo b { font-size: 14px; }
+  .topo .btn { min-height: 32px; padding: 0 10px; }
+  .topo .btn-icone { width: 32px; padding: 0; }
+  .app.em-jogo .topo { display: none; }     /* na mesa, o menu ☰ tem Cola, som e opções */
+
+  .conteudo, .lobby { padding: 12px 12px 22px; }
+  .titulo-tela { flex-wrap: wrap; row-gap: 8px; }
+  .titulo-tela h1 { font-size: 19px; }
+
+  .modal-fundo { padding: 6px; }
+  .modal { max-height: calc(100vh - 12px); max-height: calc(100dvh - 12px); border-radius: 12px; }
+  .modal-cab { padding: 12px 14px; }
+  .modal-corpo { padding: 12px 14px; }
+  .modal-rodape { padding: 10px 14px; flex-wrap: wrap; }
+  .avisos { left: 8px; right: 8px; bottom: 70px; }
+  .aviso { max-width: none; }
+  .menu-mesa { display: grid; gap: 8px; }
+  .menu-mesa .btn { min-height: 46px; font-size: 15px; justify-content: flex-start; padding: 0 16px; }
+  .menu-mesa .btn-sair { color: #ff8a87; }
+
+  /* mesa */
+  .mesa-barra { height: 40px; gap: 6px; padding: 0 8px; }
+  .mesa-barra .detalhe { display: none; }
+  .mesa-barra .btn { min-height: 30px; padding: 0 12px; font-size: 13px; }
+  #mb-coach.novidade { border-color: var(--ok); color: var(--ok); }
+  #mb-coach.novidade::after { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  .btn-acao kbd { display: none; }
+  .btn-acao { min-width: 0; padding: 0 4px; }
+  .acoes-status .espaco { display: none; }
+  .acoes-status .btn { min-height: 28px; padding: 0 10px; font-size: 12px; flex: none; }
+  .feedback-nota { flex: none; font-size: 11px; padding: 2px 8px; }
+  #acoes-status-txt { flex: 1; min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+  .linha-slider input[type=range] { min-width: 0; }
+
+  /* coach: abre por cima da mesa, sem cobrir os botões de ação */
+  .painel-coach {
+    position: absolute; z-index: 40; left: 0; right: 0; top: var(--mesa-barra-h, 40px); bottom: var(--acoes-h, 170px);
+    width: auto; border-left: 0; border-top: 1px solid var(--borda-forte); box-shadow: 0 -14px 30px rgba(0,0,0,.6);
+    transition: opacity 180ms, transform 180ms, visibility 180ms;
+  }
+  .painel-coach.recolhido { width: auto; opacity: 0; visibility: hidden; transform: translateY(14px); pointer-events: none; }
+  .coach-cab .btn-icone { transform: rotate(90deg); }
+
+  /* replay */
+  .mini-mesa-replay { height: 300px; --carta-l: 30px; --meio-r: 42px; }
+  .mini-mesa-replay .oval-r { left: 15%; right: 15%; top: 15%; bottom: 15%; box-shadow: 0 0 0 7px #2b1e14, 0 0 0 8px #0d0906, 0 14px 30px rgba(0,0,0,.6), inset 0 0 24px rgba(0,0,0,.5); }
+  .lugar-r { width: 84px; font-size: 10px; }
+  .lugar-r .cs { --carta-l: 18px; }
+  .lugar-r .caixa { padding: 2px 4px; border-radius: 8px; }
+  .lugar-r .ult, .lugar-r .ap { font-size: 9.5px; }
+  .controles-replay input[type=range] { min-width: 0; flex-basis: 100%; }
+  .decisao-rel { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+}
+
+/* ===================================================== celular em pé */
+@media (max-width: 640px) {
+  /* abas embaixo, como num app */
+  .nav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; margin: 0; gap: 2px;
+    display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+    background: rgba(15, 20, 27, .97); border-top: 1px solid var(--borda); backdrop-filter: blur(6px);
+  }
+  .nav button { display: grid; justify-items: center; gap: 2px; padding: 5px 2px; font-size: 10.5px; line-height: 1.15; border-radius: 8px; min-width: 0; }
+  .nav button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav .icone-nav { display: block; width: 20px; height: 20px; }
+  .icone-nav svg { width: 20px; height: 20px; display: block; }
+  .app:not(.em-jogo) .app-corpo { margin-bottom: calc(56px + env(safe-area-inset-bottom)); }
+  .mesa-barra.com-hud .rot-menu { display: none; }
+  .mesa-barra.com-hud .btn { padding: 0 10px; }
+  .mesa-barra .hud-torneio { gap: 8px; }
+
+  /* telas em uma coluna */
+  .lobby-grade, .treino-layout, .historico-layout, .grade-2, .grade-3, .cola { grid-template-columns: minmax(0, 1fr); }
+  .lobby-faixa { grid-template-columns: minmax(0, 1fr); padding: 16px; gap: 12px; }
+  .lobby-faixa .logo-grande { display: none; }
+  .lobby-faixa h1 { font-size: 21px; }
+  .lobby-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .kpi { min-width: 0; padding: 8px 10px; }
+  .kpi b { font-size: 15px; }
+  .lobby-cab { gap: 8px; }
+  .abas button { padding: 8px 13px; }
+  .niveis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .nivel p { min-height: 0; }
+  .limites { grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 8px; }
+  .limite { padding: 12px; }
+  .limite .nome { font-size: 19px; }
+  .atalhos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lobby-config { padding: 14px; }
+  .tipos-treino { grid-template-columns: minmax(0, 1fr); }
+  .cartao-pergunta { min-height: 0; }
+  .kpis-grade { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .barra-rua { grid-template-columns: 58px minmax(0, 1fr) 50px; gap: 8px; }
+  .historico-layout { height: auto; }
+  .lista-maos { max-height: 46vh; min-height: 140px; }
+  .quiz .pergunta { font-size: 16px; }
+  .quiz .resposta-linha .entrada { width: 120px; }
+  .quiz .opcoes-quiz .btn { min-width: 0; flex: 1 1 40%; }
+  .tabela th, .tabela td { padding: 6px 6px; }
+
+  /* mesa em pé: ações em linhas, botões grandes embaixo */
+  .barra-acoes { height: auto; grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 6px 8px calc(8px + env(safe-area-inset-bottom)); }
+  .acoes-esquerda { gap: 5px; }
+  .acoes-status { font-size: 12px; gap: 6px; min-height: 31px; line-height: 1.3; }
+  .tamanhos { flex-wrap: nowrap; gap: 4px; min-height: 30px; }     /* altura fixa: a mesa não pula */
+  .tamanhos button { flex: 1; min-width: 0; padding: 7px 0; font-size: 12px; }
+  .linha-slider { gap: 6px; }
+  .linha-slider .entrada { width: 80px; height: 32px; }
+  .acoes-botoes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .btn-acao { height: 50px; font-size: 15px; }
+  .btn-acao small { font-size: 12.5px; }
+}
+
+/* ===================================================== celular deitado */
+@media (max-height: 500px) and (min-width: 641px) {
+  .marca > span:last-child { display: none; }
+  .nav { margin-left: 6px; }
+  .nav button { padding: 6px 9px; font-size: 12.5px; }
+
+  /* mesa à esquerda, ações numa coluna à direita */
+  .tela-mesa .mesa-coluna { display: grid; grid-template-columns: minmax(0, 1fr) 196px; grid-template-rows: auto minmax(0, 1fr); }
+  .mesa-barra { grid-column: 1 / -1; height: 34px; }
+  .mesa-barra .btn { min-height: 26px; }
+  .mesa-palco { grid-column: 1; grid-row: 2; }
+  .barra-acoes {
+    grid-column: 2; grid-row: 2; height: auto; min-height: 0; overflow: auto; grid-template-columns: minmax(0, 1fr); align-content: end;
+    gap: 6px; padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); border-top: 0; border-left: 1px solid var(--borda);
+  }
+  .acoes-esquerda { gap: 5px; }
+  .acoes-status { font-size: 11px; line-height: 1.25; flex-wrap: wrap; min-height: 0; gap: 4px; }
+  #acoes-status-txt { flex-basis: 100%; }
+  .tamanhos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; min-height: 54px; align-content: start; }
+  .tamanhos button { padding: 5px 0; font-size: 11.5px; }
+  .linha-slider { gap: 4px; }
+  .linha-slider .entrada { width: 64px; height: 28px; font-size: 13px; padding: 0 6px; }
+  .acoes-botoes { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+  .btn-raise { grid-column: 1 / -1; }
+  .btn-acao { height: 42px; font-size: 14px; }
+  .btn-acao small { font-size: 12px; }
+
+  .painel-coach { left: auto; right: var(--acoes-l, 196px); bottom: 0; width: min(380px, calc(100% - var(--acoes-l, 196px))); border-left: 1px solid var(--borda-forte); border-top: 0; box-shadow: -14px 0 30px rgba(0,0,0,.6); }
+  .painel-coach.recolhido { width: min(380px, calc(100% - var(--acoes-l, 196px))); transform: translateX(14px); }
+  .coach-cab .btn-icone { transform: none; }
+  .modal { max-height: calc(100vh - 12px); max-height: calc(100dvh - 12px); }
+}

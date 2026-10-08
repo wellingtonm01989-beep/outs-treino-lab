@@ -21,10 +21,13 @@
   function fmtBB(v, bb) { return F.bb(v, bb); }
 
   // ------------------------------------------------------------ montagem
+  // No celular o painel abre por cima da mesa: começa fechado e não muda a preferência do computador.
+  const celular = () => !!(window.matchMedia && matchMedia('(max-width: 640px), (max-height: 500px)').matches);
+
   function montar(container, opts = {}) {
     aoMudarModo = opts.aoMudarModo;
     const desligado = P.Config.get('modoCoach') === 'desligado';
-    raiz = el('aside', { class: 'painel-coach' + (P.Config.get('coachAberto') && !desligado ? '' : ' recolhido'), id: 'painel-coach' });
+    raiz = el('aside', { class: 'painel-coach' + (P.Config.get('coachAberto') && !desligado && !celular() ? '' : ' recolhido'), id: 'painel-coach' });
     const cab = el('div', { class: 'coach-cab' },
       el('h2', { html: '<i>♠</i> Coach' }),
       el('button', { class: 'btn btn-icone', title: 'Recolher painel', html: '&rsaquo;', onclick: () => alternar(false) }));
@@ -59,7 +62,7 @@
     atualizarModos();
     if (!raiz) return;
     if (modo === 'desligado') { raiz.classList.add('recolhido'); mensagemDesligado(); }
-    else if (raiz.classList.contains('recolhido') && P.Config.get('coachAberto')) raiz.classList.remove('recolhido');
+    else if (raiz.classList.contains('recolhido') && P.Config.get('coachAberto') && !celular()) raiz.classList.remove('recolhido');
     window.dispatchEvent(new Event('resize'));
     if (aoMudarModo) aoMudarModo(modo);
   }
@@ -73,7 +76,8 @@
     if (!raiz) return;
     const vai = abrir === undefined ? raiz.classList.contains('recolhido') : abrir;
     raiz.classList.toggle('recolhido', !vai);
-    P.Config.set('coachAberto', vai);
+    if (vai) { const b = document.getElementById('mb-coach'); if (b) b.classList.remove('novidade'); }
+    if (!celular()) P.Config.set('coachAberto', vai);
     window.dispatchEvent(new Event('resize'));
   }
 

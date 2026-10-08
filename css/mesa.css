@@ -82,6 +82,7 @@
 .assento.vencedor .corpo { border-color: var(--ouro-2); box-shadow: 0 0 0 3px var(--ouro-2), 0 0 30px rgba(242,216,146,.6); }
 .assento.vazio .corpo { opacity: .35; border-style: dashed; }
 .assento.heroi .corpo { border-color: rgba(216,178,90,.45); }
+.assento.heroi { width: var(--assento-heroi-l, var(--assento-l, 150px)); }
 .assento .marca-blind { position: absolute; top: -7px; right: 10px; font-size: 9.5px; font-weight: 800; padding: 1px 5px; border-radius: 4px; background: #2b3a4d; color: var(--texto-2); }
 .assento .allin { position: absolute; top: -8px; left: 50%; transform: translateX(-50%); font-size: 9.5px; font-weight: 800; padding: 1px 7px; border-radius: 4px; background: var(--erro); color: #fff; letter-spacing: .06em; }
 .assento .balao {
@@ -157,7 +158,7 @@
 
 /* barra de ações */
 .barra-acoes {
-  flex: none; height: var(--barra-acoes-h, 104px); display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: center;
+  flex: none; min-height: var(--barra-acoes-h, 104px); display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: center;
   padding: 10px 14px; border-top: 1px solid var(--borda); background: linear-gradient(180deg, #121922, #0c1117);
 }
 .acoes-esquerda { display: grid; gap: 6px; min-width: 0; }
@@ -169,7 +170,7 @@
 .nota-imprecisa { background: rgba(245,165,36,.16); color: #f5b54a; }
 .nota-erro { background: rgba(239,83,80,.16); color: #ff7b78; }
 .nota-grave { background: #8f1d1b; color: #fff; }
-.tamanhos { display: flex; gap: 4px; flex-wrap: wrap; }
+.tamanhos { display: flex; gap: 4px; flex-wrap: wrap; min-height: 27px; }   /* altura fixa: a mesa não pula entre as vezes */
 .tamanhos button { border: 1px solid var(--borda-forte); background: var(--superficie-2); color: var(--texto-2); font: 700 12px var(--fonte); padding: 5px 9px; border-radius: 6px; cursor: pointer; }
 .tamanhos button:hover:not(:disabled) { color: var(--texto); border-color: var(--texto-3); }
 .tamanhos button.recomendado { border-color: var(--ok); color: var(--ok); }
@@ -196,6 +197,8 @@
 .btn-acao.sugerido::after { content: 'coach'; position: absolute; bottom: -9px; left: 50%; transform: translateX(-50%); font-size: 9px; font-weight: 800; letter-spacing: .08em; background: var(--ok); color: #04130a; padding: 0 6px; border-radius: 4px; }
 
 @media (max-height: 700px) {
-  .barra-acoes { --barra-acoes-h: 92px; }
+  .barra-acoes { --barra-acoes-h: 92px; padding: 6px 14px; }
+  .acoes-esquerda { gap: 4px; }
+  .linha-slider .entrada { height: 28px; }
   .btn-acao { height: 50px; min-width: 112px; }
 }

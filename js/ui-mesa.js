@@ -59,11 +59,12 @@
       el('span', { class: 'rotulo', id: 'mb-rotulo' }),
       el('span', { class: 'detalhe', id: 'mb-detalhe' }),
       el('span', { class: 'espaco' }),
-      el('button', { class: 'btn', text: 'Histórico', title: 'Mãos jogadas e replay', onclick: () => overlay('historico') }),
-      el('button', { class: 'btn', text: 'Estatísticas', onclick: () => overlay('estatisticas') }),
-      el('button', { class: 'btn', text: 'Opções', onclick: () => overlay('config') }),
+      el('button', { class: 'btn so-largo', text: 'Histórico', title: 'Mãos jogadas e replay', onclick: () => overlay('historico') }),
+      el('button', { class: 'btn so-largo', text: 'Estatísticas', onclick: () => overlay('estatisticas') }),
+      el('button', { class: 'btn so-largo', text: 'Opções', onclick: () => overlay('config') }),
       el('button', { class: 'btn', id: 'mb-coach', text: 'Coach', title: 'Mostrar/recolher o coach', onclick: () => P.UICoach.alternar() }),
-      el('button', { class: 'btn', text: 'Sair para o lobby', onclick: sair }));
+      el('button', { class: 'btn so-largo', text: 'Sair para o lobby', onclick: sair }),
+      el('button', { class: 'btn so-celular', id: 'mb-menu', title: 'Menu', html: '&#9776;<span class="rot-menu"> Menu</span>', onclick: abrirMenu }));
 
     palco = el('div', { class: 'mesa-palco' });
     oval = el('div', { class: 'mesa-oval' },
@@ -123,11 +124,142 @@
   }
 
   // ================================================================ geometria
+  const limitar = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  // Celular em pé: ângulos dos lugares em volta da mesa vertical (90° = você, embaixo;
+  // depois sentido horário: esquerda, topo, direita). Evitam a faixa do board.
+  const ANGULOS_VERTICAL = {
+    2: [90, 270], 3: [90, 215, 325], 4: [90, 165, 270, 15], 5: [90, 160, 230, 310, 20],
+    6: [90, 152, 210, 270, 330, 28], 7: [90, 148, 195, 245, 295, 345, 32],
+    8: [90, 145, 188, 232, 270, 308, 352, 35], 9: [90, 140, 180, 214, 254, 286, 326, 0, 40]
+  };
+
   function layout() {
     if (!palco) return;
     const W = palco.clientWidth, H = palco.clientHeight;
     if (!W || !H) return;
+    // alturas das barras: o painel do coach no celular abre entre elas
+    tela.style.setProperty('--mesa-barra-h', barraInfo.offsetHeight + 'px');
+    tela.style.setProperty('--acoes-h', barra.raiz.offsetHeight + 'px');
+    tela.style.setProperty('--acoes-l', barra.raiz.offsetWidth + 'px');
+    const compacto = W < 640 || H < 400;
+    palco.classList.toggle('compacto', compacto);
+    if (hud) {   // torneio: na tela pequena o HUD vai para a barra de cima e não ocupa a mesa
+      const alvo = compacto ? barraInfo : palco;
+      if (hud.parentNode !== alvo) {
+        if (compacto) barraInfo.insertBefore(hud, barraInfo.querySelector('.espaco')); else palco.appendChild(hud);
+        if (partida && partida.ativo()) renderHud(partida.info());
+      }
+      barraInfo.classList.toggle('com-hud', compacto);
+    }
+    if (compacto) layoutCompacto(W, H); else layoutNormal(W, H);
+    if (est) {
+      dealer.style.transition = 'none';          // ao redimensionar, sem animar
+      posicionarDealer(est.botao);
+      void dealer.offsetWidth;
+      dealer.style.transition = '';
+    }
+  }
+
+  /** Celular e janelas pequenas: assentos compactos (avatar em cima, nome e fichas embaixo). */
+  function layoutCompacto(W, H) {
+    const topo = 0;                                  // o HUD do torneio fica na barra de cima
+    const vertical = H > W * 1.05;
+    const base = Math.min(W, H * 1.25);
+    const assentoL = limitar(base * 0.21, 64, 86);
+    const avatarL = limitar(assentoL * 0.5, 28, 42);
+    const assentoH = avatarL + 29;                   // avatar + caixa de nome e fichas
+    const heroiL = limitar(W * 0.42, 124, 168);
+    const heroiH = limitar(avatarL + 10, 40, 52);
+    const cartaHeroiL = vertical ? limitar(W * 0.135, 40, 62) : limitar((H - topo) * 0.15, 30, 50);
+    const cx = W / 2;
+    const yTopo = topo + 4 + assentoH / 2;
+    const yHeroi = H - 4 - heroiH / 2;
+    const cy = (yTopo + yHeroi) / 2, ry = (yHeroi - yTopo) / 2;
+    const rx = vertical ? W / 2 - assentoL / 2 - 4 : Math.min(W / 2 - assentoL / 2 - 6, ry * 2.8);
+
+    // mesa desenhada: o trilho passa pelos assentos
+    const ow = 2 * rx * (vertical ? 1 : 0.94), oh = 2 * ry * (vertical ? 0.96 : 0.9);
+    const ovalTopo = cy - oh / 2;
+    Object.assign(oval.style, { left: (cx - ow / 2) + 'px', top: ovalTopo + 'px', width: ow + 'px', height: oh + 'px', borderRadius: vertical ? (ow / 2) + 'px' : '' });
+
+    const angulos = vertical ? ANGULOS_VERTICAL[lugares] : lugares === 9 ? [90, 128, 166, 212, 254, 286, 328, 14, 52] : null;
+    const pos = [];
+    for (let s = 0; s < lugares; s++) {
+      const t = (angulos ? angulos[s] : 90 + s * 360 / lugares) * Math.PI / 180;
+      let x = cx + rx * Math.cos(t), y = cy + ry * Math.sin(t);
+      if (s === HEROI) { x = cx; y = yHeroi; } else {
+        x = limitar(x, assentoL / 2 + 3, W - assentoL / 2 - 3);
+        y = limitar(y, topo + assentoH / 2 + 2, H - assentoH / 2 - 2);
+        // não encostar na sua caixa: em pé sobe um pouco, deitado vai para o lado
+        const folgaX = (heroiL + assentoL) / 2 + 3;
+        if (Math.abs(x - cx) < folgaX && y + assentoH / 2 > yHeroi - heroiH / 2) {
+          if (vertical) y = yHeroi - heroiH / 2 - assentoH / 2 - 2;
+          else x = cx + Math.sign(x - cx || -1) * folgaX;
+        }
+      }
+      pos.push({ x, y });
+    }
+
+    // board: largura entre os assentos laterais; altura na faixa livre do meio
+    const larguraMax = vertical ? W - 2 * (assentoL + 8) : ow * 0.6;
+    let cartaL = larguraMax / 5.4;
+    const bw = () => cartaL * 5.4;
+    const cartasHeroiTopo = yHeroi - heroiH / 2 - cartaHeroiL * 1.4 + 8;
+    // faixa livre: abaixo dos assentos de cima e acima dos de baixo que ficam na frente do board
+    let livreTopo = topo + 4, livreBase = cartasHeroiTopo - 6;
+    pos.forEach((p, s) => {
+      if (s === HEROI || Math.abs(p.x - cx) >= bw() / 2 + assentoL / 2) return;
+      if (p.y < cy) livreTopo = Math.max(livreTopo, p.y + assentoH / 2);
+      else livreBase = Math.min(livreBase, p.y - assentoH / 2);
+    });
+    const faixa = livreBase - livreTopo;
+    cartaL = limitar(Math.min(cartaL, (faixa - 32) / 1.56, 54), 22, 54);
+    const centroH = 26 + cartaL * 0.16 + cartaL * 1.4;
+    const centroY = livreTopo + Math.max(centroH / 2, faixa / 2);
+    const centro = oval.querySelector('.mesa-centro');
+    centro.style.top = (centroY - ovalTopo) + 'px';
+    const ret = { l: cx - bw() / 2 - 4, r: cx + bw() / 2 + 4, t: centroY - centroH / 2, b: centroY + centroH / 2 };
+
+    pos.forEach((p, s) => {
+      const dxv = cx - p.x, dyv = centroY - p.y, len = Math.hypot(dxv, dyv) || 1;
+      if (s === HEROI) {
+        p.bx = cx; p.by = cartasHeroiTopo - 14;
+        if (p.by - 10 < ret.b) { p.bx = cx - heroiL / 2 - 26; p.by = yHeroi - heroiH / 2 - 4; }
+        p.dx = cx + heroiL / 2 + 15; p.dy = yHeroi - 4;
+        return;
+      }
+      // aposta logo à frente do assento, na direção do centro
+      const passo = Math.min(len * 0.55, Math.abs(dxv) > Math.abs(dyv) ? assentoL / 2 + 22 : assentoH / 2 + 22);
+      p.bx = p.x + dxv / len * passo; p.by = p.y + dyv / len * passo;
+      if (p.bx > ret.l - 34 && p.bx < ret.r + 34 && p.by > ret.t - 10 && p.by < ret.b + 10) {   // ficha + valor ≈ 60 px
+        p.by = p.by < centroY ? ret.t - 12 : ret.b + 12;
+      }
+      // botão do dealer: à esquerda do avatar (as cartas ficam à direita)
+      p.dx = p.x - avatarL / 2 - 9;
+      p.dy = p.y - assentoH / 2 + avatarL * 0.62;
+    });
+    pos.forEach((p, s) => {
+      assentos[s].raiz.style.left = p.x + 'px';
+      assentos[s].raiz.style.top = p.y + 'px';
+      assentos[s].aposta.style.left = p.bx + 'px';
+      assentos[s].aposta.style.top = p.by + 'px';
+    });
+    palco.style.setProperty('--carta-l', cartaL + 'px');
+    palco.style.setProperty('--carta-heroi-l', cartaHeroiL + 'px');
+    palco.style.setProperty('--carta-bot-l', limitar(avatarL * 0.55, 16, 24) + 'px');
+    palco.style.setProperty('--assento-l', assentoL + 'px');
+    palco.style.setProperty('--assento-heroi-l', heroiL + 'px');
+    palco.style.setProperty('--avatar-l', avatarL + 'px');
+    palco.style.setProperty('--borda-l', limitar(Math.min(ow, oh) * 0.035, 8, 14) + 'px');
+    geo = { W, H, cx, cy: centroY, ow, oh, cartaL, pos, origem: { x: cx, y: centroY - cartaL } };
+  }
+
+  function layoutNormal(W, H) {
     const topo = hud ? 30 : 0;                       // espaço da faixa do torneio
+    oval.style.borderRadius = '';
+    oval.querySelector('.mesa-centro').style.top = '';
+    palco.style.removeProperty('--assento-heroi-l');
     let ow = Math.min(W * 0.74, (H - 200 - topo) * 2.15);
     ow = Math.max(300, ow);
     const oh = ow / 2.15;
@@ -161,12 +293,6 @@
       assentos[s].aposta.style.top = by + 'px';
     }
     geo = { W, H, cx, cy, ow, oh, cartaL, pos, origem: { x: cx, y: cy - oh * 0.3 } };
-    if (est) {
-      dealer.style.transition = 'none';          // ao redimensionar, sem animar
-      posicionarDealer(est.botao);
-      void dealer.offsetWidth;
-      dealer.style.transition = '';
-    }
   }
 
   function posicionarDealer(s) {
@@ -628,7 +754,7 @@
   function montarBarraAcoes() {
     barra.status = el('span', { id: 'acoes-status-txt', text: 'Preparando a mesa…' });
     barra.nota = el('span');
-    barra.dica = el('button', { class: 'btn oculto', text: 'Pedir dica (H)', onclick: () => { if (pendente) P.UICoach.pedirDica(pendente.analise); } });
+    barra.dica = el('button', { class: 'btn oculto', html: 'Pedir dica<span class="so-largo"> (H)</span>', onclick: () => { if (pendente) P.UICoach.pedirDica(pendente.analise); } });
     barra.tamanhos = el('div', { class: 'tamanhos' });
     barra.slider = el('input', { type: 'range' });
     barra.valor = el('input', { class: 'entrada', type: 'text', inputmode: 'decimal' });
@@ -645,6 +771,7 @@
         barra.tamanhos,
         el('div', { class: 'linha-slider' }, barra.slider, barra.valor, barra.unidade)),
       el('div', { class: 'acoes-botoes' }, barra.fold, barra.call, barra.raise));
+    barra.raiz = raiz;
     atualizarUnidade();
     bloquear(true);
     return raiz;
@@ -763,6 +890,9 @@
     limparSugestao();
     const r = an && an.recomendacao;
     if (!r) return;
+    // painel fechado (celular): o botão "Coach" avisa que há dica nova
+    const painel = $('#painel-coach');
+    if (painel && painel.classList.contains('recolhido')) $('#mb-coach').classList.add('novidade');
     const btn = r.acao === 'fold' ? barra.fold : (r.acao === 'check' || r.acao === 'call') ? barra.call : barra.raise;
     if (btn && !btn.disabled) btn.classList.add('sugerido');
     if ((r.acao === 'raise' || r.acao === 'bet' || r.acao === 'allin') && acoesAtuais && acoesAtuais.podeApostar) {
@@ -772,6 +902,8 @@
   }
   function limparSugestao() {
     [barra.fold, barra.call, barra.raise].forEach(b => b && b.classList.remove('sugerido'));
+    const bc = $('#mb-coach');
+    if (bc) bc.classList.remove('novidade');
     if (barra.tamanhos) Array.prototype.forEach.call(barra.tamanhos.children, b => b.classList.remove('recomendado'));
   }
 
@@ -815,14 +947,19 @@
     const b = info.blinds, p = info.proximo;
     const estado = info.itm ? '<span class="estado itm">NA PREMIAÇÃO</span>' : info.bolha ? '<span class="estado bolha">BOLHA</span>' : '';
     const premios = info.premios.slice(0, 3).map((v, i) => `${i + 1}º ${F.dinheiro(v)}`).join(' · ');
-    const item = (rot, val) => `<div class="item"><span>${rot}</span><b>${val}</b></div>`;
+    const item = (rot, val, extra) => `<div class="item${extra ? ' extra' : ''}"><span>${rot}</span><b>${val}</b></div>`;
     hud.title = 'Premiação: ' + info.premios.map((v, i) => `${i + 1}º ${F.dinheiro(v)}`).join(', ');
+    if (hud.parentNode === barraInfo) {   // versão curta, na barra de cima (celular)
+      hud.innerHTML = item(`Nível ${info.nivel}`, `${F.fichas(b.sb)}/${F.fichas(b.bb)}`) + `<div class="relogio">${tempo}</div>` +
+        item('Jogadores', `${info.restantes}/${info.field}`) + item('Posição', `${info.posicao}º`) + estado;
+      return;
+    }
     hud.innerHTML =
       item(`Nível ${info.nivel}`, `${F.fichas(b.sb)}/${F.fichas(b.bb)}${b.ante ? ` · ${b.anteBB ? 'BB ante' : 'ante'} ${F.fichas(b.ante)}` : ''}`) +
       `<div class="item"><span>próximo ${F.fichas(p.sb)}/${F.fichas(p.bb)}</span><div class="relogio">${tempo}</div></div>` +
-      `<div class="barra-nivel"><i style="width:${Math.min(100, prog * 100)}%"></i></div><span class="sep"></span>` +
-      item('Jogadores', `${info.restantes}/${info.field}`) + item('Stack médio', F.fichas(info.stackMedio)) +
-      item('Sua posição', `${info.posicao}º`) + item(`Pagos: ${info.pagos}`, premios) + estado;
+      `<div class="barra-nivel extra"><i style="width:${Math.min(100, prog * 100)}%"></i></div><span class="sep"></span>` +
+      item('Jogadores', `${info.restantes}/${info.field}`) + item('Stack médio', F.fichas(info.stackMedio), true) +
+      item('Sua posição', `${info.posicao}º`) + item(`Pagos: ${info.pagos}`, premios, true) + estado;
   }
 
   function iniciarHud() {
@@ -907,8 +1044,41 @@
     pausar(true);
     try {
       if (qual === 'config') await P.UIPaineis.abrirConfig();
+      else if (qual === 'cola') await P.UIPaineis.abrirCola();
       else await P.UIPaineis.abrirOverlay(qual);
     } finally { pausar(false); }
+  }
+
+  /** Menu da mesa no celular (os botões da barra não cabem na tela). */
+  async function abrirMenu() {
+    const instalado = window.matchMedia && matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches;
+    const itens = [
+      ['historico', 'Histórico de mãos'], ['estatisticas', 'Estatísticas'], ['config', 'Opções'], ['cola', 'Cola de consulta'],
+      ['som', P.Config.get('som') ? 'Desligar o som' : 'Ligar o som'],
+      document.fullscreenEnabled && !instalado ? ['telaCheia', document.fullscreenElement ? 'Sair da tela cheia' : 'Tela cheia'] : null,
+      ['sair', 'Sair para o lobby']
+    ].filter(Boolean);
+    pausar(true);
+    let escolha;
+    try {
+      escolha = await P.UI.modal({
+        titulo: 'Menu', conteudo: el('div', { class: 'menu-mesa' }),
+        aoAbrir: (corpo, fechar) => itens.forEach(([id, txt]) => corpo.firstChild.appendChild(
+          el('button', { class: 'btn' + (id === 'sair' ? ' btn-sair' : ''), text: txt, onclick: () => fechar(id) })))
+      });
+    } finally { pausar(false); }
+    if (!escolha) return;
+    if (escolha === 'sair') sair();
+    else if (escolha === 'som') P.Config.set('som', !P.Config.get('som'));
+    else if (escolha === 'telaCheia') alternarTelaCheia();
+    else overlay(escolha);
+  }
+
+  function alternarTelaCheia() {
+    try {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+    } catch (e) { /* navegador sem tela cheia */ }
   }
 
   // mudanças de configuração com a mesa aberta

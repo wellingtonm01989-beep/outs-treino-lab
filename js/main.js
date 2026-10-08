@@ -80,7 +80,8 @@
     // atalhos de teste/demonstração pela URL
     if (parametro('roteiro')) {
       irPara('lobby');
-      document.body.appendChild(Object.assign(document.createElement('script'), { src: 'testes/roteiro-ui.js' }));
+      const arquivo = parametro('roteiro') === 'layout' ? 'testes/layout-celular.js' : 'testes/roteiro-ui.js';
+      document.body.appendChild(Object.assign(document.createElement('script'), { src: arquivo }));
       return;
     }
     const demo = parametro('demo');

@@ -299,7 +299,7 @@
         const t = (90 + s * 360 / lugaresT) * Math.PI / 180;
         const x = 50 + 41 * Math.cos(t), y = 50 + 39 * Math.sin(t);
         const ver = s === reg.heroi || e.mostrou || mostrarTodas;
-        const lugar = el('div', { class: 'lugar-r' + (e.foldou ? ' foldou' : '') + (p.ativo === s ? ' ativo' : '') + (s === reg.heroi ? ' heroi' : ''), style: { left: x + '%', top: y + '%' } },
+        const lugar = el('div', { class: 'lugar-r' + (e.foldou ? ' foldou' : '') + (p.ativo === s ? ' ativo' : '') + (s === reg.heroi ? ' heroi' : ''), style: { left: `clamp(var(--meio-r, 64px), ${x}%, calc(100% - var(--meio-r, 64px)))`, top: y + '%' } },
           el('div', { class: 'cs' }, e.cartas.map(c => P.UI.carta(ver ? c : null, { fechada: !ver }))),
           el('div', { class: 'caixa' },
             el('div', { class: 'n', text: `${e.nome} · ${e.posicao}` }),

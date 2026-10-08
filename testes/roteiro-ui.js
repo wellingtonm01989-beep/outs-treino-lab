@@ -29,6 +29,27 @@
   }
   function tecla(k) { document.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true })); }
 
+  // responde perguntas de quiz que ficaram abertas (ex.: a vez chegou antes da troca de modo)
+  async function responderQuizes() {
+    while ($('.modal-fundo')) {
+      const opc = $('.modal .opcoes-quiz button');
+      const inp = $('.modal .quiz input');
+      if (opc && !opc.disabled) clicar(opc);
+      else if (inp && !inp.disabled) { inp.value = '25'; clicar(botaoComTexto('Responder', '.modal')); }
+      await dormir(150);
+      const prox = botaoComTexto('Próxima', '.modal') || botaoComTexto('Ir para a mesa', '.modal');
+      if (prox) clicar(prox);
+      await dormir(150);
+    }
+  }
+  async function vezDoHeroi(rotulo) {
+    const t0 = Date.now();
+    while ($('.btn-fold').disabled || $('.modal-fundo')) {
+      if (Date.now() - t0 > 120000) throw new Error('tempo esgotado esperando: ' + rotulo);
+      if ($('.modal-fundo')) await responderQuizes(); else await dormir(100);
+    }
+  }
+
   async function roteiro() {
     P.Config.set('velocidade', 'turbo');
     P.Config.set('som', false);
@@ -74,20 +95,7 @@
     let decisoes = 0;
     while (decisoes < 6) {
       await ate(() => $('.modal-fundo') || (!$('.btn-fold').disabled), 120000, 'vez do herói');
-      if ($('.modal-fundo')) {
-        // responde o quiz
-        while ($('.modal-fundo')) {
-          const opc = $('.modal .opcoes-quiz button');
-          const inp = $('.modal .quiz input');
-          if (opc && !opc.disabled) clicar(opc);
-          else if (inp && !inp.disabled) { inp.value = '25'; clicar(botaoComTexto('Responder', '.modal')); }
-          await dormir(150);
-          const prox = botaoComTexto('Próxima', '.modal') || botaoComTexto('Ir para a mesa', '.modal');
-          if (prox) clicar(prox);
-          await dormir(150);
-        }
-        continue;
-      }
+      if ($('.modal-fundo')) { await responderQuizes(); continue; }
       // alterna entre teclado e cliques
       if (decisoes % 3 === 0) tecla('c');
       else if (decisoes % 3 === 1) { tecla('r'); await dormir(50); tecla('Enter'); if (!$('.btn-fold').disabled) clicar($('.btn-call')); }
@@ -100,7 +108,7 @@
 
     // 5) modo "sob pedido": pedir dica
     P.Config.set('modoCoach', 'pedido');
-    await ate(() => !$('.btn-fold').disabled && !$('.modal-fundo'), 120000, 'vez do herói (pedido)');
+    await vezDoHeroi('vez do herói (pedido)');
     const dica = botaoComTexto('Pedir dica');
     if (dica) clicar(dica);
     await ate(() => $('.recomendacao'), 30000, 'dica');
@@ -123,7 +131,7 @@
     P.Config.set('modoCoach', 'desligado');
     if (!$('#painel-coach').classList.contains('recolhido')) throw new Error('painel do coach deveria recolher');
     for (let k = 0; k < 2; k++) {
-      await ate(() => !$('.btn-fold').disabled && !$('.modal-fundo'), 120000, 'vez do herói (desligado)');
+      await vezDoHeroi('vez do herói (desligado)');
       if ($('.btn-acao.sugerido')) throw new Error('não deveria sugerir ação com o coach desligado');
       clicar($('.btn-call'));
       await dormir(300);
@@ -170,6 +178,8 @@
     passo('telas ok');
   }
 
-  roteiro().then(() => raiz.setAttribute('data-roteiro', 'ok'))
-    .catch(e => { raiz.setAttribute('data-roteiro', 'falha'); passo('ERRO: ' + e.message); });
+  // dentro do simulador de celular (testes/celular.html) o resultado vai também para a página de fora
+  const avisarFora = () => { if (window.parent !== window) window.parent.postMessage({ tipo: 'layout', estado: raiz.getAttribute('data-roteiro'), log: log.join(' | ') }, '*'); };
+  roteiro().then(() => { raiz.setAttribute('data-roteiro', 'ok'); avisarFora(); })
+    .catch(e => { raiz.setAttribute('data-roteiro', 'falha'); passo('ERRO: ' + e.message); avisarFora(); });
 })(window.Poker = window.Poker || {});

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Simulador de celular · OUTS Treino Lab</title>
+<style>
+  body { margin: 0; padding: 10px; background: #2b2f36; font: 12px "Segoe UI", sans-serif; color: #ddd; display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+  figure { margin: 0; display: grid; gap: 4px; }
+  iframe { border: 0; background: #000; display: block; box-shadow: 0 0 0 4px #111, 0 6px 20px rgba(0,0,0,.5); border-radius: 6px; }
+</style>
+</head>
+<body>
+<script>
+/* Abre o app dentro de "telas de celular" (iframes do tamanho exato) para ver
+   e testar o layout. Parâmetros:
+     ?telas=360x640,800x280      tamanhos (largura x altura)
+     &url=index.html?demo=cash   página carregada em cada tela (várias: separe com |)
+   O roteiro de layout (index.html?roteiro=layout) avisa o resultado por
+   postMessage; ele é gravado no <html> desta página (data-tela-N). */
+(function () {
+  function param(n) { var m = new RegExp('[?&]' + n + '=([^&]*)').exec(location.search); return m ? decodeURIComponent(m[1]) : null; }
+  var telas = (param('telas') || '360x640').split(',');
+  var urls = (param('url') || 'index.html').split('|');    // uma página por tela, ou a mesma em todas
+  var quadros = [];
+  telas.forEach(function (t, i) {
+    var url = urls[Math.min(i, urls.length - 1)];
+    var p = t.split('x');
+    var fig = document.createElement('figure');
+    var cap = document.createElement('figcaption');
+    cap.textContent = t;
+    var f = document.createElement('iframe');
+    f.width = p[0]; f.height = p[1];
+    f.src = '../' + url;
+    fig.appendChild(cap); fig.appendChild(f);
+    document.body.appendChild(fig);
+    quadros.push(f);
+  });
+  window.addEventListener('message', function (e) {
+    var i = quadros.findIndex(function (f) { return f.contentWindow === e.source; });
+    if (i < 0 || !e.data || e.data.tipo !== 'layout') return;
+    document.documentElement.setAttribute('data-tela-' + i, telas[i] + ' ' + e.data.estado + ' :: ' + e.data.log);
+  });
+})();
+</script>
+</body>
+</html>

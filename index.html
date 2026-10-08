@@ -2,13 +2,34 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>OUTS · Treino Lab</title>
+<meta name="description" content="Treinador de No-Limit Hold'em com coach de matemática: outs, pot odds, equity, EV e ICM. Dinheiro fictício.">
+<meta name="theme-color" content="#0f141b">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="OUTS Treino">
+<link rel="icon" type="image/png" href="icones/favicon-64.png">
+<link rel="apple-touch-icon" href="icones/apple-touch-icon.png">
+<script>
+  /* Instalar como app (só pela internet): manifesto + service worker.
+     No duplo clique (file://) nada disso é carregado. */
+  if (/^https?:$/.test(location.protocol)) {
+    var linkManifesto = document.createElement('link');
+    linkManifesto.rel = 'manifest';
+    linkManifesto.href = 'manifest.webmanifest';
+    document.head.appendChild(linkManifesto);
+    if ('serviceWorker' in navigator && !/[?&](roteiro|demo)=/.test(location.search)) {
+      window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+    }
+  }
+</script>
 <script>
   /* registra erros de JavaScript (útil para diagnóstico e para os testes automáticos) */
   window.__errosGlobais = [];
   /* o roteiro automático de testes usa armazenamento separado */
-  if (/[?&]roteiro=1/.test(location.search)) window.__OUTS_PREFIXO = 'outs.roteiro.';
+  if (/[?&]roteiro=/.test(location.search)) window.__OUTS_PREFIXO = 'outs.roteiro.';
   window.addEventListener('error', function (e) {
     window.__errosGlobais.push((e.message || 'erro') + (e.filename ? ' (' + e.filename.split('/').pop() + ':' + e.lineno + ')' : ''));
     document.documentElement.setAttribute('data-erros', String(window.__errosGlobais.length));
@@ -26,6 +47,7 @@
 <link rel="stylesheet" href="css/mesa.css">
 <link rel="stylesheet" href="css/coach.css">
 <link rel="stylesheet" href="css/paineis.css">
+<link rel="stylesheet" href="css/celular.css">
 </head>
 <body>
 <div class="app" id="app">
@@ -35,11 +57,11 @@
       <span><span class="marca-nome"><b>OUTS</b></span><span class="marca-sub">Treino Lab</span></span>
     </a>
     <nav class="nav" id="nav">
-      <button data-tela="lobby" class="ativo">Lobby</button>
-      <button data-tela="treino">Treino relâmpago</button>
-      <button data-tela="estatisticas">Estatísticas</button>
-      <button data-tela="historico">Histórico</button>
-      <button data-tela="auditoria">Auditoria</button>
+      <button data-tela="lobby" class="ativo"><i class="icone-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 11 12 4l9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></i><span>Lobby</span></button>
+      <button data-tela="treino"><i class="icone-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></i><span>Treino<span class="so-largo"> relâmpago</span></span></button>
+      <button data-tela="estatisticas"><i class="icone-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 20V11M11 20V5M17 20v-6M3 20h18"/></svg></i><span>Estatísticas</span></button>
+      <button data-tela="historico"><i class="icone-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></i><span>Histórico</span></button>
+      <button data-tela="auditoria"><i class="icone-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="m9 12 2 2 4-4"/></svg></i><span>Auditoria</span></button>
     </nav>
     <span class="espaco"></span>
     <button class="btn" id="btn-cola" title="Cola de consulta rápida">Cola</button>
