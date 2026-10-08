@@ -11,7 +11,8 @@
   const { el, $, esc } = P.UI;
   const F = P.Formato;
   const HEROI = 0;
-  const VELOCIDADES = { lenta: 1.5, normal: 1, rapida: 0.55, turbo: 0.22 };
+  // multiplicador dos tempos de animação (o mesmo de partida.js para os bots)
+  const VELOCIDADES = { lenta: 2, normal: 1.4, rapida: 1, turbo: 0.22 };
 
   let tela, palco, oval, boardEl, poteEl, voadores, faixa, msgs, hud, barraInfo, dealer;
   let assentos = [];

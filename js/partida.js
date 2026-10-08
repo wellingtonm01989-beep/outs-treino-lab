@@ -13,7 +13,8 @@
 
   const E = P.Estruturas;
   const HEROI = 0;
-  const FATOR_VELOCIDADE = { lenta: 1.5, normal: 1, rapida: 0.55, turbo: 0.25 };
+  // multiplicador do tempo de "pensamento" dos bots (normal = 1,4: ritmo mais calmo)
+  const FATOR_VELOCIDADE = { lenta: 2, normal: 1.4, rapida: 1, turbo: 0.25 };
 
   function esperar(ms) { return new Promise(r => setTimeout(r, Math.max(0, ms))); }
   async function chamar(ui, nome, ...args) {
