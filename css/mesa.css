@@ -155,6 +155,34 @@
 .hud-torneio .estado.bolha { background: var(--erro-fundo); color: var(--erro); animation: pulsar 1.4s infinite; }
 .hud-torneio .estado.itm { background: var(--ok-fundo); color: var(--ok); }
 @keyframes pulsar { 50% { opacity: .55; } }
+.hud-torneio.clicavel { cursor: pointer; }
+.hud-torneio.clicavel:hover { border-color: var(--ouro); }
+
+/* painel das outras mesas do torneio (por cima da mesa, sem pausar o jogo) */
+.painel-mesas { position: absolute; inset: 0; z-index: 45; display: flex; flex-direction: column; background: rgba(9, 13, 18, .97); }
+.pm-cab { flex: none; display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--borda); flex-wrap: wrap; }
+.pm-titulo { display: grid; line-height: 1.25; flex: 1; min-width: 150px; }
+.pm-titulo span { color: var(--texto-3); font-size: 12px; }
+.pm-abas button { padding: 6px 14px; font-size: 12.5px; }
+.pm-vez { flex: none; margin: 8px 14px 0; animation: pulsar 1.2s infinite; }
+.pm-corpo { flex: 1; min-height: 0; display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 12px; padding: 12px 14px; overflow: hidden; }
+.pm-lista { display: grid; gap: 6px; align-content: start; overflow: auto; min-height: 0; }
+.pm-item { text-align: left; display: grid; gap: 1px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--borda); background: var(--superficie); color: var(--texto); font: inherit; cursor: pointer; }
+.pm-item span { color: var(--texto-2); font-size: 12px; }
+.pm-item small { color: var(--texto-3); font-size: 11px; }
+.pm-item.ativo { border-color: var(--ouro); background: rgba(216, 178, 90, .08); }
+.pm-item.sua b { color: var(--ouro-2); }
+.pm-mesa { min-height: 0; display: flex; }
+.pm-mesa .mini-mesa-replay { flex: 1; height: auto; min-height: 260px; }
+.pm-mesa .vazio-msg { margin: auto; }
+.pm-blinds { font-size: 11px; color: rgba(255, 255, 255, .7); }
+.pm-resultado { font-size: 11.5px; font-weight: 700; color: var(--ouro-2); text-align: center; max-width: 280px; }
+.pm-d { display: inline-block; width: 14px; height: 14px; line-height: 14px; border-radius: 50%; background: #f4f1e8; color: #222; font-size: 9px; font-weight: 900; text-align: center; }
+.pm-classificacao { grid-template-columns: minmax(0, 1fr) minmax(0, 300px); overflow: auto; align-content: start; }
+.pm-tabela h3 { margin: 0 0 6px; }
+.pm-tabela .tabela td, .pm-tabela .tabela th { padding: 5px 8px; font-size: 12.5px; }
+.pm-eu td { color: var(--ouro-2); font-weight: 700; }
+.pm-premio { color: var(--ok); font-weight: 700; }
 
 /* barra de ações */
 .barra-acoes {
@@ -164,6 +192,11 @@
 .acoes-esquerda { display: grid; gap: 6px; min-width: 0; }
 .acoes-status { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--texto-2); min-height: 22px; }
 .acoes-status b { color: var(--texto); }
+/* dica do coach dentro da barra (painel fechado) */
+#acoes-status-txt.com-coach { cursor: pointer; display: grid; min-width: 0; line-height: 1.3; }
+#acoes-status-txt.com-coach > span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.coach-sug { color: #9fe7c0; }
+.coach-sug b { color: #5fe39b; }
 .feedback-nota { display: inline-flex; align-items: center; gap: 6px; font-weight: 800; font-size: 12px; padding: 3px 10px; border-radius: 999px; animation: subir 200ms ease; }
 .nota-otima { background: rgba(47,191,113,.16); color: #4fd88d; }
 .nota-boa { background: rgba(76,154,255,.16); color: #7fb5ff; }

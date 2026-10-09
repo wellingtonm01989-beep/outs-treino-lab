@@ -85,6 +85,10 @@
 .cartas-rel { white-space: nowrap; }
 .lista-rel { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--texto-2); font-size: 13px; }
 
+/* diagnóstico (Configurações) */
+.diagnostico { font-size: 12.5px; color: var(--texto-2); line-height: 1.5; padding: 8px 10px; background: var(--fundo-2); border-radius: 8px; }
+.diagnostico code { white-space: normal; word-break: break-word; font-size: 11.5px; color: var(--aviso); }
+
 /* ----------------------------------------------------------- cola rápida */
 .cola { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
 .cola .tabela td, .cola .tabela th { padding: 5px 8px; font-size: 12.5px; }

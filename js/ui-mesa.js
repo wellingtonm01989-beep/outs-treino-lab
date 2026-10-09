@@ -63,6 +63,7 @@
       el('button', { class: 'btn so-largo', text: 'Histórico', title: 'Mãos jogadas e replay', onclick: () => overlay('historico') }),
       el('button', { class: 'btn so-largo', text: 'Estatísticas', onclick: () => overlay('estatisticas') }),
       el('button', { class: 'btn so-largo', text: 'Opções', onclick: () => overlay('config') }),
+      el('button', { class: 'btn so-largo oculto', id: 'mb-mesas', text: 'Mesas', title: 'Assistir às outras mesas do torneio', onclick: () => alternarMesas() }),
       el('button', { class: 'btn', id: 'mb-coach', text: 'Coach', title: 'Mostrar/recolher o coach', onclick: () => P.UICoach.alternar() }),
       el('button', { class: 'btn so-largo', text: 'Sair para o lobby', onclick: sair }),
       el('button', { class: 'btn so-celular', id: 'mb-menu', title: 'Menu', html: '&#9776;<span class="rot-menu"> Menu</span>', onclick: abrirMenu }));
@@ -132,7 +133,7 @@
   const ANGULOS_VERTICAL = {
     2: [90, 270], 3: [90, 215, 325], 4: [90, 165, 270, 15], 5: [90, 160, 230, 310, 20],
     6: [90, 152, 210, 270, 330, 28], 7: [90, 148, 195, 245, 295, 345, 32],
-    8: [90, 145, 188, 232, 270, 308, 352, 35], 9: [90, 140, 180, 214, 254, 286, 326, 0, 40]
+    8: [90, 145, 188, 232, 270, 308, 352, 35], 9: [90, 140, 180, 214, 248, 292, 326, 0, 40]
   };
 
   function layout() {
@@ -200,6 +201,22 @@
         }
       }
       pos.push({ x, y });
+    }
+    // telas baixas: afasta na vertical os assentos que ainda se encostam
+    const yMin = topo + assentoH / 2 + 2, yMax = yHeroi - heroiH / 2 - assentoH / 2 - 2;
+    for (let volta = 0; volta < 4; volta++) {
+      for (let i = 1; i < pos.length; i++) {
+        for (let j = i + 1; j < pos.length; j++) {
+          const a = pos[i], b = pos[j];
+          if (Math.abs(a.x - b.x) >= assentoL + 4) continue;
+          const falta = assentoH + 4 - Math.abs(a.y - b.y);
+          if (falta <= 0) continue;
+          const [cima, baixo] = a.y <= b.y ? [a, b] : [b, a];
+          const sobe = Math.min(falta / 2, cima.y - yMin);
+          cima.y -= Math.max(0, sobe);
+          baixo.y = Math.min(Math.max(yMax, baixo.y), baixo.y + falta - Math.max(0, sobe));
+        }
+      }
     }
 
     // board: largura entre os assentos laterais; altura na faixa livre do meio
@@ -410,7 +427,14 @@
 
   // ======================================================= ui da partida
   const ui = {
-    aoIniciar() { renderTudo(); },
+    aoIniciar(api) {
+      renderTudo();
+      // torneio com várias mesas: botão "Mesas" e HUD clicável para assistir às outras
+      const t = api && api.torneio && api.torneio();
+      const multi = !!(t && t.mesas() > 1);
+      $('#mb-mesas').classList.toggle('oculto', !multi);
+      if (hud) { hud.classList.toggle('clicavel', multi); hud.onclick = multi ? () => alternarMesas() : null; if (multi) hud.title = 'Ver as outras mesas e a classificação'; }
+    },
 
     aoNovaMao(vista, info) {
       vistaAtual = vista;
@@ -460,12 +484,14 @@
         const barraT = a.tempo.firstChild;
         barraT.style.transition = 'none'; barraT.style.transform = 'scaleX(1)';
         P.Som.vez();
+        P.UIMesas.avisarVez(true);
         configurarBarra(vista, extra.analise);
         bloquear(true);
         pendente = {
           analise: extra.analise,
           resolve: acao => {
             pendente = null;
+            P.UIMesas.avisarVez(false);
             a.raiz.classList.remove('vez');
             bloquear(true);
             limparSugestao();
@@ -755,7 +781,8 @@
   function montarBarraAcoes() {
     barra.status = el('span', { id: 'acoes-status-txt', text: 'Preparando a mesa…' });
     barra.nota = el('span');
-    barra.dica = el('button', { class: 'btn oculto', html: 'Pedir dica<span class="so-largo"> (H)</span>', onclick: () => { if (pendente) P.UICoach.pedirDica(pendente.analise); } });
+    barra.dica = el('button', { class: 'btn oculto', html: 'Pedir dica<span class="so-largo"> (H)</span>', onclick: pedirDica });
+    barra.status.addEventListener('click', () => { if (barra.status.classList.contains('com-coach')) P.UICoach.alternar(true); });
     barra.tamanhos = el('div', { class: 'tamanhos' });
     barra.slider = el('input', { type: 'range' });
     barra.valor = el('input', { class: 'entrada', type: 'text', inputmode: 'decimal' });
@@ -778,7 +805,19 @@
     return raiz;
   }
 
-  function status(html) { if (barra.status) barra.status.innerHTML = html; }
+  function status(html) { if (barra.status) { barra.status.innerHTML = html; barra.status.classList.remove('com-coach'); } }
+
+  // Linha do coach na barra de ações (com o painel fechado, a dica aparece aqui sem cobrir a mesa)
+  const ROTULO_ACAO = { fold: 'FOLD', check: 'CHECK', call: 'PAGUE', bet: 'APOSTE', raise: 'AUMENTE', allin: 'ALL-IN' };
+  function linhaCoach(an) {
+    const painel = $('#painel-coach');
+    if (!an || !an.recomendacao || !vistaAtual || !pendente || (painel && !painel.classList.contains('recolhido'))) return;
+    const r = an.recomendacao;
+    const valor = (r.acao === 'raise' || r.acao === 'bet') && r.ate ? ' ' + fmt(r.ate) : '';
+    const motivo = an.passos && an.passos.length ? an.passos[an.passos.length - 1] : '';
+    barra.status.innerHTML = `<span class="st-l1">${textoStatusCurto(vistaAtual)}</span><span class="coach-sug" title="Toque para ver a análise completa">♠ <b>${ROTULO_ACAO[r.acao] || r.acao}${valor}</b> — ${esc(motivo)}</span>`;
+    barra.status.classList.add('com-coach');
+  }
 
   function textoStatusHeroi(vista) {
     const v = vista.acoes;
@@ -786,6 +825,12 @@
     if (v.podeCheck) return '<b>Sua vez.</b> Ninguém apostou: check ou aposte.';
     const nec = v.valorCall / (vista.pote + v.valorCall);
     return `<b>Sua vez.</b> Pagar ${fmt(v.valorCall)} para ganhar ${fmt(vista.pote)} — precisa de ${F.pct(nec, 1)} de equity.`;
+  }
+  /** Versão de uma linha (quando a dica do coach ocupa a segunda). */
+  function textoStatusCurto(vista) {
+    const v = vista.acoes;
+    if (!v || v.podeCheck) return '<b>Sua vez:</b> check ou aposte';
+    return `<b>Sua vez:</b> pagar ${fmt(v.valorCall)} · precisa de ${F.pct(v.valorCall / (vista.pote + v.valorCall), 1)}`;
   }
 
   let valorAtual = 0, acoesAtuais = null;
@@ -900,6 +945,15 @@
       definirValor(r.acao === 'allin' ? acoesAtuais.maxAte : r.ate, true);
       Array.prototype.forEach.call(barra.tamanhos.children, b => b.classList.toggle('recomendado', +b.dataset.ate === valorAtual));
     }
+    linhaCoach(an);
+  }
+
+  /** "Pedir dica": mostra a análise no painel e, com ele fechado, a dica na barra. */
+  function pedirDica() {
+    if (!pendente) return;
+    const an = pendente.analise;
+    P.UICoach.pedirDica(an);
+    if (an) an.then(x => linhaCoach(x));
   }
   function limparSugestao() {
     [barra.fold, barra.call, barra.raise].forEach(b => b && b.classList.remove('sugerido'));
@@ -922,7 +976,7 @@
       if (!barra.raise.disabled) { barra.raise.classList.add('armado'); barra.valor.focus(); barra.valor.select(); }
     } else if (tecla === 'enter') {
       if (barra.raise.classList.contains('armado') || digitando) { e.preventDefault(); lerValorDigitado(); agir('raise'); }
-    } else if (tecla === 'h' && P.Config.get('modoCoach') === 'pedido') { P.UICoach.pedirDica(pendente.analise); }
+    } else if (tecla === 'h' && P.Config.get('modoCoach') === 'pedido') { pedirDica(); }
   });
 
   // ============================================================== HUD e barra
@@ -959,7 +1013,7 @@
       item(`Nível ${info.nivel}`, `${F.fichas(b.sb)}/${F.fichas(b.bb)}${b.ante ? ` · ${b.anteBB ? 'BB ante' : 'ante'} ${F.fichas(b.ante)}` : ''}`) +
       `<div class="item"><span>próximo ${F.fichas(p.sb)}/${F.fichas(p.bb)}</span><div class="relogio">${tempo}</div></div>` +
       `<div class="barra-nivel extra"><i style="width:${Math.min(100, prog * 100)}%"></i></div><span class="sep"></span>` +
-      item('Jogadores', `${info.restantes}/${info.field}`) + item('Stack médio', F.fichas(info.stackMedio), true) +
+      item('Jogadores', `${info.restantes}/${info.field}`) + (info.mesas > 1 ? item('Mesas', info.mesas) : '') + item('Stack médio', F.fichas(info.stackMedio), true) +
       item('Sua posição', `${info.posicao}º`) + item(`Pagos: ${info.pagos}`, premios, true) + estado;
   }
 
@@ -1023,13 +1077,23 @@
     }
   }
 
+  /** Abre/fecha o painel das outras mesas (não pausa o jogo). */
+  function alternarMesas() {
+    if (!partida || !partida.torneio || !partida.torneio()) return;
+    if (P.UIMesas.aberto()) { P.UIMesas.fechar(); return; }
+    P.UIMesas.abrir(partida);
+    if (pendente) P.UIMesas.avisarVez(true);
+  }
+
   function encerrar(abandonou) {
+    P.UIMesas.fechar();
     pararHud();
     let r = null;
     if (partida) {
       r = partida.sair();
       if (abandonou && cfg && cfg.modo !== 'cash' && !partida.fim()) {
-        P.Estatisticas.registrarTorneio(cfg.modo === 'sng' ? 'sng' : 'torneio', cfg.buyin.total, 0, cfg.modo === 'sng' ? cfg.lugares : cfg.field, cfg.modo === 'sng' ? cfg.lugares : cfg.field);
+        const n = cfg.modo === 'sng' ? Math.max(cfg.lugares, cfg.participantes || cfg.lugares) : cfg.field;
+        P.Estatisticas.registrarTorneio(cfg.modo === 'sng' ? 'sng' : 'torneio', cfg.buyin.total, 0, n, n);
       }
     }
     tokenPartida++;
@@ -1053,7 +1117,9 @@
   /** Menu da mesa no celular (os botões da barra não cabem na tela). */
   async function abrirMenu() {
     const instalado = window.matchMedia && matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches;
+    const multi = partida && partida.torneio && partida.torneio() && partida.torneio().mesas() > 1;
     const itens = [
+      multi ? ['mesas', 'Mesas do torneio'] : null,
       ['historico', 'Histórico de mãos'], ['estatisticas', 'Estatísticas'], ['config', 'Opções'], ['cola', 'Cola de consulta'],
       ['som', P.Config.get('som') ? 'Desligar o som' : 'Ligar o som'],
       document.fullscreenEnabled && !instalado ? ['telaCheia', document.fullscreenElement ? 'Sair da tela cheia' : 'Tela cheia'] : null,
@@ -1070,6 +1136,7 @@
     } finally { pausar(false); }
     if (!escolha) return;
     if (escolha === 'sair') sair();
+    else if (escolha === 'mesas') alternarMesas();
     else if (escolha === 'som') P.Config.set('som', !P.Config.get('som'));
     else if (escolha === 'telaCheia') alternarTelaCheia();
     else overlay(escolha);

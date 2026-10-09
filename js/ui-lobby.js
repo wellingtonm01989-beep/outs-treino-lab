@@ -18,12 +18,16 @@
   };
   const DESC_ABA = {
     cash: 'Fichas valem dinheiro, blinds fixos, entre e saia quando quiser.',
-    sng: 'Uma mesa, stack de 1.500, blinds sobem pelo relógio. Premiação para os primeiros.',
-    torneio: 'Field de 45 a 180 jogadores, stack de 10.000 e big blind ante. Paga cerca de 15%.'
+    sng: 'Uma ou várias mesas jogando ao mesmo tempo, stack de 1.500, blinds sobem pelo relógio. Premiação para os primeiros.',
+    torneio: 'Field de 45 a 180 jogadores em várias mesas, stack de 10.000 e big blind ante. Paga cerca de 15%.'
   };
+  const PARTICIPANTES_SNG = [18, 27, 45, 90, 180];
 
   const salvo = P.Config.get('ultimoLobby') || {};
-  const st = Object.assign({ aba: 'cash', nivel: 'micro', indice: 1, lugares: 6, buyinBB: 100, recompraAuto: false, velocidade: 'regular', field: 90 }, salvo);
+  const st = Object.assign({ aba: 'cash', nivel: 'micro', indice: 1, lugares: 6, buyinBB: 100, recompraAuto: false, velocidade: 'regular', field: 90, participantes: 0 }, salvo);
+  /** Inscritos no Sit & Go (no mínimo uma mesa cheia). */
+  const inscritosSNG = () => Math.max(st.lugares, Math.min(180, st.participantes || st.lugares));
+  const mesasDe = (n, l) => Math.ceil(n / l);
 
   function salvar() { P.Config.set('ultimoLobby', st); }
 
@@ -95,10 +99,10 @@
         el('ul', { html: `<li>Buy-in: <b>${F.dinheiro(it.bb * 40)} – ${F.dinheiro(it.bb * 200)}</b></li><li>Padrão (100 bb): <b>${F.dinheiro(it.bb * 100)}</b></li><li>Blinds fixos · recompra opcional</li>` })
       ];
     } else if (st.aba === 'sng') {
-      const n = st.lugares;
+      const n = inscritosSNG(), mesas = mesasDe(n, st.lugares);
       conteudo = [
         el('div', { class: 'nome', text: F.dinheiro(it.total) }),
-        el('div', { class: 'sub', text: `Sit & Go · ${n} jogadores` }),
+        el('div', { class: 'sub', text: `Sit & Go · ${n} jogadores` + (mesas > 1 ? ` · ${mesas} mesas` : '') }),
         el('ul', { html: `<li>Prize pool: <b>${F.dinheiro(it.premio * n)}</b></li><li>Taxa: <b>${F.dinheiro(it.total - it.premio)}</b></li><li>Stack ${F.fichas(E.SNG_STACK)} · ante a partir do nível 6</li>` })
       ];
     } else {
@@ -160,12 +164,29 @@
         box.appendChild(el('div', { class: 'campo' }, el('span', { text: 'Tamanho do field' }), fl));
         premios = E.valoresPremios(it.premio * st.field, E.percentuaisTorneio(st.field));
         linha('Torneio', `${F.dinheiro(it.total)} · ${st.field} jogadores`);
-        linha('Mesa', `${st.lugares} lugares por mesa`);
+        linha('Mesas', `${mesasDe(st.field, st.lugares)} mesas de até ${st.lugares}`);
         linha('Pagos', `${premios.length} lugares (${F.num(premios.length / st.field * 100, 0)}%)`);
       } else {
-        premios = E.valoresPremios(it.premio * st.lugares, E.percentuaisSNG(st.lugares));
-        linha('Sit & Go', `${F.dinheiro(it.total)} · ${st.lugares} jogadores`);
-        linha('Pagos', `${premios.length} ${premios.length > 1 ? 'lugares' : 'lugar'} (${E.percentuaisSNG(st.lugares).join('/')}%)`);
+        // quantos participam: você + bots, em quantas mesas forem precisas
+        const n = inscritosSNG(), mesas = mesasDe(n, st.lugares);
+        const pl = el('div', { class: 'opcoes-linha' });
+        const opcoes = [st.lugares].concat(PARTICIPANTES_SNG.filter(x => x > st.lugares));
+        opcoes.forEach(x => pl.appendChild(el('button', {
+          class: 'opcao' + (n === x ? ' ativo' : ''), text: x === st.lugares ? `${x} (1 mesa)` : String(x),
+          onclick: () => { st.participantes = x; salvar(); render(); }
+        })));
+        const livre = el('input', { class: 'entrada entrada-participantes', type: 'number', min: st.lugares, max: 180, value: n, inputmode: 'numeric', title: 'Outro número de participantes' });
+        livre.addEventListener('change', () => { st.participantes = Math.max(st.lugares, Math.min(180, Math.round(+livre.value) || st.lugares)); salvar(); render(); });
+        pl.appendChild(livre);
+        box.appendChild(el('div', { class: 'campo' }, el('span', { text: 'Participantes (você + bots)' }), pl,
+          el('small', { style: { color: 'var(--texto-3)', fontSize: '11.5px' }, text: mesas > 1
+            ? `${mesas} mesas de até ${st.lugares} jogando ao mesmo tempo. Quem perde sai; as mesas vão se juntando até a mesa final. Você pode assistir às outras mesas.`
+            : 'Uma mesa só. Escolha mais participantes para jogar com várias mesas ao mesmo tempo.' })));
+        const pct = E.percentuaisSNG(n);
+        premios = E.valoresPremios(it.premio * n, pct);
+        linha('Sit & Go', `${F.dinheiro(it.total)} · ${n} jogadores`);
+        if (mesas > 1) linha('Mesas', `${mesas} mesas de até ${st.lugares}`);
+        linha('Pagos', `${premios.length} ${premios.length > 1 ? 'lugares' : 'lugar'}` + (pct.length <= 3 ? ` (${pct.map(x => Math.round(x)).join('/')}%)` : ` (${F.num(premios.length / n * 100, 0)}%)`));
       }
       custo = it.total;
       box.appendChild(el('div', { class: 'campo' }, el('span', { text: 'Premiação' }),
@@ -208,7 +229,7 @@
     const it = itemAtual();
     const cfg = { modo: st.aba, nivel: st.nivel, lugares: st.lugares };
     if (st.aba === 'cash') Object.assign(cfg, { limite: it, buyinBB: st.buyinBB, recompraAuto: st.recompraAuto });
-    else Object.assign(cfg, { buyin: it, velocidade: st.velocidade, field: st.aba === 'torneio' ? st.field : st.lugares });
+    else Object.assign(cfg, { buyin: it, velocidade: st.velocidade, field: st.aba === 'torneio' ? st.field : inscritosSNG(), participantes: st.aba === 'sng' ? inscritosSNG() : undefined });
     P.App.iniciarPartida(cfg);
   }
 

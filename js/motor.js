@@ -590,7 +590,8 @@
   // MESA (várias mãos: assentos, stacks e rotação do botão)
   // ======================================================================
   /**
-   * cfg: { lugares, sb, bb, ante, anteBB, botaoInicial (opcional) }
+   * cfg: { lugares, sb, bb, ante, anteBB, botaoInicial (opcional),
+   *        numeroInicial e continuar (retomar uma mesa salva: o botão anda já na próxima mão) }
    * Botão "móvel": a cada mão vai para o próximo assento com fichas.
    */
   function criarMesa(cfg) {
@@ -599,7 +600,7 @@
     var assentos = [];
     for (var i = 0; i < lugares; i++) assentos.push(null);
     var botao = cfg.botaoInicial !== undefined ? cfg.botaoInicial : -1;
-    var primeira = true;
+    var primeira = !(cfg.continuar && botao >= 0);
     var mao = null, numero = cfg.numeroInicial || 0;
 
     function ativos() {
@@ -629,6 +630,7 @@
       assentos: function () { return assentos.slice(); },
       ativos: ativos,
       botao: function () { return botao; },
+      numero: function () { return numero; },
       blinds: function () { return { sb: blinds.sb, bb: blinds.bb, ante: blinds.ante, anteBB: blinds.anteBB }; },
       definirBlinds: function (b) {
         for (var c in b) if (Object.prototype.hasOwnProperty.call(b, c)) blinds[c] = b[c];

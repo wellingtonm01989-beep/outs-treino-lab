@@ -2,8 +2,9 @@
    OUTS · Treino Lab — partida.js
    Controlador de uma partida (cash, Sit & Go ou torneio): senta jogadores,
    roda as mãos, chama os bots com tempo de decisão, pede a ação do herói,
-   aciona o coach, avalia decisões, atualiza estatísticas e histórico, sobe
-   os blinds pelo relógio e simula o field do torneio.
+   aciona o coach, avalia decisões, atualiza estatísticas e histórico e sobe
+   os blinds pelo relógio. No Sit & Go e no torneio as outras mesas jogam de
+   verdade ao mesmo tempo (multimesa.js).
 
    Não desenha nada: conversa com a interface por callbacks (ui.*), todos
    opcionais e podendo devolver Promise (para esperar animações).
@@ -13,6 +14,7 @@
 
   const E = P.Estruturas;
   const HEROI = 0;
+  const CHAVE_SALVA = 'partidaAtiva';
   // multiplicador do tempo de "pensamento" dos bots (normal = 1,4: ritmo mais calmo)
   const FATOR_VELOCIDADE = { lenta: 2, normal: 1.4, rapida: 1, turbo: 0.25 };
 
@@ -25,14 +27,16 @@
   /**
    * cfg: { modo, nivel, lugares, heroi: {nome, mostraPerdedoras},
    *        cash: limite {nome,sb,bb}, buyinBB, recompraAuto
-   *        sng/torneio: buyin {total, premio}, velocidade, field
+   *        sng: buyin {total, premio}, velocidade, participantes (várias mesas se > lugares)
+   *        torneio: buyin, velocidade, field
    *        autoHeroi, instantaneo, maosPorNivel (testes), iteracoesCoach }
    */
   function criar(cfg, ui) {
     const modo = cfg.modo, lugares = cfg.lugares;
+    const participantes = modo === 'sng' ? Math.max(lugares, cfg.participantes || lugares) : modo === 'torneio' ? cfg.field : lugares;
     const nomesUsados = () => mesa.assentos().filter(Boolean).map(j => j.nome);
     let ativo = true, rodando = false, fim = null;
-    let mesa, campo = null, premios = [], pool = 0;
+    let mesa, torneio = null, premios = [], pool = 0;
     let nivelIdx = 0, inicioNivel = 0, pausadoEm = null, pausaAcumulada = 0, maosNoNivel = 0;
     let maosJogadas = 0, resultadoSessao = 0, investidoHeroi = 0;
     const eliminados = [];          // [{nome, posicao, premio}]
@@ -42,7 +46,7 @@
     let maoAtual = null;
 
     const rotulo = modo === 'cash' ? cfg.limite.nome :
-      modo === 'sng' ? `Sit & Go ${P.Formato ? P.Formato.dinheiro(cfg.buyin.total) : cfg.buyin.total}` :
+      modo === 'sng' ? `Sit & Go ${P.Formato ? P.Formato.dinheiro(cfg.buyin.total) : cfg.buyin.total}` + (participantes > lugares ? ` · ${participantes} jogadores` : '') :
         `Torneio ${P.Formato ? P.Formato.dinheiro(cfg.buyin.total) : cfg.buyin.total} · ${cfg.field} jogadores`;
 
     function blindsAtuais() {
@@ -59,31 +63,112 @@
       return ref - inicioNivel - pausaAcumulada;
     }
 
+    /** Sobe o nível quando o tempo (ou, nos testes, o número de mãos) acabou. Vale para todas as mesas. */
+    function atualizarNivel(porMao) {
+      if (modo === 'cash') return;
+      const subir = cfg.maosPorNivel ? porMao && maosNoNivel >= cfg.maosPorNivel : decorridoNivel() >= duracaoNivel();
+      if (!subir) return;
+      nivelIdx++;
+      maosNoNivel = 0;
+      inicioNivel = agora();
+      pausaAcumulada = 0;
+      if (pausadoEm !== null) pausadoEm = agora();
+      const b = blindsAtuais();
+      chamar(ui, 'aoMensagem', `Nível ${nivelIdx + 1}: blinds ${fmt(b.sb)}/${fmt(b.bb)}` + (b.ante ? ` · ${b.anteBB ? 'BB ante' : 'ante'} ${fmt(b.ante)}` : ''), 'nivel');
+    }
+
+    // --------------------------------------------------- salvar e retomar
+    // A cada mão o estado da partida é salvo. Se o app fechar (o celular encerra apps em segundo
+    // plano para economizar memória), ao abrir de novo a partida continua do começo da mão que
+    // estava em andamento (essa mão é anulada: as fichas voltam ao que eram antes dela).
+    const salvavel = !cfg.instantaneo && !cfg.autoHeroi && !cfg.semSalvar;
+
+    function salvarEstado() {
+      if (!salvavel || fim || !ativo) return;
+      const cfgLimpo = Object.assign({}, cfg);
+      delete cfgLimpo.retomar;
+      P.Armazenamento.gravar(CHAVE_SALVA, {
+        versao: 1, salvoEm: Date.now(), rotulo, modo, retomadas: 0,
+        cfg: cfgLimpo,
+        nivelIdx, decorrido: modo === 'cash' ? 0 : decorridoNivel(), maosNoNivel, maosJogadas, resultadoSessao, investidoHeroi,
+        eliminados: eliminados.slice(), avisos: Object.assign({}, avisos),
+        registro: { ids: registro.maos.map(r => r.id), inicio: registro.inicio },
+        mesa: modo === 'cash' ? { botao: mesa.botao(), numero: mesa.numero(), assentos: mesa.assentos().map(j => (j ? Object.assign({}, j) : null)) } : null,
+        torneio: torneio ? torneio.exportar() : null,
+        heroiFichas: mesa.jogador(HEROI) ? mesa.jogador(HEROI).fichas : 0
+      });
+    }
+    function apagarEstado() { if (salvavel) P.Armazenamento.remover(CHAVE_SALVA); }
+
+    function restaurar(s) {
+      nivelIdx = s.nivelIdx; maosNoNivel = s.maosNoNivel; maosJogadas = s.maosJogadas;
+      inicioNivel = agora() - (s.decorrido || 0);   // o relógio continua de onde parou
+      resultadoSessao = s.resultadoSessao; investidoHeroi = s.investidoHeroi;
+      s.eliminados.forEach(e => eliminados.push(e));
+      Object.assign(avisos, s.avisos);
+      registro.inicio = s.registro.inicio;
+      s.registro.ids.forEach(id => {
+        const r = P.HistoricoMaos.porId(id);
+        if (r) { registro.maos.push(r); registro.decisoes.push(...(r.decisoes || [])); }
+      });
+      const b = blindsAtuais();
+      if (modo === 'cash') {
+        mesa = P.Motor.criarMesa({ lugares, sb: b.sb, bb: b.bb, ante: b.ante, anteBB: b.anteBB, botaoInicial: s.mesa.botao, numeroInicial: s.mesa.numero, continuar: true });
+        s.mesa.assentos.forEach((j, q) => { if (j) mesa.sentar(q, j); });
+      } else {
+        pool = cfg.buyin.premio * participantes;
+        premios = E.valoresPremios(pool, modo === 'sng' ? E.percentuaisSNG(participantes) : E.percentuaisTorneio(participantes));
+        const heroi = { id: 'heroi', heroi: true, mostraPerdedoras: !!cfg.heroi.mostraPerdedoras, perfil: 'tag' };
+        torneio = criarTorneio(heroi, s.torneio);
+        mesa = torneio.mesaHeroi();
+      }
+    }
+
+    function criarTorneio(heroi, restaurarDe) {
+      return P.MultiMesa.criar({
+        participantes, lugares, stack: modo === 'sng' ? E.SNG_STACK : E.TORNEIO_STACK, nivel: cfg.nivel, modo, heroi, pagos: premios.length,
+        blinds: () => { atualizarNivel(false); return blindsAtuais(); },
+        fator: () => FATOR_VELOCIDADE[P.Config.get('velocidade')] || 1,
+        pausado: () => pausadoEm !== null,
+        instantaneo: !!cfg.instantaneo, fmt, restaurar: restaurarDe || null,
+        aoEliminar: eliminadoEmOutraMesa,
+        aoMensagem: (t, tipo) => chamar(ui, 'aoMensagem', t, tipo)
+      });
+    }
+
     // --------------------------------------------------------- montagem
     function montar() {
+      if (cfg.retomar) { restaurar(cfg.retomar); return; }
+      inicioNivel = agora();
       const b = blindsAtuais();
-      mesa = P.Motor.criarMesa({ lugares, sb: b.sb, bb: b.bb, ante: b.ante, anteBB: b.anteBB });
       const heroi = { id: 'heroi', nome: cfg.heroi.nome || 'Você', heroi: true, mostraPerdedoras: !!cfg.heroi.mostraPerdedoras, perfil: 'tag' };
       if (modo === 'cash') {
+        mesa = P.Motor.criarMesa({ lugares, sb: b.sb, bb: b.bb, ante: b.ante, anteBB: b.anteBB });
         heroi.fichas = Math.round(cfg.buyinBB * cfg.limite.bb);
         investidoHeroi = heroi.fichas;
         if (!cfg.semBanca) P.Banca.ajustar(-heroi.fichas);
+        mesa.sentar(HEROI, heroi);
+        for (let s = 1; s < lugares; s++) mesa.sentar(s, novoBot(heroi.fichas));
       } else {
         heroi.fichas = modo === 'sng' ? E.SNG_STACK : E.TORNEIO_STACK;
         investidoHeroi = cfg.buyin.total;
         if (!cfg.semBanca) P.Banca.ajustar(-cfg.buyin.total);
-      }
-      mesa.sentar(HEROI, heroi);
-      for (let s = 1; s < lugares; s++) mesa.sentar(s, novoBot(heroi.fichas));
-      if (modo === 'sng') {
-        pool = cfg.buyin.premio * lugares;
-        premios = E.valoresPremios(pool, E.percentuaisSNG(lugares));
-      } else if (modo === 'torneio') {
-        pool = cfg.buyin.premio * cfg.field;
-        premios = E.valoresPremios(pool, E.percentuaisTorneio(cfg.field));
-        campo = P.Torneio.criarCampo({ field: cfg.field, lugares, stackInicial: E.TORNEIO_STACK, naMesa: lugares, premios });
+        pool = cfg.buyin.premio * participantes;
+        premios = E.valoresPremios(pool, modo === 'sng' ? E.percentuaisSNG(participantes) : E.percentuaisTorneio(participantes));
+        // todas as mesas do torneio (a sua é a mesa 1)
+        torneio = criarTorneio(heroi);
+        mesa = torneio.mesaHeroi();
       }
       inicioNivel = agora();
+    }
+
+    /** Alguém caiu em outra mesa: entra na lista de eliminados (e avisa na reta final). */
+    function eliminadoEmOutraMesa(jogador, posicao, mesaId) {
+      const premio = posicao <= premios.length ? premios[posicao - 1] : 0;
+      eliminados.push({ nome: jogador.nome, posicao, premio });
+      if (premio > 0 || posicao <= lugares + 1) {
+        chamar(ui, 'aoMensagem', `${jogador.nome} (mesa ${mesaId}) eliminado em ${posicao}º` + (premio ? ` (${P.Formato ? P.Formato.dinheiro(premio) : premio})` : ''), 'saida');
+      }
     }
 
     function novoBot(stackPadrao) {
@@ -109,22 +194,15 @@
       }
       const prox = modo === 'sng' ? E.nivelSNG(nivelIdx + 1) : E.nivelTorneio(nivelIdx + 1);
       const restanteMs = cfg.maosPorNivel ? null : Math.max(0, duracaoNivel() - decorridoNivel());
-      const ativos = mesa.ativos();
-      const stacksMesa = ativos.map(s => mesa.jogador(s).fichas);
-      const restantes = modo === 'sng' ? ativos.length : campo.restantes();
-      const totalFichas = modo === 'sng' ? E.SNG_STACK * lugares : campo.totalFichas;
+      const restantes = torneio.restantes();
       const meu = heroi ? heroi.fichas : 0;
-      let posicao = 1 + stacksMesa.filter(x => x > meu).length;
-      if (campo) {
-        const p = campo.pool();
-        if (p.jogadores > 0) posicao += Math.round(p.jogadores * Math.exp(-meu / (p.fichas / p.jogadores)));
-      }
+      const posicao = heroi ? torneio.posicaoDe(heroi) : restantes;
       const pagos = premios.length;
       const falta = restantes - pagos;
       return Object.assign(base, {
         nivel: nivelIdx + 1, proximo: prox, restanteMs, maosNoNivel, maosPorNivel: cfg.maosPorNivel || null,
-        restantes, field: modo === 'sng' ? lugares : cfg.field,
-        stackMedio: totalFichas / Math.max(1, restantes), stack: meu, posicao,
+        restantes, field: participantes, mesas: torneio.mesasAbertas(),
+        stackMedio: torneio.totalFichas / Math.max(1, restantes), stack: meu, posicao,
         pagos, premios, pool, itm: falta <= 0, bolha: falta > 0 && falta <= Math.max(1, Math.ceil(pagos * 0.15)),
         proximoPremio: falta > 0 ? premios[pagos - 1] : premios[Math.min(pagos, restantes) - 1],
         eliminados: eliminados.slice(-5)
@@ -134,10 +212,10 @@
     /** Contexto de torneio para o coach (ICM). */
     function ctxTorneio() {
       if (modo === 'cash') return null;
-      const restantes = modo === 'sng' ? mesa.ativos().length : campo.restantes();
+      const restantes = torneio.restantes();
       return {
         premios: premios.slice(0, Math.min(premios.length, restantes)),
-        stacksFora: campo ? campo.stacksFora() : [],
+        stacksFora: torneio.stacksFora(),
         restantes, pagos: premios.length
       };
     }
@@ -150,19 +228,11 @@
 
     // --------------------------------------------------- antes de cada mão
     async function prepararMao() {
-      // relógio de nível
+      // relógio de nível e mudanças de mesa (quem sai para equilibrar, quem chega)
       if (modo !== 'cash') {
-        const subir = cfg.maosPorNivel ? maosNoNivel >= cfg.maosPorNivel : decorridoNivel() >= duracaoNivel();
-        if (subir) {
-          nivelIdx++;
-          maosNoNivel = 0;
-          inicioNivel = agora();
-          pausaAcumulada = 0;
-          if (pausadoEm !== null) pausadoEm = agora();
-          const b = blindsAtuais();
-          await chamar(ui, 'aoMensagem', `Nível ${nivelIdx + 1}: blinds ${fmt(b.sb)}/${fmt(b.bb)}` + (b.ante ? ` · ${b.anteBB ? 'BB ante' : 'ante'} ${fmt(b.ante)}` : ''), 'nivel');
-        }
+        atualizarNivel(true);
         mesa.definirBlinds(blindsAtuais());
+        for (const [texto, tipo] of torneio.entreMaosHeroi()) await chamar(ui, 'aoMensagem', texto, tipo);
       }
       // cash: lugares vazios recebem novos jogadores
       if (modo === 'cash') {
@@ -187,7 +257,7 @@
       }
       // avisos de bolha, premiação e mesa final
       if (modo !== 'cash') {
-        const restantes = modo === 'sng' ? mesa.ativos().length : campo.restantes();
+        const restantes = torneio.restantes();
         const pagos = premios.length;
         if (pagos >= 2 && !avisos.bolha && restantes === pagos + 1) {
           avisos.bolha = true;
@@ -197,21 +267,9 @@
           avisos.itm = true;
           await chamar(ui, 'aoMensagem', `Todos na premiação! Prêmio mínimo garantido: ${P.Formato ? P.Formato.dinheiro(premios[Math.min(pagos, restantes) - 1]) : ''}`, 'nivel');
         }
-        if (modo === 'torneio' && !avisos.mesaFinal && restantes <= lugares && restantes > 1) {
+        if (torneio.mesas() > 1 && !avisos.mesaFinal && torneio.mesasAbertas() === 1 && restantes > 1) {
           avisos.mesaFinal = true;
           await chamar(ui, 'aoMensagem', `Mesa final! Restam ${restantes} jogadores.`, 'nivel');
-        }
-      }
-      // torneio: as outras mesas jogam e os lugares vazios são preenchidos
-      if (modo === 'torneio') {
-        for (let s = 0; s < lugares; s++) {
-          if (!mesa.jogador(s)) {
-            const st = campo.sentarNovo(blindsAtuais().bb);
-            if (st === null) break;
-            const bot = novoBot(st);
-            mesa.sentar(s, bot);
-            await chamar(ui, 'aoMensagem', `${bot.nome} chega de outra mesa com ${fmt(st)}`, 'entrada');
-          }
         }
       }
     }
@@ -225,8 +283,10 @@
     async function jogarMao() {
       if (cfg.instantaneo) await esperar(0);     // cede a tela entre as mãos
       const b = blindsAtuais();
+      salvarEstado();                             // ponto de retomada se o app fechar durante a mão
       const mao = mesa.proximaMao();
       maoAtual = mao;
+      if (torneio) torneio.definirMaoHeroi(mao);
       decisoesMao.length = 0;
       let lidos = 0;
       await chamar(ui, 'aoNovaMao', mao.vista(HEROI), info());
@@ -331,29 +391,24 @@
       registro.maos.push(regMao);
       registro.decisoes.push(...decisoesMao);
 
-      // eliminações (menor stack inicial cai primeiro => pior colocação)
-      const quebrados = h.jogadores.filter(j => r.fichasFinais[j.assento] === 0).sort((a, b) => a.fichasIniciais - b.fichasIniciais);
-      for (const j of quebrados) {
-        const jog = mesa.jogador(j.assento);
-        if (modo === 'cash') {
-          if (j.assento === HEROI) continue;
-          mesa.levantar(j.assento);
+      if (modo === 'cash') {
+        // quem quebrou sai da mesa (o herói decide a recompra mais abaixo)
+        for (const j of h.jogadores.filter(x => r.fichasFinais[x.assento] === 0 && x.assento !== HEROI)) {
+          const jog = mesa.levantar(j.assento);
           await chamar(ui, 'aoMensagem', `${jog.nome} quebrou e saiu da mesa`, 'saida');
-        } else {
-          const posicao = modo === 'sng' ? mesa.ativos().length + quebrados.length - quebrados.indexOf(j) : campo.eliminarDaMesa();
-          const premio = posicao <= premios.length ? premios[posicao - 1] : 0;
-          eliminados.push({ nome: jog.nome, posicao, premio });
-          if (j.assento === HEROI) { fimTorneio(posicao, premio); continue; }
-          mesa.levantar(j.assento);
-          await chamar(ui, 'aoMensagem', `${jog.nome} foi eliminado em ${posicao}º` + (premio ? ` (${P.Formato ? P.Formato.dinheiro(premio) : premio})` : ''), 'saida');
         }
-      }
-      if (modo === 'torneio' && !fim) campo.simularMaoFora(blindsDaMao.bb);
-
-      // fim do SNG/torneio com vitória
-      if (!fim && modo !== 'cash') {
-        const restantes = modo === 'sng' ? mesa.ativos().length : campo.restantes();
-        if (restantes === 1 && mesa.jogador(HEROI) && mesa.jogador(HEROI).fichas > 0) fimTorneio(1, premios[0]);
+      } else {
+        // eliminações (menor stack no início da mão cai primeiro => pior colocação)
+        for (const e of torneio.fimDeMaoHeroi(r, h)) {
+          const premio = e.posicao <= premios.length ? premios[e.posicao - 1] : 0;
+          eliminados.push({ nome: e.jogador.nome, posicao: e.posicao, premio });
+          if (e.jogador.heroi) { fimTorneio(e.posicao, premio); continue; }
+          await chamar(ui, 'aoMensagem', `${e.jogador.nome} foi eliminado em ${e.posicao}º` + (premio ? ` (${P.Formato ? P.Formato.dinheiro(premio) : premio})` : ''), 'saida');
+        }
+        // fim com vitória
+        if (!fim && torneio.restantes() === 1 && mesa.jogador(HEROI) && mesa.jogador(HEROI).fichas > 0) fimTorneio(1, premios[0]);
+        // partidas automáticas: as outras mesas jogam uma mão junto com a sua
+        if (!fim && cfg.instantaneo) await torneio.rodadaInstantanea();
       }
       // cash: herói quebrou
       if (modo === 'cash' && mesa.jogador(HEROI).fichas === 0) {
@@ -380,8 +435,9 @@
     function fimTorneio(posicao, premio) {
       if (fim) return;
       if (premio > 0 && !cfg.semBanca) P.Banca.ajustar(premio);
-      P.Estatisticas.registrarTorneio(modo === 'sng' ? 'sng' : 'torneio', cfg.buyin.total, premio, posicao, modo === 'sng' ? lugares : cfg.field);
-      fim = { modo, motivo: posicao === 1 ? 'campeao' : 'eliminado', posicao, premio, buyin: cfg.buyin.total, maos: maosJogadas, field: modo === 'sng' ? lugares : cfg.field, nivel: nivelIdx + 1 };
+      P.Estatisticas.registrarTorneio(modo === 'sng' ? 'sng' : 'torneio', cfg.buyin.total, premio, posicao, participantes);
+      fim = { modo, motivo: posicao === 1 ? 'campeao' : 'eliminado', posicao, premio, buyin: cfg.buyin.total, maos: maosJogadas, field: participantes, nivel: nivelIdx + 1 };
+      if (torneio) torneio.parar();
     }
 
     // -------------------------------------------------------------- laço
@@ -391,14 +447,28 @@
       montar();
       await chamar(ui, 'aoIniciar', api);
       await chamar(ui, 'aoInfo', info());
+      if (torneio && !cfg.instantaneo) torneio.iniciarFundo();
+      let esperando = 0;
       while (ativo && !fim) {
         await prepararMao();
         if (!ativo || fim) break;
-        if (mesa.ativos().length < 2) { fim = fim || { modo, motivo: 'sem_jogadores', maos: maosJogadas }; break; }
+        if (mesa.ativos().length < 2) {
+          // torneio: a sua mesa ficou vazia — espera jogadores das outras mesas
+          if (torneio && torneio.restantes() > 1 && esperando < 2000) {
+            if (!esperando++) await chamar(ui, 'aoMensagem', 'Aguardando jogadores de outras mesas…', 'info');
+            if (cfg.instantaneo) await torneio.rodadaInstantanea(); else await esperar(400);
+            continue;
+          }
+          fim = fim || { modo, motivo: 'sem_jogadores', maos: maosJogadas };
+          break;
+        }
+        esperando = 0;
         await jogarMao();
         if (cfg.limiteMaos && maosJogadas >= cfg.limiteMaos) break;
       }
       rodando = false;
+      if (torneio) torneio.parar();
+      if (fim) apagarEstado();
       if (fim && ativo) await chamar(ui, 'aoFimDaPartida', fim);
       return fim;
     }
@@ -406,7 +476,9 @@
     /** Sair da mesa. No cash devolve o stack (atrás) para a banca. */
     function sair() {
       if (!ativo) return null;
+      apagarEstado();
       ativo = false;
+      if (torneio) torneio.parar();
       P.Coach.cancelar();
       let devolvido = 0;
       if (modo === 'cash' && mesa && mesa.jogador(HEROI)) {
@@ -441,10 +513,30 @@
       ativo: () => ativo,
       fim: () => fim,
       premios: () => premios.slice(),
+      torneio: () => torneio,
+      eliminados: () => eliminados.slice(),
       fmt
     };
     return api;
   }
 
-  P.Partida = { criar, HEROI, FATOR_VELOCIDADE };
+  /** Partida salva (interrompida) ou null. */
+  function salva() {
+    const s = P.Armazenamento.ler(CHAVE_SALVA, null);
+    return s && s.versao === 1 && s.cfg ? s : null;
+  }
+  /** Desiste da partida salva: no cash o stack volta para a banca; no SNG/torneio conta como abandono. */
+  function descartarSalva() {
+    const s = salva();
+    P.Armazenamento.remover(CHAVE_SALVA);
+    if (!s) return;
+    if (s.modo === 'cash') { if (!s.cfg.semBanca) P.Banca.ajustar(s.heroiFichas || 0); }
+    else {
+      const n = s.modo === 'sng' ? Math.max(s.cfg.lugares, s.cfg.participantes || s.cfg.lugares) : s.cfg.field;
+      P.Estatisticas.registrarTorneio(s.modo, s.cfg.buyin.total, 0, n, n);
+    }
+  }
+  function marcarRetomada(s) { s.retomadas = (s.retomadas || 0) + 1; P.Armazenamento.gravar(CHAVE_SALVA, s); }
+
+  P.Partida = { criar, HEROI, FATOR_VELOCIDADE, salva, descartarSalva, marcarRetomada };
 })(window.Poker = window.Poker || {});

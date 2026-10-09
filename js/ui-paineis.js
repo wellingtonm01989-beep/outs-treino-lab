@@ -500,6 +500,9 @@
       el('button', { class: 'btn', text: 'Recarregar banca ($25.000)', onclick: () => { P.Banca.reiniciar(); P.App.atualizarSaldo(); P.UI.aviso('Banca recarregada.', 'ok'); } }),
       el('button', { class: 'btn', text: 'Apagar histórico de mãos', onclick: async () => { if (await P.UI.confirmar('Apagar histórico', 'Apagar todas as mãos salvas?', 'Apagar')) { P.HistoricoMaos.limpar(); P.UI.aviso('Histórico apagado.'); } } }))));
     if (!P.Armazenamento.disponivel()) corpo.appendChild(el('div', { class: 'zona amarela', text: 'O navegador bloqueou o armazenamento local: as configurações valem só até fechar a página.' }));
+    // diagnóstico: por que o app fechou sozinho (sistema do celular ou erro do app)
+    const diag = P.App && P.App.diagnostico ? P.App.diagnostico() : null;
+    if (diag) corpo.appendChild(el('div', { class: 'campo' }, el('span', { text: 'Diagnóstico' }), el('div', { class: 'diagnostico', html: diag })));
     return P.UI.modal({ titulo: 'Configurações', conteudo: corpo, botoes: [{ texto: 'Fechar', classe: 'btn-ouro', valor: true }] });
   }
 

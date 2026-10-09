@@ -129,30 +129,37 @@
   // ------------------------------------------------------------------
   var CHAVE = 'historico.maos';
   var LIMITE_SALVO = 80;
+  var LIMITE_SESSAO = 120;
   var sessao = [];
+  var salvoCache = null;          // as mãos salvas, lidas uma vez só (são ~1 MB: copiar a cada mão pesa no celular)
   var proximoId = Date.now();
+
+  function salvas() {
+    if (!salvoCache) salvoCache = P.Armazenamento ? P.Armazenamento.ler(CHAVE, []) : [];
+    return salvoCache;
+  }
 
   P.HistoricoMaos = {
     adicionar: function (reg) {
       reg.id = proximoId++;
       reg.data = Date.now();
       sessao.unshift(reg);
-      if (sessao.length > 300) sessao.pop();
-      var salvo = P.Armazenamento ? P.Armazenamento.ler(CHAVE, []) : [];
+      if (sessao.length > LIMITE_SESSAO) sessao.pop();
+      var salvo = salvas();
       salvo.unshift(reg);
       while (salvo.length > LIMITE_SALVO) salvo.pop();
-      if (P.Armazenamento && !P.Armazenamento.gravar(CHAVE, salvo)) {
+      if (P.Armazenamento && !P.Armazenamento.gravarTexto(CHAVE, JSON.stringify(salvo))) {
         // cota cheia: guarda menos mãos
-        P.Armazenamento.gravar(CHAVE, salvo.slice(0, 20));
+        salvo.length = Math.min(salvo.length, 20);
+        P.Armazenamento.gravarTexto(CHAVE, JSON.stringify(salvo));
       }
       return reg;
     },
     /** Mãos desta sessão + as salvas de sessões anteriores (sem repetir). */
     todas: function () {
-      var salvo = P.Armazenamento ? P.Armazenamento.ler(CHAVE, []) : [];
       var ids = {};
       var out = [];
-      sessao.concat(salvo).forEach(function (r) { if (!ids[r.id]) { ids[r.id] = 1; out.push(r); } });
+      sessao.concat(salvas()).forEach(function (r) { if (!ids[r.id]) { ids[r.id] = 1; out.push(r); } });
       return out.sort(function (a, b) { return b.data - a.data; });
     },
     porId: function (id) {
@@ -162,6 +169,7 @@
     },
     limpar: function () {
       sessao = [];
+      salvoCache = [];
       if (P.Armazenamento) P.Armazenamento.remover(CHAVE);
     }
   };

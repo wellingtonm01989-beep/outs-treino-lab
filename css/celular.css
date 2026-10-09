@@ -121,6 +121,22 @@
   .painel-coach.recolhido { width: auto; opacity: 0; visibility: hidden; transform: translateY(14px); pointer-events: none; }
   .coach-cab .btn-icone { transform: rotate(90deg); }
 
+  /* outras mesas do torneio */
+  .pm-cab { padding: 6px 8px 6px 10px; gap: 8px; flex-wrap: nowrap; }
+  .pm-titulo { min-width: 0; }
+  .pm-titulo b { font-size: 13px; }
+  .pm-titulo span { font-size: 11px; }
+  .pm-abas { padding: 3px; }
+  .pm-abas button { padding: 5px 10px; font-size: 12px; }
+  .pm-vez { margin: 6px 10px 0; }
+  .pm-corpo { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); padding: 8px 10px; gap: 8px; }
+  .pm-lista { grid-auto-flow: column; grid-auto-columns: max-content; overflow-x: auto; overflow-y: hidden; padding-bottom: 2px; }
+  .pm-item { padding: 6px 9px; }
+  .pm-item small { display: none; }
+  .pm-mesa .mini-mesa-replay { min-height: 0; }
+  .pm-classificacao { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; overflow: auto; }
+  .mesa-barra .hud-torneio.clicavel { text-decoration: underline dotted rgba(255,255,255,.25); text-underline-offset: 3px; }
+
   /* replay */
   .mini-mesa-replay { height: 300px; --carta-l: 30px; --meio-r: 42px; }
   .mini-mesa-replay .oval-r { left: 15%; right: 15%; top: 15%; bottom: 15%; box-shadow: 0 0 0 7px #2b1e14, 0 0 0 8px #0d0906, 0 14px 30px rgba(0,0,0,.6), inset 0 0 24px rgba(0,0,0,.5); }

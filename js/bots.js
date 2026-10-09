@@ -103,8 +103,15 @@
 
   /** Novo oponente com nome que ainda não está na mesa. */
   function criar(nivel, nomesEmUso, perfilFixo) {
-    var livres = NOMES.filter(function (n) { return (nomesEmUso || []).indexOf(n) < 0; });
-    var nome = livres.length ? RNG.escolher(livres) : 'Jogador' + (++contador);
+    var usados = nomesEmUso || [];
+    var livres = NOMES.filter(function (n) { return usados.indexOf(n) < 0; });
+    var nome = livres.length ? RNG.escolher(livres) : null;
+    // torneios grandes: acabados os nomes, apelido + número (sem repetir)
+    for (var t = 0; !nome && t < 50; t++) {
+      var c = RNG.escolher(NOMES) + RNG.inteiroEntre(2, 99);
+      if (usados.indexOf(c) < 0) nome = c;
+    }
+    if (!nome) nome = 'Jogador' + (++contador);
     return {
       id: 'bot-' + (++contador) + '-' + RNG.inteiroAbaixo(1e6),
       nome: nome,

@@ -30,16 +30,27 @@
   window.__errosGlobais = [];
   /* o roteiro automático de testes usa armazenamento separado */
   if (/[?&]roteiro=/.test(location.search)) window.__OUTS_PREFIXO = 'outs.roteiro.';
+  /* os últimos erros também ficam salvos, para o diagnóstico em Configurações */
+  function guardarErro(texto) {
+    try {
+      var k = (window.__OUTS_PREFIXO || 'outs.treino.') + 'diag.erros';
+      var l = JSON.parse(localStorage.getItem(k) || '[]');
+      l.unshift({ quando: Date.now(), texto: String(texto).slice(0, 300) });
+      localStorage.setItem(k, JSON.stringify(l.slice(0, 8)));
+    } catch (x) { /* armazenamento indisponível */ }
+  }
   window.addEventListener('error', function (e) {
     window.__errosGlobais.push((e.message || 'erro') + (e.filename ? ' (' + e.filename.split('/').pop() + ':' + e.lineno + ')' : ''));
     document.documentElement.setAttribute('data-erros', String(window.__errosGlobais.length));
     document.documentElement.setAttribute('data-ultimo-erro', window.__errosGlobais[window.__errosGlobais.length - 1]);
+    guardarErro(window.__errosGlobais[window.__errosGlobais.length - 1]);
   });
   window.addEventListener('unhandledrejection', function (e) {
     var m = e.reason && (e.reason.stack || e.reason.message) || String(e.reason);
     window.__errosGlobais.push('Promise: ' + m);
     document.documentElement.setAttribute('data-erros', String(window.__errosGlobais.length));
     document.documentElement.setAttribute('data-ultimo-erro', String(m).slice(0, 300));
+    guardarErro('Promise: ' + m);
   });
 </script>
 <link rel="stylesheet" href="css/base.css">
@@ -96,6 +107,7 @@
 <script src="js/analise.js"></script>
 <script src="js/icm.js"></script>
 <script src="js/torneio.js"></script>
+<script src="js/multimesa.js"></script>
 <script src="js/bots.js"></script>
 <script src="js/coach.js"></script>
 <script src="js/estatisticas.js"></script>
@@ -106,6 +118,7 @@
 <script src="js/som.js"></script>
 <script src="js/partida.js"></script>
 <script src="js/ui-coach.js"></script>
+<script src="js/ui-mesas.js"></script>
 <script src="js/ui-mesa.js"></script>
 <script src="js/ui-lobby.js"></script>
 <script src="js/ui-paineis.js"></script>

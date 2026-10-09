@@ -199,17 +199,32 @@
     a.verdadeiro(E.nivelTorneio(0).anteBB);
   });
 
-  T(G, 'Field simulado conserva as fichas e elimina mais quando os stacks encurtam', a => {
-    const premios = E.valoresPremios(100 * 180, E.percentuaisTorneio(180));
-    const campo = P.Torneio.criarCampo({ field: 180, lugares: 9, stackInicial: 10000, naMesa: 9, premios });
-    let mesaFichas = 9 * 10000, caiuCedo = 0, caiuTarde = 0;
-    for (let i = 0; i < 100; i++) caiuCedo += campo.simularMaoFora(100);
-    for (let i = 0; i < 100; i++) caiuTarde += campo.simularMaoFora(2000);
-    a.maior(caiuTarde, caiuCedo, 'blinds altos eliminam mais');
-    const st = campo.sentarNovo(2000);
-    mesaFichas += st;
-    a.igual(campo.pool().fichas + mesaFichas, campo.totalFichas, 'fichas conservadas');
-    return `100 mãos com BB 100: ${caiuCedo} eliminados · com BB 2.000: ${caiuTarde}`;
+  T(G, 'Sit & Go com várias mesas segue a curva do torneio (18 e 45 inscritos)', a => {
+    const p18 = E.percentuaisSNG(18), p45 = E.percentuaisSNG(45);
+    a.proximo(soma(p18), 100, 1e-6, 'soma 18');
+    a.igual(p18.length, 3, 'pagos de 18');
+    a.igual(p45.length, 7, 'pagos de 45');
+    return `18: ${p18.map(x => x.toFixed(0)).join('/')}% · 45: ${p45.length} pagos`;
+  });
+
+  T(G, 'Mesas do torneio: 18 inscritos em mesas de 6 = 3 mesas cheias', a => {
+    const heroi = { id: 'h', nome: 'Herói', heroi: true, fichas: 1500 };
+    const t = P.MultiMesa.criar({
+      participantes: 18, lugares: 6, stack: 1500, nivel: 'medio', modo: 'sng', heroi, pagos: 3,
+      blinds: () => E.nivelSNG(0), fator: () => 1, pausado: () => false, instantaneo: true,
+      aoEliminar: () => {}, aoMensagem: () => {}
+    });
+    const d = t.diagnostico();
+    a.igual(t.mesas(), 3);
+    a.igualJSON(d.mesas, [6, 6, 6], 'jogadores por mesa');
+    a.igual(d.fichas, 18 * 1500, 'fichas');
+    const t2 = P.MultiMesa.criar({
+      participantes: 20, lugares: 6, stack: 1500, nivel: 'medio', modo: 'sng', heroi: { id: 'h2', nome: 'Herói', heroi: true, fichas: 1500 }, pagos: 3,
+      blinds: () => E.nivelSNG(0), fator: () => 1, pausado: () => false, instantaneo: true,
+      aoEliminar: () => {}, aoMensagem: () => {}
+    });
+    a.igualJSON(t2.diagnostico().mesas, [5, 5, 5, 5], '20 em mesas de 6 = 4 mesas de 5');
+    return '18 → 6/6/6 · 20 → 5/5/5/5';
   });
 
   // ====================================================== bots e coach
@@ -350,6 +365,92 @@
       a.verdadeiro(fim && fim.posicao >= 1 && fim.posicao <= 9);
       return `${fim.posicao}º lugar em ${fim.maos} mãos, nível ${fim.nivel}`;
     }));
+
+  T(G, 'Torneio inteiro com 45 inscritos em mesas de 9: mesas desfeitas até a final e 1 campeão', a => {
+    let rodada = 0, maxDif = 0, msgs = 0;
+    const heroi = { id: 'h', nome: 'Herói', heroi: true, fichas: 1500, perfil: 'tag' };
+    const t = P.MultiMesa.criar({
+      participantes: 45, lugares: 9, stack: 1500, nivel: 'medio', modo: 'torneio', heroi, pagos: 7,
+      blinds: () => E.nivelSNG(Math.floor(rodada / 5)), fator: () => 1, pausado: () => false, instantaneo: true,
+      aoEliminar: () => {}, aoMensagem: () => { msgs++; }
+    });
+    const m = t.mesaHeroi();
+    const jogar = async () => {
+      while (t.restantes() > 1) {
+        if (++rodada > 4000) throw new Error('torneio não terminou: ' + JSON.stringify(t.diagnostico()) + ' ' + JSON.stringify(t.resumo().map(r => [r.id, r.jogadores, r.quebrada, r.quebrando, r.maos])) + ' herói ' + heroi.fichas);
+        t.entreMaosHeroi();
+        if (m.ativos().length >= 2) {
+          m.definirBlinds(E.nivelSNG(Math.floor(rodada / 5)));
+          const mao = m.proximaMao();
+          while (!mao.terminada()) {
+            const s = mao.vez(), j = m.jogador(s);
+            mao.agir(s, P.Bots.decidir(mao.vista(s), s, { perfil: j.perfil, nivel: 'medio', modo: 'torneio' }).acao);
+          }
+          t.fimDeMaoHeroi(m.concluirMao(), mao.historicoCompleto());
+        }
+        await t.rodadaInstantanea();
+        const d = t.diagnostico();
+        a.igual(d.fichas, 45 * 1500, 'fichas conservadas (rodada ' + rodada + ')');
+        if (d.mesas.length > 1) maxDif = Math.max(maxDif, Math.max.apply(null, d.mesas) - Math.min.apply(null, d.mesas));
+      }
+    };
+    return jogar().then(() => {
+      const d = t.diagnostico();
+      a.igual(d.vivos, 1, 'um campeão');
+      a.igual(t.mesasAbertas(), 1, 'só a mesa final no fim');
+      a.igual(new Set(d.posicoes).size, 44, '44 colocações diferentes');
+      a.igualJSON(d.posicoes.slice().sort((x, y) => x - y), Array.from({ length: 44 }, (_, i) => i + 2), 'do 45º ao 2º');
+      a.verdadeiro(maxDif <= 1, 'diferença entre mesas ≤ 1 (foi ' + maxDif + ')');
+      return `${rodada} rodadas · ${msgs} avisos de mesa · maior diferença entre mesas: ${maxDif}`;
+    });
+  });
+
+  T(G, 'Retomar torneio salvo: mesmas mesas, jogadores, fichas e eliminados', a => {
+    let rodada = 0;
+    const opts = h => ({
+      participantes: 27, lugares: 6, stack: 1500, nivel: 'medio', modo: 'sng', heroi: h, pagos: 4,
+      blinds: () => E.nivelSNG(Math.floor(rodada / 3)), fator: () => 1, pausado: () => false, instantaneo: true,
+      aoEliminar: () => {}, aoMensagem: () => {}
+    });
+    const t = P.MultiMesa.criar(opts({ id: 'h', nome: 'Herói', heroi: true, fichas: 1500 }));
+    const jogar = async () => { for (; rodada < 25; rodada++) { t.entreMaosHeroi(); await t.rodadaInstantanea(); } };
+    return jogar().then(() => {
+      const salvo = JSON.parse(JSON.stringify(t.exportar()));           // como fica no armazenamento
+      const heroi2 = { id: 'h', heroi: true };
+      const t2 = P.MultiMesa.criar(Object.assign(opts(heroi2), { restaurar: salvo }));
+      const d1 = t.diagnostico(), d2 = t2.diagnostico();
+      a.igual(d2.fichas, d1.fichas, 'fichas');
+      a.igual(d2.restantes, d1.restantes, 'restantes');
+      a.igualJSON(d2.mesas, d1.mesas, 'jogadores por mesa');
+      a.igualJSON(d2.posicoes, d1.posicoes, 'eliminados');
+      a.igual(heroi2.nome, 'Herói', 'herói restaurado');
+      a.verdadeiro(t2.mesaHeroi().jogador(0) === heroi2, 'herói no lugar 0 da mesa 1');
+      return `${d1.restantes} restantes em ${d1.mesas.length} mesas, ${d1.posicoes.length} eliminados — igual depois de retomar`;
+    });
+  });
+
+  T(G, 'Sit & Go de 18 em mesas de 6 até o fim: fichas conservadas, mesas equilibradas, colocações únicas', a => {
+    let checagens = 0, maxDif = 0;
+    const base = { nivel: 'pequeno', heroi: { nome: 'Teste' }, autoHeroi: true, instantaneo: true, semBanca: true, maosPorNivel: 6 };
+    let p;
+    const ui = {
+      aoFimDaMao: () => {
+        const d = p.torneio().diagnostico();
+        a.igual(d.fichas, 18 * E.SNG_STACK, 'fichas conservadas');
+        a.igual(d.restantes + d.posicoes.length, 18, 'restantes + eliminados');
+        if (d.mesas.length > 1) maxDif = Math.max(maxDif, Math.max.apply(null, d.mesas) - Math.min.apply(null, d.mesas));
+        checagens++;
+      }
+    };
+    p = P.Partida.criar(Object.assign(base, { modo: 'sng', lugares: 6, participantes: 18, buyin: E.SNG.micro[0], velocidade: 'turbo' }), ui);
+    return p.rodar().then(fim => {
+      a.verdadeiro(fim && fim.posicao >= 1 && fim.posicao <= 18, 'colocação');
+      a.verdadeiro(maxDif <= 1, 'diferença entre mesas ≤ 1 (foi ' + maxDif + ')');
+      const pos = p.torneio().diagnostico().posicoes;
+      a.igual(new Set(pos).size, pos.length, 'colocações sem repetir');
+      return `${fim.posicao}º de 18 em ${fim.maos} mãos · ${checagens} conferências · ${p.torneio().mesasAbertas()} mesa(s) no fim`;
+    });
+  });
 
   T(G, 'Torneio (45) com mesas de 9 até o fim' + (completo ? '' : ' — rode com ?completo=1'), a => {
     if (!completo) return 'pulado (abra testes.html?completo=1 para simular)';

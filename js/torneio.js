@@ -1,7 +1,7 @@
 /* ==========================================================================
    OUTS · Treino Lab — torneio.js
    Estruturas de jogo: limites de cash, buy-ins de Sit & Go e torneio,
-   níveis de blinds, premiação e o "field" simulado do torneio.
+   níveis de blinds e premiação. As mesas do torneio ficam em multimesa.js.
 
    Unidades: cash em centavos; SNG/torneio em fichas; prêmios e buy-ins em
    centavos de dólar fictício.
@@ -71,11 +71,15 @@
   }
 
   // ------------------------------------------------------------- premiação
-  /** Percentuais do SNG: 2 jogadores 100%; 3-6: 65/35; 7-9: 50/30/20. */
+  /**
+   * Percentuais do SNG: 2 jogadores 100%; 3-6: 65/35; 7-9: 50/30/20.
+   * Com várias mesas (mais de 9 inscritos) segue a curva do torneio (~15% pagos).
+   */
   function percentuaisSNG(n) {
     if (n <= 2) return [100];
     if (n <= 6) return [65, 35];
-    return [50, 30, 20];
+    if (n <= 9) return [50, 30, 20];
+    return percentuaisTorneio(n);
   }
 
   /**
@@ -99,78 +103,6 @@
     return v;
   }
 
-  // ---------------------------------------------------- field simulado (MTT)
-  /**
-   * Só a mesa do jogador é jogada mão a mão. O resto do field fica num
-   * "pool" abstrato: quantidade de jogadores e total de fichas. A cada mão
-   * da mesa principal, as outras mesas também jogam e eliminam jogadores
-   * com uma chance que cresce quando os stacks médios ficam curtos.
-   */
-  function criarCampo(cfg) {
-    var field = cfg.field, lugares = cfg.lugares, stack = cfg.stackInicial;
-    var totalFichas = field * stack;
-    var pool = { jogadores: field - cfg.naMesa, fichas: totalFichas - cfg.naMesa * stack };
-    var restantes = field;
-    var eliminacoesFora = 0;
-    var pagos = cfg.premios.length;
-
-    function stackMedio() { return totalFichas / Math.max(1, restantes); }
-
-    return {
-      field: field,
-      totalFichas: totalFichas,
-      restantes: function () { return restantes; },
-      pool: function () { return { jogadores: pool.jogadores, fichas: pool.fichas }; },
-      stackMedio: stackMedio,
-      pagos: pagos,
-      eliminacoesFora: function () { return eliminacoesFora; },
-      /** As outras mesas jogam uma mão. Devolve quantos caíram fora da mesa. */
-      simularMaoFora: function (bb) {
-        if (pool.jogadores <= 0) return 0;
-        var mesas = pool.jogadores / lugares;
-        var mediaBB = stackMedio() / bb;
-        var p = Math.max(0.012, Math.min(0.3, 3 / mediaBB));
-        var caiu = 0;
-        var inteiras = Math.floor(mesas), fracao = mesas - inteiras;
-        for (var m = 0; m < inteiras + (P.RNG.chance(fracao) ? 1 : 0); m++) {
-          if (pool.jogadores <= 1) break;
-          if (P.RNG.chance(p)) { pool.jogadores--; restantes--; caiu++; eliminacoesFora++; }
-        }
-        return caiu;
-      },
-      /** Alguém da mesa principal foi eliminado: devolve a colocação dele. */
-      eliminarDaMesa: function () {
-        var pos = restantes;
-        restantes--;
-        return pos;
-      },
-      /** Um jogador do pool senta na mesa principal: devolve o stack dele (ou null). */
-      sentarNovo: function (bb) {
-        if (pool.jogadores <= 0) return null;
-        var st;
-        if (pool.jogadores === 1) st = pool.fichas;
-        else {
-          var media = pool.fichas / pool.jogadores;
-          var f = Math.exp(P.RNG.normal() * 0.45);
-          var minimo = Math.max(bb, 1);
-          st = Math.round(media * f);
-          st = Math.max(minimo, Math.min(st, pool.fichas - minimo * (pool.jogadores - 1)));
-        }
-        pool.jogadores--;
-        pool.fichas -= st;
-        return st;
-      },
-      /** Stacks estimados de quem está fora da mesa (todos com a média do pool). */
-      stacksFora: function () {
-        var out = [];
-        if (pool.jogadores <= 0) return out;
-        var m = pool.fichas / pool.jogadores;
-        for (var i = 0; i < pool.jogadores; i++) out.push(m);
-        return out;
-      }
-    };
-  }
-
   P.Estruturas = {
     NIVEIS: NIVEIS,
     NOMES_NIVEL: NOMES_NIVEL,
@@ -188,5 +120,4 @@
     percentuaisTorneio: percentuaisTorneio,
     valoresPremios: valoresPremios
   };
-  P.Torneio = { criarCampo: criarCampo };
 })(window.Poker = window.Poker || {});

@@ -47,9 +47,21 @@
     try { window.localStorage.removeItem(PREFIXO + chave); } catch (e) { /* ignora */ }
   }
 
+  /** Grava um JSON já pronto (para dados grandes: evita copiar o objeto várias vezes). */
+  function gravarTexto(chave, texto) {
+    delete memoria[chave];
+    try {
+      window.localStorage.setItem(PREFIXO + chave, texto);
+      return true;
+    } catch (e) {
+      memoria[chave] = JSON.parse(texto);
+      return false;
+    }
+  }
+
   function clonar(v) { return v === undefined ? undefined : JSON.parse(JSON.stringify(v)); }
 
-  P.Armazenamento = { ler: ler, gravar: gravar, remover: remover, disponivel: function () { return disponivel; } };
+  P.Armazenamento = { ler: ler, gravar: gravar, gravarTexto: gravarTexto, remover: remover, disponivel: function () { return disponivel; } };
 
   // ---------------------------------------------------------- configurações
   var PADRAO_CONFIG = {

@@ -68,7 +68,7 @@
     const E = P.Estruturas;
     const cfg = { modo, nivel: 'pequeno', lugares, semBanca: true };
     if (modo === 'cash') Object.assign(cfg, { limite: E.CASH.micro[2], buyinBB: 100, recompraAuto: true });
-    else Object.assign(cfg, { buyin: E.SNG.micro[1], velocidade: 'turbo', field: lugares });
+    else Object.assign(cfg, { buyin: E.SNG.micro[1], velocidade: 'turbo', field: lugares, participantes: +param('participantes') || lugares });
     P.App.iniciarPartida(cfg);
     const t0 = Date.now();
     while (($('.btn-fold') || {}).disabled !== false && Date.now() - t0 < 60000) await dormir(100);
@@ -110,8 +110,57 @@
   /** &estado=coach|menu|config|relatorio: deixa a tela nesse estado no fim (para fotos). */
   async function deixarEstado(qual) {
     if (qual === 'coach') { P.UICoach.alternar(true); await dormir(400); }
+    else if (qual === 'mesas' || qual === 'classificacao') {
+      $('.hud-torneio').click();
+      await dormir(300);
+      if (qual === 'classificacao') { Array.prototype.slice.call(document.querySelectorAll('.pm-abas button')).pop().click(); }
+      await dormir(+param('espera') || 6000);   // deixa as outras mesas jogarem um pouco
+      const pm = $('.painel-mesas');
+      log.push('painel de mesas ' + (pm ? 'aberto: ' + pm.querySelectorAll('.pm-item').length + ' mesas, ' + pm.querySelectorAll('.lugar-r').length + ' lugares na mesa assistida' : 'NÃO abriu'));
+      gravar();
+    }
     else if (qual === 'menu') { $('#mb-menu').click(); await dormir(300); }
     else if (qual === 'config') { $('#btn-config').click(); await dormir(300); }
+    else if (qual === 'memoria') {
+      // sessão longa automática (com o coach analisando) medindo memória e elementos na página
+      const E = P.Estruturas, alvo = +param('maos') || 300;
+      P.App.iniciarPartida({ modo: 'cash', nivel: 'pequeno', lugares: 9, limite: E.CASH.micro[2], buyinBB: 100, recompraAuto: true, semBanca: true,
+        autoHeroi: true, autoCoach: true, iteracoesCoach: +param('iter') || 3000, semSalvar: true, limiteMaos: alvo });
+      const amostras = [];
+      let proxima = 0;
+      for (let k = 0; k < 20000; k++) {
+        await dormir(1000);
+        const m = /(\d+) mãos/.exec(($('#mb-detalhe') || {}).textContent || '');
+        const maos = m ? +m[1] : 0;
+        if (maos >= proxima) {
+          const heap = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : -1;
+          amostras.push(`${maos}m:${heap}MB/${document.getElementsByTagName('*').length}el`);
+          proxima += Math.max(25, Math.round(alvo / 8));
+          log.push('memória ' + amostras.join(' '));
+          log.splice(0, log.length - 1);
+          gravar();
+        }
+        if (maos >= alvo || document.documentElement.getAttribute('data-partida-fim')) break;
+      }
+    }
+    else if (qual === 'lobbysng') {
+      P.App.irPara('lobby');
+      Array.prototype.slice.call(document.querySelectorAll('.abas button')).find(b => b.textContent === 'Sit & Go').click();
+      await dormir(200);
+      Array.prototype.slice.call(document.querySelectorAll('.botoes-lugares button')).find(b => b.textContent === '6').click();
+      await dormir(200);
+      Array.prototype.slice.call(document.querySelectorAll('.lobby-config .opcao')).find(b => b.textContent === '18').click();
+      await dormir(200);
+      const lat = $('.lobby-config');
+      if (param('rolar')) lat.scrollIntoView();
+    }
+    else if (qual === 'parar') {
+      // simula o app sendo fechado pelo celular: a página para aqui, com a partida salva
+      const s = P.Partida.salva();
+      const t = s && s.torneio;
+      log.push('partida salva: ' + (s ? `${s.rotulo} · mão ${s.maosJogadas + 1} · ${t ? t.restantes + ' restantes em ' + t.mesas.filter(m => !m.quebrada).length + ' mesas' : 'cash'} · suas fichas ${s.heroiFichas}` : 'NENHUMA'));
+      gravar();
+    }
     else if (qual === 'relatorio') {
       for (let k = 0; k < 5; k++) {   // algumas mãos para o relatório ter conteúdo
         const t0 = Date.now();
