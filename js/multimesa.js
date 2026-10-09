@@ -20,7 +20,7 @@
   'use strict';
 
   /**
-   * o: { participantes, lugares, stack, nivel, modo, heroi (jogador), pagos,
+   * o: { participantes, lugares, stack, mesaSorteada (P.Bots.sortearMesa), modo, heroi (jogador), pagos,
    *      premios (valores, para o ICM dos bots), leitura (P.Leitura da partida),
    *      blinds() → blinds atuais, fator() → multiplicador de tempo,
    *      pausado() → true com o relógio parado, instantaneo,
@@ -67,7 +67,7 @@
       for (let t = 0; t < T; t++) mesas.push(novaMesa(t + 1));
       const nomes = [o.heroi.nome];
       const novoBot = () => {
-        const bot = P.Bots.criar(o.nivel, nomes);
+        const bot = P.Bots.criar(o.mesaSorteada, nomes);
         nomes.push(bot.nome);
         bot.fichas = o.stack;
         return bot;
@@ -226,7 +226,7 @@
         if (bot.fichas >= maior) agress = 1.3; else bolha = 0.6;
       }
       return P.Bots.decidir(mao.vista(s), s, {
-        perfil: bot.perfil, nivel: o.nivel, modo: o.modo, bolha, agressividade: agress,
+        perfil: bot.perfil, modo: o.modo, bolha, agressividade: agress,
         leitura: o.leitura || null, torneio: ctxTorneioDe(m), estilo: bot.estilo
       });
     }

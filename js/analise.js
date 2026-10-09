@@ -455,6 +455,7 @@
     tag: { abre: 1, paga: 1, tresBet: 1, limpa: 0.1, blefe: 0.3 },
     lag: { abre: 1.35, paga: 1.3, tresBet: 1.6, limpa: 0.1, blefe: 0.45 },
     maniaco: { abre: 2.2, paga: 1.6, tresBet: 3, limpa: 0.2, blefe: 0.7 },
+    reg: { abre: 1, paga: 1.05, tresBet: 1.05, limpa: 0, blefe: 0.3 },
     pro: { abre: 1.05, paga: 1, tresBet: 1.2, limpa: 0, blefe: 0.35 },
     desconhecido: { abre: 1.1, paga: 1.2, tresBet: 1, limpa: 0.3, blefe: 0.3 }
   };

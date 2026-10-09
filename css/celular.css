@@ -176,9 +176,11 @@
   .kpi b { font-size: 15px; }
   .lobby-cab { gap: 8px; }
   .abas button { padding: 8px 13px; }
-  .niveis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .nivel:last-child:nth-child(odd) { grid-column: 1 / -1; }
-  .nivel p { min-height: 0; }
+  .oponentes-sorteio { padding: 12px; gap: 6px; }
+  .oponentes-sorteio p { font-size: 12px; }
+  .tipos-oponentes { gap: 6px; }
+  .tipo-oponente { padding: 6px 7px; }
+  .tipo-oponente .txt { display: none; }
   .limites { grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 8px; }
   .limite { padding: 12px; }
   .limite .nome { font-size: 19px; }

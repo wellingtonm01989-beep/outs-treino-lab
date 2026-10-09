@@ -20,7 +20,7 @@
   const R = P.Ranges, An = P.Analise, C = P.Cartas;
 
   const NOME_ACAO = { fold: 'Fold', check: 'Check', call: 'Pague', bet: 'Aposte', raise: 'Aumente', allin: 'All-in' };
-  const NOME_PERFIL = { station: 'calling station', nit: 'nit', tag: 'TAG', lag: 'LAG', maniaco: 'maníaco', pro: 'profissional', desconhecido: 'jogador desconhecido' };
+  const NOME_PERFIL = { station: 'calling station', nit: 'nit', tag: 'TAG', lag: 'LAG', maniaco: 'maníaco', reg: 'regular', pro: 'profissional', desconhecido: 'jogador desconhecido' };
 
   const pct = (x, casas = 0) => (x * 100).toFixed(casas).replace('.', ',') + '%';
   const num = (x, casas = 1) => (Math.round(x * Math.pow(10, casas)) / Math.pow(10, casas)).toFixed(casas).replace('.', ',');

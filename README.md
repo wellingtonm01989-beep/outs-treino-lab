@@ -16,10 +16,10 @@ A mesa se ajusta ao celular em pé (mesa vertical, botões grandes embaixo) e de
 
 ## O que tem
 
-- **Cash game, Sit & Go e torneio**, de 2 a 9 jogadores por mesa, nos níveis Micro, Pequeno, Médio, Alto e Profissional. No Sit & Go você escolhe quantos participam (uma mesa ou até 180 jogadores); no torneio, 45, 90 ou 180.
+- **Cash game, Sit & Go e torneio**, de 2 a 9 jogadores por mesa, do NL2 ao NL1000 e buy-ins de $1 a $1.050. No Sit & Go você escolhe quantos participam (uma mesa ou até 180 jogadores); no torneio, 45, 90 ou 180.
 - **Várias mesas de verdade ao mesmo tempo**: todas jogam mão a mão, os jogadores mudam de mesa para equilibrar, as mesas vão se juntando até a final, e você pode assistir a qualquer mesa ao vivo e ver a classificação.
 - **A partida não se perde**: se o app fechar (o celular encerra apps em segundo plano), ao abrir de novo você volta para a mesma partida.
-- **Bots com perfis reais**: calling station, nit, TAG, LAG, maníaco e profissional, com composição diferente em cada nível. Os bots anotam o seu jogo (só o que é público) e se adaptam: o profissional faz as contas de EV e ICM, paga mais leve se você empurra all-in demais e para de blefar se você paga tudo.
+- **Oponentes sorteados em cada partida**: profissionais (muito bons), regulares (medianos) e jogadores comuns (calling station, nit, TAG, LAG e maníaco), em proporções aleatórias. No heads-up o adversário pode ser de qualquer tipo. Os bots anotam o seu jogo (só o que é público) e se adaptam; todos percebem quem vai all-in com qualquer mão. O profissional ainda faz as contas de EV e ICM e para de blefar se você paga tudo.
 - **Coach**: dicas sempre visíveis, só quando pedir, modo quiz ou desligado. No fim de cada partida, uma análise completa do desempenho.
 - **Treino relâmpago, estatísticas, histórico com replay e auditoria do embaralhamento** (1.000.000 de baralhos testados).
 

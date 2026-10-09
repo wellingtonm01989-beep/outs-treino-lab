@@ -54,10 +54,12 @@
     P.Config.set('velocidade', 'turbo');
     P.Config.set('som', false);
 
-    // 1) lobby: abas, níveis, lugares
+    // 1) lobby: abas, oponentes sorteados (sem escolha de nível), lugares
     P.App.irPara('lobby');
+    if ($('.nivel')) throw new Error('o lobby não deveria ter escolha de nível');
+    if (!$('.oponentes-sorteio')) throw new Error('faltou a explicação dos oponentes sorteados');
     clicar(botaoComTexto('Sit & Go'));
-    clicar($$('.nivel')[2]);
+    clicar($$('.limite')[4]);
     clicar(botaoComTexto('9', '.botoes-lugares'));
     clicar(botaoComTexto('Torneio'));
     clicar(botaoComTexto('180 jogadores'));
@@ -91,7 +93,7 @@
 
     // 4) mesa em modo quiz (cash, 3 lugares)
     P.Config.set('modoCoach', 'quiz');
-    P.App.iniciarPartida({ modo: 'cash', nivel: 'micro', lugares: 3, limite: P.Estruturas.CASH.micro[2], buyinBB: 100, recompraAuto: true });
+    P.App.iniciarPartida({ modo: 'cash', lugares: 3, limite: P.Estruturas.CASH[2], buyinBB: 100, recompraAuto: true });
     let decisoes = 0;
     while (decisoes < 6) {
       await ate(() => $('.modal-fundo') || (!$('.btn-fold').disabled), 120000, 'vez do herói');

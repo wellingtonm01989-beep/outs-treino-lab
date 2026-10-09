@@ -986,7 +986,7 @@
     let det;
     if (info.modo === 'cash') {
       const r = info.resultado;
-      det = `${F.dinheiro(b.sb)}/${F.dinheiro(b.bb)} · ${P.Estruturas.NOMES_NIVEL[info.nivelMesa]} · ${info.lugares} lugares · ${info.maos} mãos · ` +
+      det = `${F.dinheiro(b.sb)}/${F.dinheiro(b.bb)} · ${info.lugares} lugares · ${info.maos} mãos · ` +
         `sessão <span class="${r >= 0 ? 'resultado-pos' : 'resultado-neg'}">${r >= 0 ? '+' : ''}${F.dinheiro(r)}</span>` +
         (info.maos ? ` (${F.num(info.bb100, 1)} bb/100)` : '');
     } else {

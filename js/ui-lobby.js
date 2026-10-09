@@ -1,8 +1,9 @@
 /* ==========================================================================
    OUTS · Treino Lab — ui-lobby.js
-   Lobby: abas Cash / Sit & Go / Torneio, níveis (Micro a Alto) com a
-   composição típica de oponentes, cartões de limite ou buy-in, seletor
-   visual de 2 a 9 lugares, opções da mesa e o botão de sentar.
+   Lobby: abas Cash / Sit & Go / Torneio, como os oponentes são sorteados,
+   cartões de limite ou buy-in, seletor visual de 2 a 9 lugares, opções da
+   mesa e o botão de sentar. Não há nível para escolher: cada partida sorteia
+   quantos profissionais, regulares e jogadores comuns sentam com você.
    ========================================================================== */
 (function (P) {
   'use strict';
@@ -10,13 +11,6 @@
   const { el, esc } = P.UI;
   const F = P.Formato, E = P.Estruturas;
 
-  const DESC_NIVEL = {
-    micro: 'Muitos jogadores passivos que pagam demais. Aposte valor e blefe pouco.',
-    pequeno: 'Mesa mista: passivos, apertados e alguns agressivos.',
-    medio: 'Mais TAGs: 3-bets, continuation bets e menos erros grosseiros.',
-    alto: 'Agressivos e equilibrados, com alguns profissionais na mesa.',
-    pro: 'Só profissionais: contas de EV e ICM e leitura do seu jogo. Empurrou all-in demais, eles pagam.'
-  };
   const DESC_ABA = {
     cash: 'Fichas valem dinheiro, blinds fixos, entre e saia quando quiser.',
     sng: 'Uma ou várias mesas jogando ao mesmo tempo, stack de 1.500, blinds sobem pelo relógio. Premiação para os primeiros.',
@@ -25,15 +19,15 @@
   const PARTICIPANTES_SNG = [18, 27, 45, 90, 180];
 
   const salvo = P.Config.get('ultimoLobby') || {};
-  const st = Object.assign({ aba: 'cash', nivel: 'micro', indice: 1, lugares: 6, buyinBB: 100, recompraAuto: false, velocidade: 'regular', field: 90, participantes: 0 }, salvo);
-  if (E.NIVEIS.indexOf(st.nivel) < 0) st.nivel = 'micro';
+  const st = Object.assign({ aba: 'cash', indice: 1, lugares: 6, buyinBB: 100, recompraAuto: false, velocidade: 'regular', field: 90, participantes: 0 }, salvo);
+  delete st.nivel;                       // versões antigas tinham escolha de nível
   /** Inscritos no Sit & Go (no mínimo uma mesa cheia). */
   const inscritosSNG = () => Math.max(st.lugares, Math.min(180, st.participantes || st.lugares));
   const mesasDe = (n, l) => Math.ceil(n / l);
 
   function salvar() { P.Config.set('ultimoLobby', st); }
 
-  function itens() { return st.aba === 'cash' ? E.CASH[st.nivel] : st.aba === 'sng' ? E.SNG[st.nivel] : E.TORNEIO[st.nivel]; }
+  function itens() { return st.aba === 'cash' ? E.CASH : st.aba === 'sng' ? E.SNG : E.TORNEIO; }
   function itemAtual() { const l = itens(); if (st.indice >= l.length) st.indice = 0; return l[st.indice]; }
 
   function render() {
@@ -72,16 +66,7 @@
     });
     box.appendChild(el('div', { class: 'lobby-cab' }, abas, el('span', { class: 'desc', text: DESC_ABA[st.aba] })));
 
-    // níveis
-    const niveis = el('div', { class: 'niveis' });
-    E.NIVEIS.forEach(n => {
-      const comp = P.Bots.COMPOSICAO[n];
-      const barra = el('div', { class: 'composicao' }, Object.keys(comp).map(p => el('i', { style: { width: (comp[p] * 100) + '%', background: P.Bots.PERFIS[p].cor }, title: `${P.Bots.PERFIS[p].nome}: ${Math.round(comp[p] * 100)}%` })));
-      niveis.appendChild(el('button', { class: 'nivel' + (st.nivel === n ? ' ativo' : ''), onclick: () => { st.nivel = n; st.indice = 0; salvar(); render(); } },
-        el('h3', { text: E.NOMES_NIVEL[n] }), el('p', { text: DESC_NIVEL[n] }), barra));
-    });
-    box.appendChild(niveis);
-    box.appendChild(el('div', { class: 'legenda-perfis' }, Object.keys(P.Bots.PERFIS).map(p => el('span', { style: { '--c': P.Bots.PERFIS[p].cor }, text: P.Bots.PERFIS[p].nome, title: P.Bots.PERFIS[p].descricao }))));
+    box.appendChild(caixaOponentes());
 
     // cartões
     const lim = el('div', { class: 'limites' });
@@ -90,9 +75,28 @@
     return box;
   }
 
+  /** Como os oponentes são escolhidos (sorteio a cada partida). */
+  function caixaOponentes() {
+    const PF = P.Bots.PERFIS, CAT = P.Bots.CATEGORIAS;
+    const chip = p => el('span', { class: 'tag-perfil', style: { '--cor-perfil': PF[p].cor }, title: `${PF[p].nome}: ${PF[p].descricao}`, text: PF[p].sigla });
+    const tipo = (cat, txt) => el('div', { class: 'tipo-oponente' },
+      el('div', { class: 'chips' }, CAT[cat].perfis.map(chip)),
+      el('b', { text: CAT[cat].nome }),
+      el('span', { class: 'txt', text: txt }));
+    return el('section', { class: 'oponentes-sorteio' },
+      el('h3', { text: 'Oponentes sorteados em cada partida' }),
+      el('p', { text: 'O jogo sorteia quantos jogadores muito bons, medianos e comuns sentam com você: às vezes a mesa é dura, às vezes é fácil. No heads-up, o adversário pode ser de qualquer um dos três tipos.' }),
+      el('div', { class: 'tipos-oponentes' },
+        tipo('forte', 'Profissionais: contas de EV e ICM, leem o seu jogo e se adaptam.'),
+        tipo('mediano', 'Regulares: jogo correto e atento, mas com mais erros.'),
+        tipo('comum', 'Calling station, nit, TAG, LAG e maníaco, cada um com seus vazamentos.')),
+      el('small', { text: 'Todos percebem quem vai all-in com qualquer mão e passam a pagar mais leve.' }));
+  }
+
   function cartaoItem(it, i) {
     const ativo = st.indice === i;
-    const faixaCor = { micro: '#2a8a5c', pequeno: '#3b82c4', medio: '#9b5de5', alto: '#d8b25a', pro: '#b794f4' }[st.nivel];
+    // a cor da faixa sobe com o valor da mesa
+    const faixaCor = ['#2a8a5c', '#3b82c4', '#9b5de5', '#d8b25a'][Math.min(3, Math.floor(i / itens().length * 4))];
     let conteudo;
     if (st.aba === 'cash') {
       conteudo = [
@@ -194,7 +198,7 @@
       box.appendChild(el('div', { class: 'campo' }, el('span', { text: 'Premiação' }),
         el('div', { class: 'premios-lista', html: premios.map((v, i) => `<span>${i + 1}º</span><b>${F.dinheiro(v)}</b>`).join('') })));
     }
-    linha('Oponentes', E.NOMES_NIVEL[st.nivel]);
+    linha('Oponentes', 'sorteados na hora');
 
     // coach durante a partida (no fim sempre há a análise de desempenho)
     const coach = el('div', { class: 'opcoes-linha' });
@@ -229,7 +233,7 @@
 
   function comecar() {
     const it = itemAtual();
-    const cfg = { modo: st.aba, nivel: st.nivel, lugares: st.lugares };
+    const cfg = { modo: st.aba, lugares: st.lugares };
     if (st.aba === 'cash') Object.assign(cfg, { limite: it, buyinBB: st.buyinBB, recompraAuto: st.recompraAuto });
     else Object.assign(cfg, { buyin: it, velocidade: st.velocidade, field: st.aba === 'torneio' ? st.field : inscritosSNG(), participantes: st.aba === 'sng' ? inscritosSNG() : undefined });
     P.App.iniciarPartida(cfg);

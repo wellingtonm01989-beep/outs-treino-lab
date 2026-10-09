@@ -1,17 +1,21 @@
 /* ==========================================================================
    OUTS · Treino Lab — bots.js
-   Oponentes: perfis, composição por nível, identidade fictícia (nome, país,
+   Oponentes: perfis, sorteio da mesa, identidade fictícia (nome, país,
    avatar) e a lógica de decisão.
+
+   Três tipos de oponente, misturados ao acaso em cada partida:
+     - muito bons: Profissional (contas de EV e ICM, leitura do seu jogo);
+     - medianos: Regular (ranges corretos, presta atenção, erra mais);
+     - comuns: calling station, nit, TAG, LAG e maníaco.
 
    Os bots recebem SÓ a vista pública do próprio assento (motor.vista): as
    próprias cartas, o board, stacks e ações. Nunca veem cartas de outros
    jogadores nem o baralho restante. O que eles "lembram" dos outros vem da
    leitura (leitura.js), que também só anota informação pública.
 
-   Diante de all-in no pré-flop todos os perfis fazem a conta: equity contra o
-   range provável do all-in x preço do call (em fichas ou, no torneio, ICM).
-   O perfil Profissional ainda decide os próprios all-ins pela conta de EV,
-   adapta ranges e blefes ao que leu de cada oponente e joga com ICM.
+   Diante de all-in todos os perfis fazem a conta: equity contra o range
+   provável do all-in x preço do call. E todos, até os piores, percebem
+   quem vai all-in com qualquer mão e passam a pagar mais leve.
    ========================================================================== */
 (function (P) {
   'use strict';
@@ -21,65 +25,91 @@
   // ------------------------------------------------------------- perfis
   // margemShove: equity a mais (+) ou a menos (−) que o perfil exige para pagar all-in
   // desconfia: o quanto acha que o all-in dos outros é largo (blefe)
-  // adapta: 0 = não presta atenção nos outros; 1 = ajusta rápido como um profissional
+  // adapta: 0 = não ajusta o jogo aos outros; 1 = ajusta rápido como um profissional
+  // adaptaShove: rapidez para perceber quem vai all-in com qualquer mão (todos percebem)
   var PERFIS = {
     station: {
       nome: 'Calling station', sigla: 'CS', cor: '#d9a441',
       descricao: 'Paga demais e raramente aumenta. Contra ele: aposte valor maior e quase nunca blefe.',
       abre: 0.8, paga: 2.2, tresBet: 0.4, limpa: 0.7, blefe: 0.06, cbet: 0.35, agressao: 0.35,
       margemCall: -0.12, valorMin: 0.72, tamanhos: [0.5, 0.6],
-      margemShove: -0.1, desconfia: 2.5, adapta: 0
+      margemShove: -0.1, desconfia: 2.5, adapta: 0, adaptaShove: 0.8
     },
     nit: {
       nome: 'Nit', sigla: 'NIT', cor: '#7aa2c7',
       descricao: 'Joga poucas mãos e só aposta forte com mão forte. Contra ele: roube blinds e respeite a agressão.',
       abre: 0.65, paga: 0.7, tresBet: 0.5, limpa: 0.05, blefe: 0.05, cbet: 0.55, agressao: 0.6,
       margemCall: 0.08, valorMin: 0.68, tamanhos: [0.5, 0.66],
-      margemShove: 0.05, desconfia: 1, adapta: 0.35
+      margemShove: 0.05, desconfia: 1, adapta: 0.35, adaptaShove: 0.8
     },
     tag: {
       nome: 'TAG', sigla: 'TAG', cor: '#4fbf8b',
       descricao: 'Tight-agressivo: ranges sólidos, aposta e aumenta com propósito.',
       abre: 1, paga: 1, tresBet: 1, limpa: 0, blefe: 0.25, cbet: 0.65, agressao: 1,
       margemCall: 0, valorMin: 0.62, tamanhos: [0.33, 0.5, 0.66],
-      margemShove: 0, desconfia: 1, adapta: 0.6
+      margemShove: 0, desconfia: 1, adapta: 0.6, adaptaShove: 0.9
     },
     lag: {
       nome: 'LAG', sigla: 'LAG', cor: '#e07a5f',
       descricao: 'Loose-agressivo: muitas mãos, muita pressão, blefes frequentes.',
       abre: 1.35, paga: 1.25, tresBet: 1.6, limpa: 0, blefe: 0.4, cbet: 0.75, agressao: 1.4,
       margemCall: -0.03, valorMin: 0.58, tamanhos: [0.33, 0.66, 1],
-      margemShove: -0.02, desconfia: 1.3, adapta: 0.6
+      margemShove: -0.02, desconfia: 1.3, adapta: 0.6, adaptaShove: 0.9
     },
     maniaco: {
       nome: 'Maníaco', sigla: 'MAN', cor: '#e5484d',
       descricao: 'Aumenta quase tudo e blefa sem parar. Contra ele: pague mais leve e deixe ele blefar.',
       abre: 2.2, paga: 1.5, tresBet: 3, limpa: 0.05, blefe: 0.65, cbet: 0.9, agressao: 2.2,
       margemCall: -0.06, valorMin: 0.5, tamanhos: [0.75, 1, 1.5],
-      margemShove: -0.07, desconfia: 2, adapta: 0
+      margemShove: -0.07, desconfia: 2, adapta: 0, adaptaShove: 0.8
+    },
+    reg: {
+      nome: 'Regular', sigla: 'REG', cor: '#5ec8e5',
+      descricao: 'Jogador mediano e consistente: ranges corretos e presta atenção no seu jogo, mas faz as contas de cabeça e erra mais que um profissional.',
+      abre: 1, paga: 1.05, tresBet: 1.05, limpa: 0, blefe: 0.27, cbet: 0.65, agressao: 1.05,
+      margemCall: 0.01, valorMin: 0.62, tamanhos: [0.33, 0.5, 0.75],
+      margemShove: 0.01, desconfia: 1, adapta: 0.7, adaptaShove: 1, mediano: true
     },
     pro: {
       nome: 'Profissional', sigla: 'PRO', cor: '#b794f4',
       descricao: 'Joga como profissional: ranges de equilíbrio, contas de EV e ICM, e lê o seu jogo. Se você empurra all-in demais, ele paga mais leve; se paga tudo, ele para de blefar.',
       abre: 1.05, paga: 1, tresBet: 1.15, limpa: 0, blefe: 0.3, cbet: 0.62, agressao: 1.15,
       margemCall: 0, valorMin: 0.6, tamanhos: [0.33, 0.5, 0.75],
-      margemShove: 0, desconfia: 1, adapta: 1, pro: true
+      margemShove: 0, desconfia: 1, adapta: 1, adaptaShove: 1, pro: true
     }
   };
 
-  // composição das mesas por nível
-  var COMPOSICAO = {
-    micro: { station: 0.45, nit: 0.15, tag: 0.15, lag: 0.1, maniaco: 0.15 },
-    pequeno: { station: 0.25, nit: 0.2, tag: 0.25, lag: 0.2, maniaco: 0.1 },
-    medio: { station: 0.1, nit: 0.15, tag: 0.4, lag: 0.25, maniaco: 0.05, pro: 0.05 },
-    alto: { station: 0.05, nit: 0.05, tag: 0.25, lag: 0.3, maniaco: 0.05, pro: 0.3 },
-    pro: { pro: 1 }
+  // os três tipos de oponente
+  var CATEGORIAS = {
+    forte: { nome: 'Muito bons', perfis: ['pro'] },
+    mediano: { nome: 'Medianos', perfis: ['reg'] },
+    comum: { nome: 'Comuns', perfis: ['station', 'nit', 'tag', 'lag', 'maniaco'] }
   };
 
-  function sortearPerfil(nivel) {
-    var comp = COMPOSICAO[nivel] || COMPOSICAO.pequeno, x = RNG.real(), acc = 0;
-    for (var p in comp) { acc += comp[p]; if (x < acc) return p; }
-    return 'tag';
+  /**
+   * Sorteia a mesa de uma partida: quanto de cada tipo vai aparecer. A
+   * proporção é aleatória e qualquer mistura é igualmente provável (mesa só
+   * de profissionais, só de comuns, metade de cada...). Depois cada bot é
+   * sorteado com essas chances — no heads-up, o único adversário pode ser
+   * de qualquer um dos três tipos (1/3 de chance cada).
+   */
+  function sortearMesa() {
+    var a = -Math.log(1 - RNG.real()), b = -Math.log(1 - RNG.real()), c = -Math.log(1 - RNG.real());
+    var s = a + b + c || 1;
+    return { forte: a / s, mediano: b / s, comum: c / s };
+  }
+
+  /** Perfil de um bot a partir da mesa sorteada (sem mesa: 1/3 para cada tipo). */
+  function sortearPerfil(mesa) {
+    var comp = mesa && typeof mesa === 'object' ? mesa : { forte: 1 / 3, mediano: 1 / 3, comum: 1 / 3 };
+    var x = RNG.real(), acc = 0, cat = 'comum';
+    for (var k in CATEGORIAS) { acc += comp[k] || 0; if (x < acc) { cat = k; break; } }
+    return RNG.escolher(CATEGORIAS[cat].perfis);
+  }
+
+  function categoriaDe(perfil) {
+    for (var k in CATEGORIAS) if (CATEGORIAS[k].perfis.indexOf(perfil) >= 0) return k;
+    return 'comum';
   }
 
   // ------------------------------------------------------ identidade fictícia
@@ -123,8 +153,8 @@
     };
   }
 
-  /** Novo oponente com nome que ainda não está na mesa. */
-  function criar(nivel, nomesEmUso, perfilFixo) {
+  /** Novo oponente com nome que ainda não está na mesa. mesa: o sorteio da partida (sortearMesa). */
+  function criar(mesa, nomesEmUso, perfilFixo) {
     var usados = nomesEmUso || [];
     var livres = NOMES.filter(function (n) { return usados.indexOf(n) < 0; });
     var nome = livres.length ? RNG.escolher(livres) : null;
@@ -134,7 +164,7 @@
       if (usados.indexOf(c) < 0) nome = c;
     }
     if (!nome) nome = 'Jogador' + (++contador);
-    var perfil = perfilFixo || sortearPerfil(nivel);
+    var perfil = perfilFixo || sortearPerfil(mesa);
     var bot = {
       id: 'bot-' + (++contador) + '-' + RNG.inteiroAbaixo(1e6),
       nome: nome,
@@ -187,12 +217,15 @@
 
   // ------------------------------------------------------------- leitura
   /** O que este bot sabe de um jogador ({ c: contadores, e: estimativas }) ou null. */
-  function lerJogador(ctx, prof, j) {
-    if (!ctx.leitura || !prof.adapta || !j || !j.id) return null;
+  function lerJogador(ctx, prof, j, rapidez) {
+    var r = rapidez !== undefined ? rapidez : prof.adapta;
+    if (!ctx.leitura || !r || !j || !j.id) return null;
     var c = ctx.leitura.contadores(j.id);
     if (!c || !c.maos) return null;
-    return { c: c, e: ctx.leitura.estimar(c, 1 / prof.adapta) };
+    return { c: c, e: ctx.leitura.estimar(c, 1 / r) };
   }
+  /** Leitura para all-ins: todo perfil presta atenção em quem empurra demais. */
+  function lerParaShove(ctx, prof, j) { return lerJogador(ctx, prof, j, prof.adaptaShove || prof.adapta); }
 
   /** Estimativas da leitura → fatores de range para a análise (analise.rangeEstimado). */
   function fatoresDe(e) {
@@ -272,7 +305,7 @@
     var sBB = (vil.fichasIniciais || (vil.fichas + vil.investido)) / bb;
     var ordem = An.ordemPreflop(vista), hu = ordem.length === 2;
     var atrasVil = ordem.length - 1 - ordem.indexOf(vil.assento);
-    var lido = lerJogador(ctx, prof, vil);
+    var lido = lerParaShove(ctx, prof, vil);
     var c = lido ? lido.c : null;
     var base, vezes = 0, oport = 0;
     if (raisesAntes === 0) {
@@ -291,7 +324,7 @@
     base *= prof.desconfia || 1;
     var pct = base;
     if (c && oport > 0) {
-      var peso = 6 / prof.adapta;
+      var peso = 6 / (prof.adaptaShove || prof.adapta);
       pct = Math.max(base * 0.6, 100 * (base / 100 * peso + vezes) / (peso + oport));
     }
     return limitar(pct, 2, 100);
@@ -332,7 +365,7 @@
     var mapas = [R.topPercent(pct)];
     pagaram.forEach(function () { mapas.push(R.topPercent(Math.max(2, pct * 0.5))); });
     var eq;
-    try { eq = equityContra(eu.cartas, mapas, [], prof.pro ? 900 : 500); }
+    try { eq = equityContra(eu.cartas, mapas, [], prof.pro ? 900 : prof.mediano ? 700 : 500); }
     catch (e) { eq = (R.EQ_PREFLOP[classe] || { vs1: 0.5 }).vs1 * 0.85; }
 
     var paraPagar = Math.min(v.valorCall, eu.fichas);
@@ -345,7 +378,8 @@
         var icm = pagaram.length ? null : necessariaICM(vista, eu, vil, ctx);
         if (icm !== null && isFinite(icm)) precisa = icm;
         else precisa += premioRiscoAprox(vista, eu, ctx);
-      } else precisa += (1 - (ctx.bolha || 1)) * 0.15;
+      } else if (prof.mediano) precisa += premioRiscoAprox(vista, eu, ctx) * 0.7;   // ICM "de cabeça"
+      else precisa += (1 - (ctx.bolha || 1)) * 0.15;
     }
     precisa += (prof.margemShove || 0) + 0.015 * faltam;
     if (eq >= precisa) {
@@ -409,7 +443,7 @@
     catch (e) { return null; }
     var Ieu = eu.investido, Ic = chamador.investido;
     var D = Math.max(0, vista.pote - Ieu - Ic);
-    var valor = contextoICM(vista, eu, ctx);
+    var valor = prof.pro ? contextoICM(vista, eu, ctx) : null;     // o regular faz a conta só em fichas
     var ev;
     if (valor) {
       var agora = {}, todos = {}, ganha = {}, perde = {};
@@ -429,9 +463,9 @@
     var x;
     if (prof === PERFIS.maniaco) x = 3 + RNG.inteiroAbaixo(3);
     else if (ctx.modo !== 'cash') x = sit.efetivoBB < 25 ? 2 : 2.2;
-    else if (sit.hu) x = ctx.nivel === 'alto' || prof.pro ? 2.2 : 2.5;
+    else if (sit.hu) x = prof.pro || prof.mediano ? 2.2 : 2.5;
     else if (sit.lugar === 'sb') x = 3;
-    else x = sit.atras >= 5 ? (ctx.nivel === 'alto' || prof.pro ? 2.5 : 3) : sit.atras >= 3 ? 2.5 : 2.3;
+    else x = sit.atras >= 5 ? (prof.pro || prof.mediano ? 2.5 : 3) : sit.atras >= 3 ? 2.5 : 2.3;
     return Math.round(x * bb);
   }
 
@@ -456,23 +490,26 @@
   }
 
   /**
-   * Profissional com stack curto ou médio: all-in quando a conta de EV
-   * manda (abrindo, re-shove contra abertura, 4-bet all-in contra 3-bet).
-   * Devolve null quando o stack é fundo (aí valem as tabelas, com leitura).
+   * Profissional (e regular) com stack curto ou médio: all-in quando a conta
+   * de EV manda (abrindo, re-shove contra abertura, 4-bet all-in contra
+   * 3-bet). O regular faz a conta "de cabeça": em fichas e com erro de até
+   * meio big blind para cada lado. Devolve null quando o stack é fundo (aí
+   * valem as tabelas, com leitura).
    */
   function preflopPro(vista, eu, prof, ctx, v, sit, classe) {
     var torneio = ctx.modo !== 'cash';
     var ef = sit.efetivoBB, r;
+    var limiar = prof.mediano ? (RNG.real() - 0.5) * vista.blinds.bb : 0;
     if ((sit.tipo === 'aberto' || sit.tipo === 'limpers' || sit.tipo === 'bb_opcao') && ef <= (torneio ? 15 : 12)) {
       r = evShove(vista, eu, prof, ctx);
-      if (r && r.ev > 0) return 'allin';
+      if (r && r.ev > limiar) return 'allin';
       return v.podeCheck ? 'check' : 'fold';
     }
     var vsAbertura = sit.tipo === 'vs_open' && ef <= 25;
     var vs3bet = (sit.tipo === 'vs_3bet' || sit.tipo === 'vs_3bet_frio') && ef <= 40;
     if (vsAbertura || vs3bet) {
       r = evShove(vista, eu, prof, ctx);
-      if (r && r.ev > 0) return 'allin';
+      if (r && r.ev > limiar) return 'allin';
       // sem all-in lucrativo: paga só com a parte mais forte do range de call (ainda há stack para jogar)
       if (vsAbertura && ef > 15) {
         var resp = R.respostaAoRaise(R.grupoAgressor(sit.atrasDoAgressor, sit.hu), sit.lugar);
@@ -498,7 +535,7 @@
     // diante de all-in: conta de EV (equity contra o range provável x preço)
     if (sit.agressorAllin && v.valorCall > 0) return decidirContraShove(vista, eu, prof, ctx, sit, v, classe);
 
-    if (prof.pro) {
+    if (prof.pro || prof.mediano) {
       var dp = preflopPro(vista, eu, prof, ctx, v, sit, classe);
       if (dp) return dp;
     }
@@ -597,21 +634,23 @@
     var oponentes = vista.jogadores.filter(function (j) { return j.assento !== eu.assento && !j.foldou; });
     var nOp = oponentes.length;
     var conhecidas = cartas.concat(board);
-    var leituras = oponentes.map(function (o) { return lerJogador(ctx, prof, o); });
+    // diante de all-in até os jogadores fracos lembram se esse oponente vive empurrando com qualquer coisa
+    var contraAllin = v.valorCall > 0 && oponentes.some(function (o) { return o.allin; });
+    var leituras = oponentes.map(function (o) { return lerJogador(ctx, prof, o) || (contraAllin && o.allin ? lerParaShove(ctx, prof, o) : null); });
     var eq;
     try {
       var ranges = oponentes.map(function (o, i) {
         var perfilOp = leituras[i] ? fatoresDe(leituras[i].e) : 'desconhecido';
         return { combos: An.rangeEstimado(vista, o.assento, perfilOp, conhecidas).combos };
       });
-      eq = P.Equity.monteCarloSincrono({ jogadores: [cartas].concat(ranges), board: board, iteracoes: prof.pro ? 600 : 350 }).equity[0];
+      eq = P.Equity.monteCarloSincrono({ jogadores: [cartas].concat(ranges), board: board, iteracoes: prof.pro ? 600 : prof.mediano ? 450 : 350 }).equity[0];
     } catch (e) {
       eq = Math.pow(An.forcaAtual(cartas, board).hs, nOp);
     }
     var outs = board.length < 5 ? An.outs(cartas, board).efetivos : 0;
     var tex = An.textura(board);
     var pote = vista.pote;
-    var alto = ctx.nivel === 'alto' || prof.pro;
+    var alto = prof.pro || prof.mediano;      // tamanhos variados conforme o board
     var estilo = ctx.estilo || 1;
     var raisesPre = vista.eventos.filter(function (e) { return e.tipo === 'acao' && e.rua === 'preflop' && (e.acao === 'raise' || e.acao === 'bet'); });
     var agressorPre = raisesPre.length && raisesPre[raisesPre.length - 1].assento === eu.assento;
@@ -662,7 +701,7 @@
   // ---------------------------------------------------------- decisão
   /**
    * Decide a ação do bot.
-   * ctx: { perfil, nivel, modo, bolha (fator <1 aperta calls), agressividade,
+   * ctx: { perfil, modo, bolha (fator <1 aperta calls), agressividade,
    *        leitura (P.Leitura da partida), torneio ({premios, stacksFora, restantes, pagos}),
    *        estilo (profissional: >1 mais solto) }
    * Retorna { acao, ms } — ms é o tempo de "pensamento" sugerido.
@@ -694,10 +733,12 @@
 
   P.Bots = {
     PERFIS: PERFIS,
-    COMPOSICAO: COMPOSICAO,
+    CATEGORIAS: CATEGORIAS,
     PAISES: PAISES,
     criar: criar,
+    sortearMesa: sortearMesa,
     sortearPerfil: sortearPerfil,
+    categoriaDe: categoriaDe,
     decidir: decidir,
     normalizar: normalizar,
     // expostos para os testes

@@ -25,7 +25,8 @@
   }
 
   /**
-   * cfg: { modo, nivel, lugares, heroi: {nome, mostraPerdedoras},
+   * cfg: { modo, lugares, heroi: {nome, mostraPerdedoras},
+   *        mesaSorteada (proporção de profissionais/regulares/comuns; sorteada se faltar),
    *        cash: limite {nome,sb,bb}, buyinBB, recompraAuto
    *        sng: buyin {total, premio}, velocidade, participantes (várias mesas se > lugares)
    *        torneio: buyin, velocidade, field
@@ -33,6 +34,8 @@
    */
   function criar(cfg, ui) {
     const modo = cfg.modo, lugares = cfg.lugares;
+    // quantos profissionais, regulares e comuns: sorteado para cada partida (e mantido ao retomar)
+    if (!cfg.mesaSorteada) cfg.mesaSorteada = P.Bots.sortearMesa();
     const participantes = modo === 'sng' ? Math.max(lugares, cfg.participantes || lugares) : modo === 'torneio' ? cfg.field : lugares;
     const nomesUsados = () => mesa.assentos().filter(Boolean).map(j => j.nome);
     let ativo = true, rodando = false, fim = null;
@@ -130,7 +133,7 @@
 
     function criarTorneio(heroi, restaurarDe) {
       return P.MultiMesa.criar({
-        participantes, lugares, stack: modo === 'sng' ? E.SNG_STACK : E.TORNEIO_STACK, nivel: cfg.nivel, modo, heroi, pagos: premios.length,
+        participantes, lugares, stack: modo === 'sng' ? E.SNG_STACK : E.TORNEIO_STACK, mesaSorteada: cfg.mesaSorteada, modo, heroi, pagos: premios.length,
         premios: premios.slice(), leitura,
         blinds: () => { atualizarNivel(false); return blindsAtuais(); },
         fator: () => FATOR_VELOCIDADE[P.Config.get('velocidade')] || 1,
@@ -177,7 +180,7 @@
     }
 
     function novoBot(stackPadrao) {
-      const bot = P.Bots.criar(cfg.nivel, mesa ? nomesUsados() : []);
+      const bot = P.Bots.criar(cfg.mesaSorteada, mesa ? nomesUsados() : []);
       if (modo === 'cash') {
         const bb = cfg.limite.bb;
         const bbs = bot.perfil === 'station' ? 40 + P.RNG.inteiroAbaixo(70) : bot.perfil === 'nit' || bot.perfil === 'pro' ? 100 : 60 + P.RNG.inteiroAbaixo(90);
@@ -189,7 +192,7 @@
     // ------------------------------------------------------- informação
     function info() {
       const b = blindsAtuais();
-      const base = { modo, rotulo, nivelMesa: cfg.nivel, lugares, blinds: b, maos: maosJogadas };
+      const base = { modo, rotulo, lugares, blinds: b, maos: maosJogadas };
       const heroi = mesa.jogador(HEROI);
       if (modo === 'cash') {
         return Object.assign(base, {
@@ -323,7 +326,7 @@
         const maior = Math.max.apply(null, ativos);
         if (bot.fichas >= maior) agress = 1.3; else bolha = 0.6;
       }
-      const d = P.Bots.decidir(vistaBot, assento, { perfil: bot.perfil, nivel: cfg.nivel, modo, bolha, agressividade: agress, leitura, torneio: inf, estilo: bot.estilo });
+      const d = P.Bots.decidir(vistaBot, assento, { perfil: bot.perfil, modo, bolha, agressividade: agress, leitura, torneio: inf, estilo: bot.estilo });
       const fator = FATOR_VELOCIDADE[P.Config.get('velocidade')] || 1;
       await chamar(ui, 'aoVezDoBot', assento, cfg.instantaneo ? 0 : d.ms * fator);
       if (!ativo) return;
@@ -334,7 +337,7 @@
     async function turnoHeroi(mao) {
       const vista = mao.vista(HEROI);
       const ctx = {
-        perfis: perfis(), modo, nivel: cfg.nivel, torneio: ctxTorneio(),
+        perfis: perfis(), modo, torneio: ctxTorneio(),
         iteracoes: cfg.iteracoesCoach || 10000,
         fmt, fmtBB: v => (P.Formato ? P.Formato.bb(v, vista.blinds.bb) : (v / vista.blinds.bb).toFixed(1) + ' bb')
       };
@@ -349,7 +352,7 @@
         if (promAnalise) { await promAnalise; P.Coach.cancelar(); }
         promAnalise = null;
       } else if (cfg.autoHeroi) {
-        acao = P.Bots.decidir(vista, HEROI, { perfil: cfg.perfilAutoHeroi || 'tag', nivel: cfg.nivel, modo }).acao;
+        acao = P.Bots.decidir(vista, HEROI, { perfil: cfg.perfilAutoHeroi || 'tag', modo }).acao;
       } else {
         acao = await chamar(ui, 'pedirAcao', vista, { analise: promAnalise, ctx });
       }

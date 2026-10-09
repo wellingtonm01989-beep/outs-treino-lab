@@ -210,7 +210,7 @@
   T(G, 'Mesas do torneio: 18 inscritos em mesas de 6 = 3 mesas cheias', a => {
     const heroi = { id: 'h', nome: 'Herói', heroi: true, fichas: 1500 };
     const t = P.MultiMesa.criar({
-      participantes: 18, lugares: 6, stack: 1500, nivel: 'medio', modo: 'sng', heroi, pagos: 3,
+      participantes: 18, lugares: 6, stack: 1500, modo: 'sng', heroi, pagos: 3,
       blinds: () => E.nivelSNG(0), fator: () => 1, pausado: () => false, instantaneo: true,
       aoEliminar: () => {}, aoMensagem: () => {}
     });
@@ -219,7 +219,7 @@
     a.igualJSON(d.mesas, [6, 6, 6], 'jogadores por mesa');
     a.igual(d.fichas, 18 * 1500, 'fichas');
     const t2 = P.MultiMesa.criar({
-      participantes: 20, lugares: 6, stack: 1500, nivel: 'medio', modo: 'sng', heroi: { id: 'h2', nome: 'Herói', heroi: true, fichas: 1500 }, pagos: 3,
+      participantes: 20, lugares: 6, stack: 1500, modo: 'sng', heroi: { id: 'h2', nome: 'Herói', heroi: true, fichas: 1500 }, pagos: 3,
       blinds: () => E.nivelSNG(0), fator: () => 1, pausado: () => false, instantaneo: true,
       aoEliminar: () => {}, aoMensagem: () => {}
     });
@@ -241,7 +241,7 @@
       while (!m.terminada()) {
         const s = m.vez();
         const perfil = perfis[s % perfis.length];
-        const d = P.Bots.decidir(m.vista(s), s, { perfil, nivel: 'medio', modo: k % 2 ? 'cash' : 'torneio' });
+        const d = P.Bots.decidir(m.vista(s), s, { perfil, modo: k % 2 ? 'cash' : 'torneio' });
         const reg = m.agir(s, d.acao);          // lança erro se a ação for ilegal
         cont[reg.acao] = (cont[reg.acao] || 0) + 1;
         if (++guarda > 300) throw new Error('mão não terminou');
@@ -294,39 +294,65 @@
     return `j0: ${c0.abriuAllin}/${c0.abrirOp} all-ins abrindo (estimativa ${pct(e0.abre)}) · j1 pagou ${c1.vsShoveCall}/${c1.vsShoveOp} all-ins (estimativa ${pct(e1.pagaShove)})`;
   });
 
-  /** Herói que vai all-in em toda mão (75 bb) contra 5 bots de um perfil, com leitura. */
-  function simularEmpurrador(perfil, maos) {
+  T(G, 'Mesa sorteada: qualquer mistura acontece; no heads-up cada tipo sai ~1/3 das vezes', a => {
+    const B = P.Bots;
+    const cont = { forte: 0, mediano: 0, comum: 0 };
+    let semPro = 0, soPro = 0, comOsTres = 0;
+    const N = 3000;
+    for (let i = 0; i < N; i++) {
+      const mesa = B.sortearMesa();
+      a.proximo(mesa.forte + mesa.mediano + mesa.comum, 1, 1e-9, 'proporções somam 1');
+      cont[B.categoriaDe(B.sortearPerfil(mesa))]++;          // heads-up: um adversário só
+      const tipos = new Set();
+      for (let k = 0; k < 8; k++) tipos.add(B.categoriaDe(B.sortearPerfil(mesa)));
+      if (!tipos.has('forte')) semPro++;
+      if (tipos.size === 1 && tipos.has('forte')) soPro++;
+      if (tipos.size === 3) comOsTres++;
+    }
+    Object.keys(cont).forEach(k => a.verdadeiro(cont[k] / N > 0.29 && cont[k] / N < 0.38, `heads-up contra ${k}: ${pct(cont[k] / N)}`));
+    a.maior(semPro, 0, 'mesas sem profissional');
+    a.maior(soPro, 0, 'mesas só de profissionais');
+    return `heads-up: profissional ${pct(cont.forte / N)} · regular ${pct(cont.mediano / N)} · comum ${pct(cont.comum / N)} · ` +
+      `mesas de 9: ${pct(semPro / N)} sem profissional, ${pct(soPro / N)} só profissionais, ${pct(comOsTres / N)} com os três tipos`;
+  });
+
+  /** Herói que vai all-in em toda mão (75 bb) contra bots dos perfis dados, com leitura. */
+  function simularEmpurrador(perfis, maos) {
     const lei = P.Leitura.criar();
-    let saldo = 0, showdowns = 0, decisoes = 0, tempo = 0;
+    const n = perfis.length + 1;
+    let saldo = 0, showdowns = 0;
     for (let k = 0; k < maos; k++) {
       const jogadores = [];
-      for (let s = 0; s < 6; s++) jogadores.push({ assento: s, id: s === 0 ? 'heroi' : 'b' + s, nome: 'J' + s, fichas: 1500 });
-      const m = P.Motor.novaMao({ jogadores, botao: k % 6, sb: 10, bb: 20, lugares: 6 });
+      for (let s = 0; s < n; s++) jogadores.push({ assento: s, id: s === 0 ? 'heroi' : 'b' + s, nome: 'J' + s, fichas: 1500 });
+      const m = P.Motor.novaMao({ jogadores, botao: k % n, sb: 10, bb: 20, lugares: n });
       let guarda = 0;
       while (!m.terminada()) {
         const s = m.vez(), v = m.acoesValidas();
         if (s === 0) m.agir(0, v.podeApostar ? 'allin' : v.podeCheck ? 'check' : 'call');
-        else {
-          const t0 = performance.now();
-          m.agir(s, P.Bots.decidir(m.vista(s), s, { perfil, nivel: 'pro', modo: 'cash', leitura: lei }).acao);
-          tempo += performance.now() - t0; decisoes++;
-        }
+        else m.agir(s, P.Bots.decidir(m.vista(s), s, { perfil: perfis[s - 1], modo: 'cash', leitura: lei }).acao);
         if (++guarda > 200) throw new Error('mão não terminou');
       }
       lei.registrar(m.vista(null));
       if (!m.resultado().semShowdown) showdowns++;
       saldo += m.resultado().ganhos[0];
     }
-    return { saldo, bb100: saldo / 20 / maos * 100, showdowns, msDecisao: tempo / Math.max(1, decisoes) };
+    return { saldo, bb100: saldo / 20 / maos * 100, showdowns };
   }
 
-  T(G, 'Quem vai all-in em toda mão perde contra profissionais e TAGs (eles leem e pagam mais leve)', a => {
-    const pro = simularEmpurrador('pro', 200);
-    const tag = simularEmpurrador('tag', 200);
-    a.maior(0, pro.saldo, 'contra profissionais o empurrador deveria perder');
-    a.maior(0, tag.saldo, 'contra TAGs o empurrador deveria perder');
-    const f = r => `${r.bb100 > 0 ? '+' : ''}${r.bb100.toFixed(0)} bb/100 (${r.showdowns} pagos em 200)`;
-    return `empurrador × profissionais: ${f(pro)} · × TAGs: ${f(tag)} · ${pro.msDecisao.toFixed(1)} ms por decisão do profissional`;
+  const PERFIS_TODOS = ['pro', 'reg', 'station', 'nit', 'tag', 'lag', 'maniaco'];
+  const fmtEmp = (r, maos) => `${r.bb100 > 0 ? '+' : ''}${r.bb100.toFixed(0)} bb/100 (pago ${r.showdowns}/${maos})`;
+
+  T(G, 'Quem vai all-in em toda mão perde contra qualquer tipo de bot (todos percebem e pagam mais leve)', a => {
+    const res = PERFIS_TODOS.map(p => [p, simularEmpurrador([p, p, p, p, p], 200)]);
+    res.push(['mesa misturada', simularEmpurrador(['pro', 'reg', 'station', 'maniaco', 'nit'], 200)]);
+    res.forEach(([p, r]) => a.maior(0, r.saldo, `contra ${p} o empurrador deveria perder (${fmtEmp(r, 200)})`));
+    return res.map(([p, r]) => `${p}: ${fmtEmp(r, 200)}`).join(' · ');
+  });
+
+  T(G, 'Heads-up: o empurrador perde contra os três tipos de adversário', a => {
+    const res = PERFIS_TODOS.map(p => [p, simularEmpurrador([p], 300)]);
+    res.forEach(([p, r]) => a.maior(0, r.saldo, `heads-up contra ${p} (${fmtEmp(r, 300)})`));
+    return res.map(([p, r]) => `${p}: ${fmtEmp(r, 300)}`).join(' · ');
   });
 
   T(G, 'Profissional na bolha: paga o all-in pela conta de fichas, folda pelo ICM', a => {
@@ -423,7 +449,7 @@
   G = 'Partidas completas (herói automático)';
 
   function partida(cfg) {
-    const base = { nivel: 'pequeno', heroi: { nome: 'Teste' }, autoHeroi: true, instantaneo: true, semBanca: true, maosPorNivel: 6 };
+    const base = { heroi: { nome: 'Teste' }, autoHeroi: true, instantaneo: true, semBanca: true, maosPorNivel: 6 };
     const p = P.Partida.criar(Object.assign(base, cfg), {});
     return p.rodar().then(fim => ({ p, fim }));
   }
@@ -431,7 +457,7 @@
   const completo = /[?&]completo=1/.test(location.search);
 
   T(G, 'Cash com 2 jogadores (60 mãos, coach ativo) e análise de fim de partida', a => partida({
-    modo: 'cash', lugares: 2, limite: E.CASH.pequeno[0], buyinBB: 100, recompraAuto: true, limiteMaos: 60, autoCoach: true, iteracoesCoach: 300
+    modo: 'cash', lugares: 2, limite: E.CASH[3], buyinBB: 100, recompraAuto: true, limiteMaos: 60, autoCoach: true, iteracoesCoach: 300
   }).then(({ p }) => {
     a.verdadeiro(p.info().maos >= 60, 'mãos jogadas');
     const rel = p.relatorio();
@@ -445,19 +471,19 @@
   }));
 
   T(G, 'Cash com 9 jogadores (60 mãos)', a => partida({
-    modo: 'cash', lugares: 9, limite: E.CASH.micro[1], buyinBB: 100, recompraAuto: true, limiteMaos: 60
+    modo: 'cash', lugares: 9, limite: E.CASH[1], buyinBB: 100, recompraAuto: true, limiteMaos: 60
   }).then(({ p }) => {
     a.verdadeiro(p.info().maos >= 60);
     return p.info().maos + ' mãos';
   }));
 
-  T(G, 'Sit & Go com 2 jogadores até o fim', a => partida({ modo: 'sng', lugares: 2, buyin: E.SNG.micro[0], velocidade: 'turbo' })
+  T(G, 'Sit & Go com 2 jogadores até o fim', a => partida({ modo: 'sng', lugares: 2, buyin: E.SNG[0], velocidade: 'turbo' })
     .then(({ fim }) => {
       a.verdadeiro(fim && (fim.posicao === 1 || fim.posicao === 2), 'terminou com colocação');
       return `${fim.posicao}º lugar em ${fim.maos} mãos (prêmio ${fim.premio})`;
     }));
 
-  T(G, 'Sit & Go com 9 jogadores até o fim', a => partida({ modo: 'sng', lugares: 9, buyin: E.SNG.medio[0], velocidade: 'turbo' })
+  T(G, 'Sit & Go com 9 jogadores até o fim', a => partida({ modo: 'sng', lugares: 9, buyin: E.SNG[4], velocidade: 'turbo' })
     .then(({ fim }) => {
       a.verdadeiro(fim && fim.posicao >= 1 && fim.posicao <= 9);
       return `${fim.posicao}º lugar em ${fim.maos} mãos, nível ${fim.nivel}`;
@@ -465,7 +491,7 @@
 
   T(G, 'Sit & Go de 18 só com profissionais (2 mesas de 9, leitura e ICM) até o fim', a => {
     const t0 = performance.now();
-    return partida({ modo: 'sng', lugares: 9, participantes: 18, nivel: 'pro', buyin: E.SNG.pro[0], velocidade: 'turbo' }).then(({ p, fim }) => {
+    return partida({ modo: 'sng', lugares: 9, participantes: 18, mesaSorteada: { forte: 1, mediano: 0, comum: 0 }, buyin: E.SNG[7], velocidade: 'turbo' }).then(({ p, fim }) => {
       a.verdadeiro(fim && fim.posicao >= 1 && fim.posicao <= 18, 'colocação');
       const lidos = Object.keys(p.leitura().exportar()).length;
       a.maior(lidos, 10, 'leitura de quase todos os jogadores');
@@ -477,7 +503,7 @@
     let rodada = 0, maxDif = 0, msgs = 0;
     const heroi = { id: 'h', nome: 'Herói', heroi: true, fichas: 1500, perfil: 'tag' };
     const t = P.MultiMesa.criar({
-      participantes: 45, lugares: 9, stack: 1500, nivel: 'medio', modo: 'torneio', heroi, pagos: 7,
+      participantes: 45, lugares: 9, stack: 1500, modo: 'torneio', heroi, pagos: 7,
       blinds: () => E.nivelSNG(Math.floor(rodada / 5)), fator: () => 1, pausado: () => false, instantaneo: true,
       aoEliminar: () => {}, aoMensagem: () => { msgs++; }
     });
@@ -491,7 +517,7 @@
           const mao = m.proximaMao();
           while (!mao.terminada()) {
             const s = mao.vez(), j = m.jogador(s);
-            mao.agir(s, P.Bots.decidir(mao.vista(s), s, { perfil: j.perfil, nivel: 'medio', modo: 'torneio' }).acao);
+            mao.agir(s, P.Bots.decidir(mao.vista(s), s, { perfil: j.perfil, modo: 'torneio' }).acao);
           }
           t.fimDeMaoHeroi(m.concluirMao(), mao.historicoCompleto());
         }
@@ -515,7 +541,7 @@
   T(G, 'Retomar torneio salvo: mesmas mesas, jogadores, fichas e eliminados', a => {
     let rodada = 0;
     const opts = h => ({
-      participantes: 27, lugares: 6, stack: 1500, nivel: 'medio', modo: 'sng', heroi: h, pagos: 4,
+      participantes: 27, lugares: 6, stack: 1500, modo: 'sng', heroi: h, pagos: 4,
       blinds: () => E.nivelSNG(Math.floor(rodada / 3)), fator: () => 1, pausado: () => false, instantaneo: true,
       aoEliminar: () => {}, aoMensagem: () => {}
     });
@@ -538,7 +564,7 @@
 
   T(G, 'Sit & Go de 18 em mesas de 6 até o fim: fichas conservadas, mesas equilibradas, colocações únicas', a => {
     let checagens = 0, maxDif = 0;
-    const base = { nivel: 'pequeno', heroi: { nome: 'Teste' }, autoHeroi: true, instantaneo: true, semBanca: true, maosPorNivel: 6 };
+    const base = { heroi: { nome: 'Teste' }, autoHeroi: true, instantaneo: true, semBanca: true, maosPorNivel: 6 };
     let p;
     const ui = {
       aoFimDaMao: () => {
@@ -549,7 +575,7 @@
         checagens++;
       }
     };
-    p = P.Partida.criar(Object.assign(base, { modo: 'sng', lugares: 6, participantes: 18, buyin: E.SNG.micro[0], velocidade: 'turbo' }), ui);
+    p = P.Partida.criar(Object.assign(base, { modo: 'sng', lugares: 6, participantes: 18, buyin: E.SNG[0], velocidade: 'turbo' }), ui);
     return p.rodar().then(fim => {
       a.verdadeiro(fim && fim.posicao >= 1 && fim.posicao <= 18, 'colocação');
       a.verdadeiro(maxDif <= 1, 'diferença entre mesas ≤ 1 (foi ' + maxDif + ')');
@@ -561,7 +587,7 @@
 
   T(G, 'Torneio (45) com mesas de 9 até o fim' + (completo ? '' : ' — rode com ?completo=1'), a => {
     if (!completo) return 'pulado (abra testes.html?completo=1 para simular)';
-    return partida({ modo: 'torneio', lugares: 9, field: 45, buyin: E.TORNEIO.micro[0], velocidade: 'turbo' }).then(({ fim }) => {
+    return partida({ modo: 'torneio', lugares: 9, field: 45, buyin: E.TORNEIO[0], velocidade: 'turbo' }).then(({ fim }) => {
       a.verdadeiro(fim && fim.posicao >= 1 && fim.posicao <= 45);
       return `${fim.posicao}º de 45 em ${fim.maos} mãos (prêmio ${fim.premio})`;
     });
@@ -569,7 +595,7 @@
 
   T(G, 'Torneio (45) com mesas de 2 até o fim' + (completo ? '' : ' — rode com ?completo=1'), a => {
     if (!completo) return 'pulado (abra testes.html?completo=1 para simular)';
-    return partida({ modo: 'torneio', lugares: 2, field: 45, buyin: E.TORNEIO.micro[0], velocidade: 'turbo' }).then(({ fim }) => {
+    return partida({ modo: 'torneio', lugares: 2, field: 45, buyin: E.TORNEIO[0], velocidade: 'turbo' }).then(({ fim }) => {
       a.verdadeiro(fim && fim.posicao >= 1 && fim.posicao <= 45);
       return `${fim.posicao}º de 45 em ${fim.maos} mãos (prêmio ${fim.premio})`;
     });

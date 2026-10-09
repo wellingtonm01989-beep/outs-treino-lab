@@ -148,9 +148,9 @@
     if (demo) {
       const E = P.Estruturas;
       const lugares = +parametro('lugares') || 6;
-      const cfg = { modo: demo, nivel: parametro('nivel') || 'pequeno', lugares, semBanca: true };
-      if (demo === 'cash') Object.assign(cfg, { limite: E.CASH.micro[2], buyinBB: 100, recompraAuto: true });
-      else Object.assign(cfg, { buyin: demo === 'sng' ? E.SNG.micro[1] : E.TORNEIO.micro[1], velocidade: 'turbo', field: demo === 'torneio' ? (+parametro('field') || 45) : lugares, participantes: +parametro('participantes') || lugares });
+      const cfg = { modo: demo, lugares, semBanca: true };
+      if (demo === 'cash') Object.assign(cfg, { limite: E.CASH[2], buyinBB: 100, recompraAuto: true });
+      else Object.assign(cfg, { buyin: demo === 'sng' ? E.SNG[1] : E.TORNEIO[1], velocidade: 'turbo', field: demo === 'torneio' ? (+parametro('field') || 45) : lugares, participantes: +parametro('participantes') || lugares });
       cfg.semSalvar = true;
       if (parametro('autoheroi')) Object.assign(cfg, { autoHeroi: true, limiteMaos: +parametro('maos') || 20, maosPorNivel: 5 });
       if (parametro('preflop') === 'auto') cfg.autoHeroiPreflop = true;

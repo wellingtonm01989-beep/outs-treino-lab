@@ -66,9 +66,9 @@
     const lugares = +param('lugares') || 9;
     const modo = param('modo') || 'cash';
     const E = P.Estruturas;
-    const cfg = { modo, nivel: 'pequeno', lugares, semBanca: true };
-    if (modo === 'cash') Object.assign(cfg, { limite: E.CASH.micro[2], buyinBB: 100, recompraAuto: true });
-    else Object.assign(cfg, { buyin: E.SNG.micro[1], velocidade: 'turbo', field: lugares, participantes: +param('participantes') || lugares });
+    const cfg = { modo, lugares, semBanca: true };
+    if (modo === 'cash') Object.assign(cfg, { limite: E.CASH[2], buyinBB: 100, recompraAuto: true });
+    else Object.assign(cfg, { buyin: E.SNG[1], velocidade: 'turbo', field: lugares, participantes: +param('participantes') || lugares });
     P.App.iniciarPartida(cfg);
     const t0 = Date.now();
     while (($('.btn-fold') || {}).disabled !== false && Date.now() - t0 < 60000) await dormir(100);
@@ -124,7 +124,7 @@
     else if (qual === 'memoria') {
       // sessão longa automática (com o coach analisando) medindo memória e elementos na página
       const E = P.Estruturas, alvo = +param('maos') || 300;
-      P.App.iniciarPartida({ modo: 'cash', nivel: 'pequeno', lugares: 9, limite: E.CASH.micro[2], buyinBB: 100, recompraAuto: true, semBanca: true,
+      P.App.iniciarPartida({ modo: 'cash', lugares: 9, limite: E.CASH[2], buyinBB: 100, recompraAuto: true, semBanca: true,
         autoHeroi: true, autoCoach: true, iteracoesCoach: +param('iter') || 3000, semSalvar: true, limiteMaos: alvo });
       const amostras = [];
       let proxima = 0;

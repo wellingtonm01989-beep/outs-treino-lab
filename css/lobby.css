@@ -34,22 +34,16 @@
 .lobby-cab { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .lobby-cab .desc { color: var(--texto-2); font-size: 13px; }
 
-/* níveis */
-.niveis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
-.nivel {
-  text-align: left; cursor: pointer; border-radius: 12px; padding: 12px 14px; border: 1px solid var(--borda);
-  background: var(--superficie); color: var(--texto); font: inherit; transition: border-color var(--transicao), transform var(--transicao);
-  display: flex; flex-direction: column; justify-content: flex-start;
-}
-.nivel .composicao { margin-top: auto; }
-.nivel:hover { border-color: var(--borda-forte); transform: translateY(-1px); }
-.nivel.ativo { border-color: var(--ouro); box-shadow: 0 0 0 1px var(--ouro) inset, 0 8px 22px rgba(216,178,90,.12); }
-.nivel h3 { color: var(--texto); text-transform: none; letter-spacing: 0; font-size: 15px; }
-.nivel p { color: var(--texto-3); font-size: 12px; margin: 4px 0 8px; min-height: 32px; }
-.composicao { display: flex; height: 6px; border-radius: 3px; overflow: hidden; }
-.composicao i { display: block; height: 100%; }
-.legenda-perfis { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11.5px; color: var(--texto-3); }
-.legenda-perfis span::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 2px; background: var(--c); margin-right: 5px; }
+/* oponentes sorteados a cada partida */
+.oponentes-sorteio { background: var(--superficie); border: 1px solid var(--borda); border-radius: 12px; padding: 14px 16px; display: grid; gap: 8px; }
+.oponentes-sorteio h3 { margin: 0; color: var(--texto); text-transform: none; letter-spacing: 0; font-size: 15px; }
+.oponentes-sorteio p { margin: 0; color: var(--texto-2); font-size: 12.5px; }
+.oponentes-sorteio small { color: var(--texto-3); font-size: 11.5px; }
+.tipos-oponentes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.tipo-oponente { display: grid; gap: 3px; align-content: start; padding: 8px 10px; background: var(--fundo-2); border-radius: 8px; font-size: 12px; }
+.tipo-oponente .chips { display: flex; flex-wrap: wrap; gap: 3px; }
+.tipo-oponente b { font-size: 13px; }
+.tipo-oponente .txt { color: var(--texto-3); }
 
 /* cartões de limite / buy-in */
 .limites { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
