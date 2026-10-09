@@ -64,11 +64,14 @@
       el('button', { class: 'btn so-largo', text: 'Estatísticas', onclick: () => overlay('estatisticas') }),
       el('button', { class: 'btn so-largo', text: 'Opções', onclick: () => overlay('config') }),
       el('button', { class: 'btn so-largo oculto', id: 'mb-mesas', text: 'Mesas', title: 'Assistir às outras mesas do torneio', onclick: () => alternarMesas() }),
-      el('button', { class: 'btn', id: 'mb-coach', text: 'Coach', title: 'Mostrar/recolher o coach', onclick: botaoCoach }),
+      el('button', { class: 'btn', id: 'mb-coach', text: 'Coach', title: 'Mostrar/recolher o coach', onclick: () => P.UICoach.alternar() }),
       el('button', { class: 'btn so-largo', text: 'Sair para o lobby', onclick: sair }),
       el('button', { class: 'btn so-celular', id: 'mb-menu', title: 'Menu', html: '&#9776;<span class="rot-menu"> Menu</span>', onclick: abrirMenu }));
 
-    palco = el('div', { class: 'mesa-palco' });
+    // celular: a barra de cima fica escondida (não cobre as cartas do showdown); este botão no canto a mostra
+    barraInfo.addEventListener('click', e => { if (e.target.closest('button, .hud-torneio.clicavel')) alternarBarra(false); });
+    palco = el('div', { class: 'mesa-palco' },
+      el('button', { class: 'btn-barra so-celular', title: 'Mostrar blinds, jogadores, coach e menu', html: '&#9776;', onclick: () => alternarBarra() }));
     oval = el('div', { class: 'mesa-oval' },
       el('div', { class: 'borda' }),
       el('div', { class: 'feltro' }, el('div', { class: 'mesa-logo', html: '<b>OUTS</b><span>Treino Lab</span>' })));
@@ -140,8 +143,9 @@
     if (!palco) return;
     const W = palco.clientWidth, H = palco.clientHeight;
     if (!W || !H) return;
-    // alturas das barras: o painel do coach no celular abre entre elas
-    tela.style.setProperty('--mesa-barra-h', barraInfo.offsetHeight + 'px');
+    // alturas das barras: o painel do coach no celular abre entre elas (a de cima, escondida, não conta)
+    const barraPorCima = getComputedStyle(barraInfo).position === 'absolute';
+    tela.style.setProperty('--mesa-barra-h', (barraPorCima ? 0 : barraInfo.offsetHeight) + 'px');
     tela.style.setProperty('--acoes-h', barra.raiz.offsetHeight + 'px');
     tela.style.setProperty('--acoes-l', barra.raiz.offsetWidth + 'px');
     const compacto = W < 640 || H < 400;
@@ -165,11 +169,13 @@
 
   /** Celular e janelas pequenas: assentos compactos (avatar em cima, nome e fichas embaixo). */
   function layoutCompacto(W, H) {
-    const topo = 0;                                  // o HUD do torneio fica na barra de cima
     const vertical = H > W * 1.05;
     const base = Math.min(W, H * 1.25);
     const assentoL = limitar(base * 0.21, 64, 86);
     const avatarL = limitar(assentoL * 0.5, 28, 42);
+    // folga em cima: no showdown as cartas dos assentos de cima sobem um pouco acima do avatar
+    // (o HUD do torneio fica na barra de cima)
+    const topo = Math.ceil(avatarL * 0.32);
     const assentoH = avatarL + 29;                   // avatar + caixa de nome e fichas
     const heroiL = limitar(W * 0.42, 124, 168);
     const heroiH = limitar(avatarL + 10, 40, 52);
@@ -478,8 +484,6 @@
 
     pedirAcao(vista, extra) {
       vistaAtual = vista;
-      dicaVisivel = false;             // celular: a dica começa escondida a cada decisão
-      ultimaAnalise = null;
       return new Promise(resolve => {
         const a = assentos[HEROI];
         a.raiz.classList.add('vez');
@@ -934,37 +938,13 @@
     pendente.resolve(acao);
   }
 
-  // No celular a dica do coach fica escondida: só aparece ao tocar em "Coach"
-  // (canto de cima da tela) e some de novo na decisão seguinte. No computador
-  // ela aparece sozinha, como sempre.
-  const celular = () => !!(window.matchMedia && matchMedia('(max-width: 640px), (max-height: 500px)').matches);
-  let dicaVisivel = false, ultimaAnalise = null;
-
-  function botaoCoach() {
-    const modo = P.Config.get('modoCoach');
-    if (!celular() || !pendente || (modo !== 'sempre' && modo !== 'pedido')) { P.UICoach.alternar(); return; }
-    dicaVisivel = !dicaVisivel;
-    $('#mb-coach').classList.toggle('ativo', dicaVisivel);
-    if (dicaVisivel) {
-      if (ultimaAnalise) sugerir(ultimaAnalise);
-      else if (pendente.analise) pendente.analise.then(an => { if (pendente && dicaVisivel) sugerir(an); });
-    } else {
-      limparSugestao();
-      status(textoStatusHeroi(vistaAtual));
-      if (ultimaAnalise) $('#mb-coach').classList.add('novidade');
-    }
-  }
-
   function sugerir(an) {
     limparSugestao();
     const r = an && an.recomendacao;
     if (!r) return;
-    ultimaAnalise = an;
+    // painel fechado (celular): o botão "Coach" avisa que há dica nova
     const painel = $('#painel-coach');
-    // celular: a dica fica guardada; o botão "Coach" só avisa que ela existe
-    if (celular() && !dicaVisivel) { $('#mb-coach').classList.add('novidade'); return; }
-    // painel fechado: o botão "Coach" avisa que há dica nova
-    if (painel && painel.classList.contains('recolhido') && !celular()) $('#mb-coach').classList.add('novidade');
+    if (painel && painel.classList.contains('recolhido')) $('#mb-coach').classList.add('novidade');
     const btn = r.acao === 'fold' ? barra.fold : (r.acao === 'check' || r.acao === 'call') ? barra.call : barra.raise;
     if (btn && !btn.disabled) btn.classList.add('sugerido');
     if ((r.acao === 'raise' || r.acao === 'bet' || r.acao === 'allin') && acoesAtuais && acoesAtuais.podeApostar) {
@@ -977,7 +957,6 @@
   /** "Pedir dica": mostra a análise no painel e, com ele fechado, a dica na barra. */
   function pedirDica() {
     if (!pendente) return;
-    dicaVisivel = true;                // pediu: no celular a dica também aparece
     const an = pendente.analise;
     P.UICoach.pedirDica(an);
     if (an) an.then(x => linhaCoach(x));
@@ -986,7 +965,6 @@
     [barra.fold, barra.call, barra.raise].forEach(b => b && b.classList.remove('sugerido'));
     const bc = $('#mb-coach');
     if (bc) bc.classList.remove('novidade');
-    if (bc && !pendente) bc.classList.remove('ativo');
     if (barra.tamanhos) Array.prototype.forEach.call(barra.tamanhos.children, b => b.classList.remove('recomendado'));
   }
 
@@ -1141,6 +1119,23 @@
       else await P.UIPaineis.abrirOverlay(qual);
     } finally { pausar(false); }
   }
+
+  /**
+   * Celular: mostra/esconde a barra de cima da mesa (nível dos blinds, jogadores,
+   * posição, coach e menu). Ela some sozinha depois de alguns segundos, ao tocar
+   * fora dela ou ao usar um dos botões.
+   */
+  let timerBarra = null;
+  function alternarBarra(abrir) {
+    if (!barraInfo) return;
+    const vai = abrir === undefined ? !barraInfo.classList.contains('aberta') : abrir;
+    barraInfo.classList.toggle('aberta', vai);
+    clearTimeout(timerBarra);
+    if (vai) timerBarra = setTimeout(() => alternarBarra(false), 8000);
+  }
+  document.addEventListener('pointerdown', e => {
+    if (barraInfo && barraInfo.classList.contains('aberta') && !barraInfo.contains(e.target) && !e.target.closest('.btn-barra')) alternarBarra(false);
+  }, true);
 
   /** Menu da mesa no celular (os botões da barra não cabem na tela). */
   async function abrirMenu() {

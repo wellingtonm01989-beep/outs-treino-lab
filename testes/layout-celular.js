@@ -101,6 +101,22 @@
       if (r.right > W + 1 || r.bottom > H + 1 || r.left < -1) problemas.push(nome(b) + ' fora da tela (' + [r.left, r.top, r.right, r.bottom].map(Math.round).join(',') + ')');
     });
     $$('.mesa-barra > *').forEach(b => { if (!visivel(b)) return; const r = b.getBoundingClientRect(); if (r.right > W + 1) problemas.push(nome(b) + ' cortado na barra'); });
+    // celular: o botão ☰ do canto não pode cobrir assentos
+    const bb = $('.btn-barra');
+    if (bb && visivel(bb)) {
+      const rb = bb.getBoundingClientRect();
+      assentos.forEach(({ a, r }) => { const s = sobrepoe(rb, r); if (s) problemas.push(`botão ☰ cobre o assento ${a.dataset.s} ${s}`); });
+    }
+    // showdown: com as cartas viradas, as dos assentos de cima não podem sair da tela nem ficar sob o ☰
+    $$('.assento:not(.heroi)').forEach(a => a.classList.add('mostrou'));
+    await dormir(50);
+    $$('.assento:not(.heroi):not(.vazio) .cartas').forEach(c => {
+      if (!c.children.length) return;
+      const r = c.getBoundingClientRect(), s = c.closest('.assento').dataset.s;
+      if (r.top < palco.top - 1 || r.left < -1 || r.right > W + 1) problemas.push(`cartas do assento ${s} saem da tela no showdown (${[r.left, r.top, r.right].map(Math.round).join(',')})`);
+      if (bb && visivel(bb)) { const o = sobrepoe(bb.getBoundingClientRect(), r); if (o) problemas.push(`botão ☰ cobre as cartas do assento ${s} ${o}`); }
+    });
+    if (param('estado') !== 'showdown') $$('.assento').forEach(a => a.classList.remove('mostrou'));
     const cortes = cortados($('#tela-mesa'));
     if (cortes.length) problemas.push('mesa: ' + cortes.slice(0, 6).join(', '));
     log.push(`mesa ${lugares} lugares (${W}x${H}, palco ${Math.round(palco.width)}x${Math.round(palco.height)}, carta ${getComputedStyle($('.mesa-palco')).getPropertyValue('--carta-l').trim()})`);
@@ -120,6 +136,14 @@
       gravar();
     }
     else if (qual === 'menu') { $('#mb-menu').click(); await dormir(300); }
+    else if (qual === 'barra') {
+      // sem janela as animações de CSS não andam: mostra a barra já no lugar final
+      document.head.appendChild(Object.assign(document.createElement('style'), { textContent: '.mesa-barra { transition: none !important; }' }));
+      const b = $('.btn-barra');
+      // ela some sozinha depois de alguns segundos: reabre para a foto
+      if (b) setInterval(() => { if (!$('.mesa-barra').classList.contains('aberta')) b.click(); }, 300);
+      await dormir(400);
+    }
     else if (qual === 'config') { $('#btn-config').click(); await dormir(300); }
     else if (qual === 'memoria') {
       // sessão longa automática (com o coach analisando) medindo memória e elementos na página

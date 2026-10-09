@@ -108,22 +108,29 @@
     await ate(() => $('.feedback-nota'), 60000, 'nota da decisão');
     passo('quiz e ações ok (' + $$('.coach-corpo .bloco').length + ' blocos no coach)');
 
-    // 4b) celular: a dica do coach fica escondida até tocar em "Coach" (canto de cima)
+    // 4b) celular: a barra de cima (blinds, coach, menu) fica escondida e aparece pelo botão ☰ do canto
     if (matchMedia('(max-width: 640px), (max-height: 500px)').matches) {
-      P.Config.set('modoCoach', 'sempre');
-      await vezDoHeroi('vez do herói (antes da dica escondida)');
-      clicar($('.btn-fold'));
+      const barra = $('.mesa-barra');
+      // no navegador sem janela as animações de CSS não andam: desliga só durante este teste
+      const semAnimacao = document.head.appendChild(Object.assign(document.createElement('style'), { textContent: '.mesa-barra { transition: none !important; }' }));
+      const naTela = () => { const r = barra.getBoundingClientRect(); return getComputedStyle(barra).visibility !== 'hidden' && r.bottom > 0; };
       await dormir(300);
-      await vezDoHeroi('vez do herói (dica escondida)');
-      await ate(() => $('#mb-coach.novidade'), 30000, 'aviso de dica no botão Coach');
-      if ($('.coach-sug') || $('.btn-acao.sugerido')) throw new Error('no celular a dica deveria começar escondida');
+      if (naTela()) throw new Error('no celular a barra de cima deveria começar escondida');
+      clicar($('.btn-barra'));
+      await dormir(400);
+      if (!naTela()) throw new Error('a barra deveria aparecer ao tocar no ☰');
+      $('.mesa-palco').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      await dormir(400);
+      if (naTela()) throw new Error('a barra deveria sumir ao tocar fora dela');
+      clicar($('.btn-barra'));
+      await dormir(300);
       clicar($('#mb-coach'));
-      await ate(() => $('.coach-sug') && $('.btn-acao.sugerido'), 30000, 'dica depois de tocar em Coach');
-      if (!$('#painel-coach').classList.contains('recolhido')) throw new Error('o painel do coach não deveria abrir por cima da mesa');
-      clicar($('#mb-coach'));
-      if ($('.coach-sug') || $('.btn-acao.sugerido')) throw new Error('a dica deveria sumir no segundo toque');
-      clicar($('.btn-fold'));
-      passo('celular: dica escondida até tocar em Coach');
+      await dormir(400);
+      if (naTela()) throw new Error('a barra deveria sumir depois de usar um botão');
+      if ($('#painel-coach').classList.contains('recolhido')) throw new Error('o botão Coach da barra deveria abrir o coach');
+      P.UICoach.alternar(false);
+      semAnimacao.remove();
+      passo('celular: barra de cima escondida, abre no ☰');
     }
 
     // 5) modo "sob pedido": pedir dica
