@@ -230,6 +230,26 @@
   // ====================================================== bots e coach
   G = 'Bots e coach';
 
+  T(G, 'Bots não sabem o tipo uns dos outros: a vista e a leitura não dizem quem é profissional ou regular', a => {
+    const mesa = P.Motor.criarMesa({ lugares: 4, sb: 10, bb: 20 });
+    const tipos = ['pro', 'reg', 'station', 'maniaco'];
+    tipos.forEach((perfil, s) => mesa.sentar(s, Object.assign(P.Bots.criar(null, [], perfil), { fichas: 2000 })));
+    const mao = mesa.proximaMao();
+    let vistas = 0;
+    while (!mao.terminada()) {
+      const s = mao.vez(), v = mao.vista(s);
+      const texto = JSON.stringify(v.jogadores);
+      a.verdadeiro(!/perfil|estilo|"(pro|reg|station|nit|tag|lag|maniaco)"/.test(texto), 'a vista do bot não pode ter o tipo dos outros: ' + texto);
+      vistas++;
+      mao.agir(s, P.Bots.decidir(v, s, { perfil: mesa.jogador(s).perfil, modo: 'cash' }).acao);
+    }
+    const lei = P.Leitura.criar();
+    lei.registrar(mao.vista(null));
+    const anotado = JSON.stringify(lei.exportar());
+    a.verdadeiro(!/pro|reg|station|maniaco/.test(anotado), 'a leitura só tem números das jogadas: ' + anotado);
+    return `${vistas} vistas conferidas: só fichas, apostas e ações; a leitura guarda só contagens de jogadas`;
+  });
+
   T(G, 'Bots só fazem ações legais (600 mãos de 6 bots, todos os perfis)', a => {
     const perfis = Object.keys(P.Bots.PERFIS);
     const cont = {};
@@ -316,11 +336,15 @@
       `mesas de 9: ${pct(semPro / N)} sem profissional, ${pct(soPro / N)} só profissionais, ${pct(comOsTres / N)} com os três tipos`;
   });
 
-  /** Herói que vai all-in em toda mão (75 bb) contra bots dos perfis dados, com leitura. */
+  /**
+   * Herói que vai all-in em toda mão (75 bb) contra bots dos perfis dados, com leitura.
+   * "saldo" é o resultado em EV do all-in (equity do herói na hora do all-in x pote),
+   * que tira a sorte das cartas comunitárias da conta — o jeito certo de julgar all-ins.
+   */
   function simularEmpurrador(perfis, maos) {
     const lei = P.Leitura.criar();
     const n = perfis.length + 1;
-    let saldo = 0, showdowns = 0;
+    let saldo = 0, showdowns = 0, real = 0;
     for (let k = 0; k < maos; k++) {
       const jogadores = [];
       for (let s = 0; s < n; s++) jogadores.push({ assento: s, id: s === 0 ? 'heroi' : 'b' + s, nome: 'J' + s, fichas: 1500 });
@@ -332,11 +356,20 @@
         else m.agir(s, P.Bots.decidir(m.vista(s), s, { perfil: perfis[s - 1], modo: 'cash', leitura: lei }).acao);
         if (++guarda > 200) throw new Error('mão não terminou');
       }
-      lei.registrar(m.vista(null));
-      if (!m.resultado().semShowdown) showdowns++;
-      saldo += m.resultado().ganhos[0];
+      const vf = m.vista(null), r = m.resultado();
+      lei.registrar(vf);
+      real += r.ganhos[0];
+      if (r.semShowdown) { saldo += r.ganhos[0]; continue; }
+      // showdown: o herói estava all-in no pré-flop (stacks iguais, um pote só)
+      showdowns++;
+      const h = m.historicoCompleto();
+      const vivos = vf.jogadores.filter(j => !j.foldou);
+      const eqs = P.Equity.monteCarloSincrono({ jogadores: vivos.map(j => h.jogadores.find(x => x.assento === j.assento).cartas), board: [], iteracoes: 2000 }).equity;
+      const pote = vf.jogadores.reduce((s, j) => s + j.investido, 0);
+      const eu = vf.jogadores.find(j => j.assento === 0);
+      saldo += eqs[vivos.indexOf(eu)] * pote - eu.investido;
     }
-    return { saldo, bb100: saldo / 20 / maos * 100, showdowns };
+    return { saldo, real, bb100: saldo / 20 / maos * 100, showdowns };
   }
 
   const PERFIS_TODOS = ['pro', 'reg', 'station', 'nit', 'tag', 'lag', 'maniaco'];
@@ -350,9 +383,9 @@
   });
 
   T(G, 'Heads-up: o empurrador perde contra os três tipos de adversário', a => {
-    const res = PERFIS_TODOS.map(p => [p, simularEmpurrador([p], 300)]);
-    res.forEach(([p, r]) => a.maior(0, r.saldo, `heads-up contra ${p} (${fmtEmp(r, 300)})`));
-    return res.map(([p, r]) => `${p}: ${fmtEmp(r, 300)}`).join(' · ');
+    const res = PERFIS_TODOS.map(p => [p, simularEmpurrador([p], 500)]);
+    res.forEach(([p, r]) => a.maior(0, r.saldo, `heads-up contra ${p} (${fmtEmp(r, 500)})`));
+    return res.map(([p, r]) => `${p}: ${fmtEmp(r, 500)}`).join(' · ');
   });
 
   T(G, 'Profissional na bolha: paga o all-in pela conta de fichas, folda pelo ICM', a => {

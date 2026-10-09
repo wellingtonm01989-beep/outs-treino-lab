@@ -108,6 +108,24 @@
     await ate(() => $('.feedback-nota'), 60000, 'nota da decisão');
     passo('quiz e ações ok (' + $$('.coach-corpo .bloco').length + ' blocos no coach)');
 
+    // 4b) celular: a dica do coach fica escondida até tocar em "Coach" (canto de cima)
+    if (matchMedia('(max-width: 640px), (max-height: 500px)').matches) {
+      P.Config.set('modoCoach', 'sempre');
+      await vezDoHeroi('vez do herói (antes da dica escondida)');
+      clicar($('.btn-fold'));
+      await dormir(300);
+      await vezDoHeroi('vez do herói (dica escondida)');
+      await ate(() => $('#mb-coach.novidade'), 30000, 'aviso de dica no botão Coach');
+      if ($('.coach-sug') || $('.btn-acao.sugerido')) throw new Error('no celular a dica deveria começar escondida');
+      clicar($('#mb-coach'));
+      await ate(() => $('.coach-sug') && $('.btn-acao.sugerido'), 30000, 'dica depois de tocar em Coach');
+      if (!$('#painel-coach').classList.contains('recolhido')) throw new Error('o painel do coach não deveria abrir por cima da mesa');
+      clicar($('#mb-coach'));
+      if ($('.coach-sug') || $('.btn-acao.sugerido')) throw new Error('a dica deveria sumir no segundo toque');
+      clicar($('.btn-fold'));
+      passo('celular: dica escondida até tocar em Coach');
+    }
+
     // 5) modo "sob pedido": pedir dica
     P.Config.set('modoCoach', 'pedido');
     await vezDoHeroi('vez do herói (pedido)');
