@@ -9,15 +9,16 @@
 (function (P) {
   'use strict';
 
-  var NIVEIS = ['micro', 'pequeno', 'medio', 'alto'];
-  var NOMES_NIVEL = { micro: 'Micro', pequeno: 'Pequeno', medio: 'Médio', alto: 'Alto' };
+  var NIVEIS = ['micro', 'pequeno', 'medio', 'alto', 'pro'];
+  var NOMES_NIVEL = { micro: 'Micro', pequeno: 'Pequeno', medio: 'Médio', alto: 'Alto', pro: 'Profissional' };
 
   // ------------------------------------------------------------------ cash
   var CASH = {
     micro: [{ nome: 'NL2', sb: 1, bb: 2 }, { nome: 'NL5', sb: 2, bb: 5 }, { nome: 'NL10', sb: 5, bb: 10 }],
     pequeno: [{ nome: 'NL25', sb: 10, bb: 25 }, { nome: 'NL50', sb: 25, bb: 50 }],
     medio: [{ nome: 'NL100', sb: 50, bb: 100 }, { nome: 'NL200', sb: 100, bb: 200 }],
-    alto: [{ nome: 'NL500', sb: 250, bb: 500 }, { nome: 'NL1000', sb: 500, bb: 1000 }]
+    alto: [{ nome: 'NL500', sb: 250, bb: 500 }, { nome: 'NL1000', sb: 500, bb: 1000 }],
+    pro: [{ nome: 'NL2000', sb: 1000, bb: 2000 }, { nome: 'NL5000', sb: 2500, bb: 5000 }]
   };
 
   // ---------------------------------------------------------------- Sit & Go
@@ -26,7 +27,8 @@
     micro: [{ total: 100, premio: 92 }, { total: 350, premio: 325 }],
     pequeno: [{ total: 700, premio: 650 }, { total: 1500, premio: 1400 }],
     medio: [{ total: 3000, premio: 2800 }, { total: 6000, premio: 5600 }],
-    alto: [{ total: 10000, premio: 9400 }, { total: 20000, premio: 18800 }]
+    alto: [{ total: 10000, premio: 9400 }, { total: 20000, premio: 18800 }],
+    pro: [{ total: 53000, premio: 50000 }, { total: 105000, premio: 100000 }]
   };
   var SNG_STACK = 1500;
   // níveis do SNG (ante por jogador a partir do nível 6)
@@ -43,7 +45,8 @@
     micro: [{ total: 110, premio: 100 }, { total: 330, premio: 300 }, { total: 550, premio: 500 }],
     pequeno: [{ total: 1100, premio: 1000 }, { total: 2200, premio: 2000 }, { total: 3300, premio: 3000 }],
     medio: [{ total: 5500, premio: 5000 }, { total: 8200, premio: 7500 }, { total: 10900, premio: 10000 }],
-    alto: [{ total: 21500, premio: 20000 }, { total: 53000, premio: 50000 }, { total: 105000, premio: 100000 }]
+    alto: [{ total: 21500, premio: 20000 }, { total: 53000, premio: 50000 }, { total: 105000, premio: 100000 }],
+    pro: [{ total: 105000, premio: 100000 }, { total: 210000, premio: 200000 }]
   };
   var TORNEIO_STACK = 10000;
   var TORNEIO_FIELDS = [45, 90, 180];

@@ -21,6 +21,7 @@
 
   /**
    * o: { participantes, lugares, stack, nivel, modo, heroi (jogador), pagos,
+   *      premios (valores, para o ICM dos bots), leitura (P.Leitura da partida),
    *      blinds() → blinds atuais, fator() → multiplicador de tempo,
    *      pausado() → true com o relógio parado, instantaneo,
    *      fmt(v) → texto de fichas,
@@ -207,6 +208,16 @@
     }
 
     // --------------------------------------------------- mesas ao fundo
+    /** Premiação e stacks das outras mesas, para o ICM dos bots da mesa "m". */
+    function ctxTorneioDe(m) {
+      if (!o.premios || !o.premios.length) return null;
+      return {
+        premios: o.premios.slice(0, Math.min(o.premios.length, restantes)),
+        stacksFora: vivos().filter(j => j.mesaId !== m.id || transito.some(x => x.jogador === j)).map(j => j.fichas),
+        restantes, pagos: o.premios.length
+      };
+    }
+
     function decidirBot(mao, s, m) {
       const bot = m.mesa.jogador(s);
       let bolha = 1, agress = 1;
@@ -214,7 +225,10 @@
         const maior = Math.max.apply(null, m.mesa.ativos().map(q => m.mesa.jogador(q).fichas));
         if (bot.fichas >= maior) agress = 1.3; else bolha = 0.6;
       }
-      return P.Bots.decidir(mao.vista(s), s, { perfil: bot.perfil, nivel: o.nivel, modo: o.modo, bolha, agressividade: agress });
+      return P.Bots.decidir(mao.vista(s), s, {
+        perfil: bot.perfil, nivel: o.nivel, modo: o.modo, bolha, agressividade: agress,
+        leitura: o.leitura || null, torneio: ctxTorneioDe(m), estilo: bot.estilo
+      });
     }
 
     function textoAcao(reg) {
@@ -253,6 +267,7 @@
       if (!ativo) return;
       const r = m.mesa.concluirMao();
       const h = mao.historicoCompleto();
+      if (o.leitura) o.leitura.registrar(mao.vista(null));
       m.resultado = mao.eventos().filter(e => e.tipo === 'pote').map(e => e.vencedores.map(v => `${m.mesa.jogador(v.assento) ? m.mesa.jogador(v.assento).nome : '?'} ganha ${fmt(v.valor)}`).join(', ') + (e.descricao ? ' com ' + e.descricao : '')).join(' · ');
       notificar(m.id);
       await esperar((r.semShowdown ? 1500 : 3200) * o.fator());

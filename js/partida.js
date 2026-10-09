@@ -44,6 +44,8 @@
     const decisoesMao = [];
     const registro = { maos: [], decisoes: [], inicio: Date.now() };   // para a análise de fim de partida
     let maoAtual = null;
+    // o que os bots anotam de cada jogador (só informação pública), em todas as mesas
+    let leitura = P.Leitura.criar();
 
     const rotulo = modo === 'cash' ? cfg.limite.nome :
       modo === 'sng' ? `Sit & Go ${P.Formato ? P.Formato.dinheiro(cfg.buyin.total) : cfg.buyin.total}` + (participantes > lugares ? ` · ${participantes} jogadores` : '') :
@@ -95,6 +97,7 @@
         registro: { ids: registro.maos.map(r => r.id), inicio: registro.inicio },
         mesa: modo === 'cash' ? { botao: mesa.botao(), numero: mesa.numero(), assentos: mesa.assentos().map(j => (j ? Object.assign({}, j) : null)) } : null,
         torneio: torneio ? torneio.exportar() : null,
+        leitura: leitura.exportar(),
         heroiFichas: mesa.jogador(HEROI) ? mesa.jogador(HEROI).fichas : 0
       });
     }
@@ -107,6 +110,7 @@
       s.eliminados.forEach(e => eliminados.push(e));
       Object.assign(avisos, s.avisos);
       registro.inicio = s.registro.inicio;
+      leitura = P.Leitura.criar(s.leitura || null);
       s.registro.ids.forEach(id => {
         const r = P.HistoricoMaos.porId(id);
         if (r) { registro.maos.push(r); registro.decisoes.push(...(r.decisoes || [])); }
@@ -127,6 +131,7 @@
     function criarTorneio(heroi, restaurarDe) {
       return P.MultiMesa.criar({
         participantes, lugares, stack: modo === 'sng' ? E.SNG_STACK : E.TORNEIO_STACK, nivel: cfg.nivel, modo, heroi, pagos: premios.length,
+        premios: premios.slice(), leitura,
         blinds: () => { atualizarNivel(false); return blindsAtuais(); },
         fator: () => FATOR_VELOCIDADE[P.Config.get('velocidade')] || 1,
         pausado: () => pausadoEm !== null,
@@ -175,7 +180,7 @@
       const bot = P.Bots.criar(cfg.nivel, mesa ? nomesUsados() : []);
       if (modo === 'cash') {
         const bb = cfg.limite.bb;
-        const bbs = bot.perfil === 'station' ? 40 + P.RNG.inteiroAbaixo(70) : bot.perfil === 'nit' ? 100 : 60 + P.RNG.inteiroAbaixo(90);
+        const bbs = bot.perfil === 'station' ? 40 + P.RNG.inteiroAbaixo(70) : bot.perfil === 'nit' || bot.perfil === 'pro' ? 100 : 60 + P.RNG.inteiroAbaixo(90);
         bot.fichas = Math.round(bbs * bb);
       } else bot.fichas = stackPadrao;
       return bot;
@@ -318,7 +323,7 @@
         const maior = Math.max.apply(null, ativos);
         if (bot.fichas >= maior) agress = 1.3; else bolha = 0.6;
       }
-      const d = P.Bots.decidir(vistaBot, assento, { perfil: bot.perfil, nivel: cfg.nivel, modo, bolha, agressividade: agress });
+      const d = P.Bots.decidir(vistaBot, assento, { perfil: bot.perfil, nivel: cfg.nivel, modo, bolha, agressividade: agress, leitura, torneio: inf, estilo: bot.estilo });
       const fator = FATOR_VELOCIDADE[P.Config.get('velocidade')] || 1;
       await chamar(ui, 'aoVezDoBot', assento, cfg.instantaneo ? 0 : d.ms * fator);
       if (!ativo) return;
@@ -380,6 +385,7 @@
     async function concluir(mao, blindsDaMao) {
       const r = mesa.concluirMao();
       const h = mao.historicoCompleto();
+      leitura.registrar(mao.vista(null));        // os bots anotam o que todos mostraram nesta mão
       maosJogadas++;
       maosNoNivel++;
       const ganho = r.ganhos[HEROI] || 0;
@@ -515,6 +521,7 @@
       premios: () => premios.slice(),
       torneio: () => torneio,
       eliminados: () => eliminados.slice(),
+      leitura: () => leitura,
       fmt
     };
     return api;

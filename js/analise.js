@@ -455,8 +455,19 @@
     tag: { abre: 1, paga: 1, tresBet: 1, limpa: 0.1, blefe: 0.3 },
     lag: { abre: 1.35, paga: 1.3, tresBet: 1.6, limpa: 0.1, blefe: 0.45 },
     maniaco: { abre: 2.2, paga: 1.6, tresBet: 3, limpa: 0.2, blefe: 0.7 },
+    pro: { abre: 1.05, paga: 1, tresBet: 1.2, limpa: 0, blefe: 0.35 },
     desconhecido: { abre: 1.1, paga: 1.2, tresBet: 1, limpa: 0.3, blefe: 0.3 }
   };
+
+  /**
+   * "perfil" pode ser o nome de um perfil ou um objeto de fatores já pronto
+   * (a leitura que um bot fez do jogador: { abre, paga, tresBet, limpa, blefe, estacao }).
+   */
+  function fatoresDo(perfil) {
+    if (perfil && typeof perfil === 'object') return perfil;
+    return FATORES_PERFIL[perfil] || FATORES_PERFIL.desconhecido;
+  }
+  function ehEstacao(perfil) { return perfil === 'station' || !!(perfil && perfil.estacao); }
 
   /** Primeiro índice de "lista" (ordenada) com valor >= x. */
   function limiteInferior(lista, x) {
@@ -476,7 +487,7 @@
 
   /** Range pré-flop provável de "assento" pelas ações dele no pré-flop. */
   function rangePreflopDe(vista, assento, perfil) {
-    var f = FATORES_PERFIL[perfil] || FATORES_PERFIL.desconhecido;
+    var f = fatoresDo(perfil);
     var ordem = ordemPreflop(vista), n = ordem.length, hu = n === 2;
     var atrasDe = function (s) { return n - 1 - ordem.indexOf(s); };
     var acoes = vista.eventos.filter(function (e) { return e.tipo === 'acao' && e.rua === 'preflop'; });
@@ -491,7 +502,7 @@
           else range = R.ajustarRange(R.parse('QQ+, AKs, AKo'), f.tresBet);
           if (e.allin && raisesAntes >= 1) range = R.uniao(range, R.parse('TT+, AQs+, AKo'));
         } else if (e.acao === 'call') {
-          if (raisesAntes === 0) { limpou = true; range = R.menos(R.topPercent(perfil === 'station' ? 55 : 40), R.topPercent(perfil === 'station' ? 3 : 7)); }
+          if (raisesAntes === 0) { limpou = true; range = R.menos(R.topPercent(ehEstacao(perfil) ? 55 : 40), R.topPercent(ehEstacao(perfil) ? 3 : 7)); }
           else if (raisesAntes === 1) {
             var resp = R.respostaAoRaise(R.grupoAgressor(atrasDe(primeiroRaiser), hu), lugar);
             range = R.ajustarRange(resp.call, f.paga);
@@ -512,7 +523,7 @@
    * conhecidas: cartas que o herói vê (as dele + board), para tirar do range.
    */
   function rangeEstimado(vista, assento, perfil, conhecidas) {
-    var f = FATORES_PERFIL[perfil] || FATORES_PERFIL.desconhecido;
+    var f = fatoresDo(perfil);
     var mapa = rangePreflopDe(vista, assento, perfil);
     var marc = new Uint8Array(52);
     conhecidas.forEach(function (c) { marc[c] = 1; });
@@ -543,7 +554,7 @@
             mult = pos >= 0.7 ? 1 : pos >= 0.4 ? 0.5 : (draw ? 0.7 : f.blefe);
             if (e.acao === 'raise') mult = pos >= 0.8 ? 1 : (draw ? 0.5 : mult * 0.5);
           } else if (e.acao === 'call') {
-            mult = pos >= 0.85 ? 0.7 : pos >= 0.35 ? 1 : (draw ? 1 : (perfil === 'station' ? 0.8 : 0.25));
+            mult = pos >= 0.85 ? 0.7 : pos >= 0.35 ? 1 : (draw ? 1 : (ehEstacao(perfil) ? 0.8 : 0.25));
           } else if (e.acao === 'check') {
             mult = pos >= 0.85 ? 0.45 : 1;
           } else mult = 1;

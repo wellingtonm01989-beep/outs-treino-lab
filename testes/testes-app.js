@@ -252,6 +252,103 @@
     return Object.keys(cont).map(k => `${k} ${cont[k]}`).join(' · ');
   });
 
+  // ------------------------------------------- leitura e bots profissionais
+  /** Mão com cartas escolhidas para alguns assentos (o resto do baralho em ordem). */
+  function maoMontada(n, botao, sb, bb, fichas, cartasPorAssento) {
+    const ordem = [];
+    for (let k = 1; k <= n; k++) ordem.push((botao + k) % n);
+    const usadas = [].concat(...Object.keys(cartasPorAssento).map(s => L(cartasPorAssento[s])));
+    const resto = P.Baralho.novoOrdenado().filter(c => usadas.indexOf(c) < 0);
+    const d = new Array(52);
+    Object.keys(cartasPorAssento).forEach(s => { const cs = L(cartasPorAssento[s]), k = ordem.indexOf(+s); d[k] = cs[0]; d[n + k] = cs[1]; });
+    let r = 0;
+    for (let i = 0; i < 52; i++) if (d[i] === undefined) d[i] = resto[r++];
+    const jogadores = fichas.map((f, s) => ({ assento: s, id: 'j' + s, nome: 'J' + s, fichas: f }));
+    return P.Motor.novaMao({ jogadores, botao, sb, bb, lugares: n, baralhoDeTeste: d });
+  }
+
+  T(G, 'Leitura: anota quem abre all-in e quem desiste, e volta igual depois de salvar', a => {
+    const lei = P.Leitura.criar();
+    for (let k = 0; k < 12; k++) {
+      const jogadores = [0, 1, 2, 3].map(s => ({ assento: s, id: 'j' + s, nome: 'J' + s, fichas: 3000 }));
+      const m = P.Motor.novaMao({ jogadores, botao: k % 4, sb: 10, bb: 20, lugares: 4 });
+      while (!m.terminada()) {
+        const s = m.vez(), v = m.acoesValidas();
+        if (s === 0) m.agir(s, v.podeApostar ? 'allin' : v.podeCheck ? 'check' : 'call');   // j0 só empurra
+        else m.agir(s, v.podeCheck ? 'check' : 'fold');                                    // os outros só desistem
+      }
+      lei.registrar(m.vista(null));
+    }
+    const c0 = lei.contadores('j0'), c1 = lei.contadores('j1');
+    a.igual(c0.maos, 12, 'mãos');
+    a.maior(c0.abrirOp, 0, 'oportunidades de abrir');
+    a.igual(c0.abriuAllin, c0.abrirOp, 'abriu all-in em todas');
+    a.igual(c0.abrirOpFundo, c0.abrirOp, '150 bb: todas "fundas"');
+    a.maior(c1.vsShoveOp, 0, 'j1 enfrentou all-in');
+    a.igual(c1.vsShoveCall, 0, 'e nunca pagou');
+    const e0 = P.Leitura.estimar(c0, 1), e1 = P.Leitura.estimar(c1, 1);
+    a.maior(e0.abre, 0.4, 'estimativa de abertura de j0');
+    a.maior(0.1, e1.pagaShove, 'estimativa de call de all-in de j1');
+    const lei2 = P.Leitura.criar(JSON.parse(JSON.stringify(lei.exportar())));
+    a.igualJSON(lei2.contadores('j0'), c0, 'contadores depois de salvar e carregar');
+    return `j0: ${c0.abriuAllin}/${c0.abrirOp} all-ins abrindo (estimativa ${pct(e0.abre)}) · j1 pagou ${c1.vsShoveCall}/${c1.vsShoveOp} all-ins (estimativa ${pct(e1.pagaShove)})`;
+  });
+
+  /** Herói que vai all-in em toda mão (75 bb) contra 5 bots de um perfil, com leitura. */
+  function simularEmpurrador(perfil, maos) {
+    const lei = P.Leitura.criar();
+    let saldo = 0, showdowns = 0, decisoes = 0, tempo = 0;
+    for (let k = 0; k < maos; k++) {
+      const jogadores = [];
+      for (let s = 0; s < 6; s++) jogadores.push({ assento: s, id: s === 0 ? 'heroi' : 'b' + s, nome: 'J' + s, fichas: 1500 });
+      const m = P.Motor.novaMao({ jogadores, botao: k % 6, sb: 10, bb: 20, lugares: 6 });
+      let guarda = 0;
+      while (!m.terminada()) {
+        const s = m.vez(), v = m.acoesValidas();
+        if (s === 0) m.agir(0, v.podeApostar ? 'allin' : v.podeCheck ? 'check' : 'call');
+        else {
+          const t0 = performance.now();
+          m.agir(s, P.Bots.decidir(m.vista(s), s, { perfil, nivel: 'pro', modo: 'cash', leitura: lei }).acao);
+          tempo += performance.now() - t0; decisoes++;
+        }
+        if (++guarda > 200) throw new Error('mão não terminou');
+      }
+      lei.registrar(m.vista(null));
+      if (!m.resultado().semShowdown) showdowns++;
+      saldo += m.resultado().ganhos[0];
+    }
+    return { saldo, bb100: saldo / 20 / maos * 100, showdowns, msDecisao: tempo / Math.max(1, decisoes) };
+  }
+
+  T(G, 'Quem vai all-in em toda mão perde contra profissionais e TAGs (eles leem e pagam mais leve)', a => {
+    const pro = simularEmpurrador('pro', 200);
+    const tag = simularEmpurrador('tag', 200);
+    a.maior(0, pro.saldo, 'contra profissionais o empurrador deveria perder');
+    a.maior(0, tag.saldo, 'contra TAGs o empurrador deveria perder');
+    const f = r => `${r.bb100 > 0 ? '+' : ''}${r.bb100.toFixed(0)} bb/100 (${r.showdowns} pagos em 200)`;
+    return `empurrador × profissionais: ${f(pro)} · × TAGs: ${f(tag)} · ${pro.msDecisao.toFixed(1)} ms por decisão do profissional`;
+  });
+
+  T(G, 'Profissional na bolha: paga o all-in pela conta de fichas, folda pelo ICM', a => {
+    // 4 restantes, 3 pagos. O botão (25 bb) empurra; o profissional no big blind tem AJo e 15 bb.
+    const fichas = [5000, 3000, 3000, 2500];
+    const montar = () => {
+      const m = maoMontada(4, 0, 100, 200, fichas, { 2: 'Ah Jd' });
+      m.agir(3, 'fold'); m.agir(0, 'allin'); m.agir(1, 'fold');
+      return m;
+    };
+    const torneio = { premios: [5000, 3000, 2000], stacksFora: [], restantes: 4, pagos: 3 };
+    let foldaICM = 0, pagaFichas = 0;
+    for (let i = 0; i < 6; i++) {
+      const m = montar();
+      if (P.Bots.decidir(m.vista(2), 2, { perfil: 'pro', modo: 'sng', torneio }).acao === 'fold') foldaICM++;
+      if (P.Bots.decidir(m.vista(2), 2, { perfil: 'pro', modo: 'cash' }).acao !== 'fold') pagaFichas++;
+    }
+    a.maior(foldaICM, 4, 'no ICM deveria foldar AJo');
+    a.maior(pagaFichas, 4, 'em fichas deveria pagar AJo');
+    return `AJo no BB contra all-in do botão: ICM → fold ${foldaICM}/6 · fichas → call ${pagaFichas}/6`;
+  });
+
   function vistaHeroi(mao, assento) { return mao.vista(assento); }
 
   T(G, 'Coach pré-flop: AA abre de UTG, 72o folda, AKs 3-beta contra abertura do CO', a => {
@@ -365,6 +462,16 @@
       a.verdadeiro(fim && fim.posicao >= 1 && fim.posicao <= 9);
       return `${fim.posicao}º lugar em ${fim.maos} mãos, nível ${fim.nivel}`;
     }));
+
+  T(G, 'Sit & Go de 18 só com profissionais (2 mesas de 9, leitura e ICM) até o fim', a => {
+    const t0 = performance.now();
+    return partida({ modo: 'sng', lugares: 9, participantes: 18, nivel: 'pro', buyin: E.SNG.pro[0], velocidade: 'turbo' }).then(({ p, fim }) => {
+      a.verdadeiro(fim && fim.posicao >= 1 && fim.posicao <= 18, 'colocação');
+      const lidos = Object.keys(p.leitura().exportar()).length;
+      a.maior(lidos, 10, 'leitura de quase todos os jogadores');
+      return `${fim.posicao}º de 18 em ${fim.maos} mãos · ${lidos} jogadores anotados · ${((performance.now() - t0) / 1000).toFixed(1)} s`;
+    });
+  });
 
   T(G, 'Torneio inteiro com 45 inscritos em mesas de 9: mesas desfeitas até a final e 1 campeão', a => {
     let rodada = 0, maxDif = 0, msgs = 0;

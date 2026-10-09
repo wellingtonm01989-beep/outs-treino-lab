@@ -14,7 +14,8 @@
     micro: 'Muitos jogadores passivos que pagam demais. Aposte valor e blefe pouco.',
     pequeno: 'Mesa mista: passivos, apertados e alguns agressivos.',
     medio: 'Mais TAGs: 3-bets, continuation bets e menos erros grosseiros.',
-    alto: 'Agressivos e equilibrados: blefam, variam tamanhos e pressionam.'
+    alto: 'Agressivos e equilibrados, com alguns profissionais na mesa.',
+    pro: 'Só profissionais: contas de EV e ICM e leitura do seu jogo. Empurrou all-in demais, eles pagam.'
   };
   const DESC_ABA = {
     cash: 'Fichas valem dinheiro, blinds fixos, entre e saia quando quiser.',
@@ -25,6 +26,7 @@
 
   const salvo = P.Config.get('ultimoLobby') || {};
   const st = Object.assign({ aba: 'cash', nivel: 'micro', indice: 1, lugares: 6, buyinBB: 100, recompraAuto: false, velocidade: 'regular', field: 90, participantes: 0 }, salvo);
+  if (E.NIVEIS.indexOf(st.nivel) < 0) st.nivel = 'micro';
   /** Inscritos no Sit & Go (no mínimo uma mesa cheia). */
   const inscritosSNG = () => Math.max(st.lugares, Math.min(180, st.participantes || st.lugares));
   const mesasDe = (n, l) => Math.ceil(n / l);
@@ -90,7 +92,7 @@
 
   function cartaoItem(it, i) {
     const ativo = st.indice === i;
-    const faixaCor = { micro: '#2a8a5c', pequeno: '#3b82c4', medio: '#9b5de5', alto: '#d8b25a' }[st.nivel];
+    const faixaCor = { micro: '#2a8a5c', pequeno: '#3b82c4', medio: '#9b5de5', alto: '#d8b25a', pro: '#b794f4' }[st.nivel];
     let conteudo;
     if (st.aba === 'cash') {
       conteudo = [

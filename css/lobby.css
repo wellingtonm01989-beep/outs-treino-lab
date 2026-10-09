@@ -35,11 +35,13 @@
 .lobby-cab .desc { color: var(--texto-2); font-size: 13px; }
 
 /* níveis */
-.niveis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.niveis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
 .nivel {
   text-align: left; cursor: pointer; border-radius: 12px; padding: 12px 14px; border: 1px solid var(--borda);
   background: var(--superficie); color: var(--texto); font: inherit; transition: border-color var(--transicao), transform var(--transicao);
+  display: flex; flex-direction: column; justify-content: flex-start;
 }
+.nivel .composicao { margin-top: auto; }
 .nivel:hover { border-color: var(--borda-forte); transform: translateY(-1px); }
 .nivel.ativo { border-color: var(--ouro); box-shadow: 0 0 0 1px var(--ouro) inset, 0 8px 22px rgba(216,178,90,.12); }
 .nivel h3 { color: var(--texto); text-transform: none; letter-spacing: 0; font-size: 15px; }
