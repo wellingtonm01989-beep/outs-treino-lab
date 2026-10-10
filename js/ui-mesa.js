@@ -29,9 +29,10 @@
   let ctxFmt = { modo: 'cash', bb: 1 };
   const barra = {};
 
-  // mesa com amigos: aba escondida ou mensagens acumuladas → eventos aplicados sem animação
+  // mesa com amigos: aba escondida ou mensagens acumuladas → eventos aplicados sem animação.
+  // E todo mundo no mesmo ritmo (Normal), seja qual for a opção de cada aparelho.
   let pressa = false;
-  const fv = () => (pressa ? 0 : VELOCIDADES[P.Config.get('velocidade')] || 1);
+  const fv = () => (pressa ? 0 : VELOCIDADES[cfg && cfg.remota ? 'normal' : P.Config.get('velocidade')] || 1);
   const fmt = v => F.valor(v, ctxFmt);
   const fmtReal = v => (ctxFmt.modo === 'cash' ? F.dinheiro(v) : F.fichas(v));
 
@@ -48,7 +49,12 @@
       if (ms <= 0 && pausas === 0) res(); else setTimeout(tick, Math.min(Math.max(ms, 0), 80));
     });
   }
-  function pausar(p) { pausas = Math.max(0, pausas + (p ? 1 : -1)); if (partida) partida.pausarRelogio(pausas > 0 || document.hidden); }
+  function pausar(p) {
+    // mesa com amigos: o servidor não para (o prazo de cada vez segue correndo), então a mesa daqui também não
+    if (cfg && cfg.remota) return;
+    pausas = Math.max(0, pausas + (p ? 1 : -1));
+    if (partida) partida.pausarRelogio(pausas > 0 || document.hidden);
+  }
 
   // ================================================================ montagem
   function montar(config) {
@@ -531,6 +537,7 @@
       barraT.style.transition = `transform ${Math.max(0, ms)}ms linear`;
       barraT.style.transform = 'scaleX(0)';
       if (s !== HEROI && est.jogadores[s]) status(`Vez de ${esc(est.jogadores[s].nome)}…`);
+      contarSegundos(s, ms);
     },
 
     /** Mesa com amigos: o tempo acabou e o servidor jogou por você; o pedido aberto cai. */
@@ -588,6 +595,31 @@
       else P.App.irPara('lobby');
     }
   };
+
+  // ------------------------------------------- relógio da vez (mesa com amigos)
+  let timerSegundos = null;
+  /** Segundos que faltam para quem está na vez; nos últimos 10 s fica vermelho (e, se for você, toca um aviso). */
+  function contarSegundos(s, ms) {
+    pararSegundos();
+    const fim = performance.now() + Math.max(0, ms);
+    let avisou = false;
+    const tique = () => {
+      const a = assentos[s];
+      if (!a || !a.raiz.classList.contains('vez')) { pararSegundos(); return; }
+      const seg = Math.max(0, Math.ceil((fim - performance.now()) / 1000));
+      barra.relogio.textContent = seg + ' s';
+      barra.relogio.classList.remove('oculto');
+      barra.relogio.classList.toggle('urgente', seg <= 10);
+      if (seg <= 10 && !avisou && s === HEROI) { avisou = true; P.Som.alerta(); }
+    };
+    tique();
+    timerSegundos = setInterval(tique, 250);
+  }
+  function pararSegundos() {
+    clearInterval(timerSegundos);
+    timerSegundos = null;
+    if (barra.relogio) barra.relogio.classList.add('oculto');
+  }
 
   function sincronizar(vista) {
     if (!est) return;
@@ -847,6 +879,7 @@
     barra.status = el('span', { id: 'acoes-status-txt', text: 'Preparando a mesa…' });
     barra.nota = el('span');
     barra.dica = el('button', { class: 'btn oculto', html: 'Pedir dica<span class="so-largo"> (H)</span>', onclick: pedirDica });
+    barra.relogio = el('span', { class: 'relogio-vez oculto', title: 'Tempo para jogar (quando acaba, a mesa passa ou larga por você)' });
     barra.status.addEventListener('click', () => { if (barra.status.classList.contains('com-coach')) P.UICoach.alternar(true); });
     barra.tamanhos = el('div', { class: 'tamanhos' });
     barra.slider = el('input', { type: 'range' });
@@ -860,7 +893,7 @@
     barra.valor.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); lerValorDigitado(); agir('raise'); } });
     const raiz = el('div', { class: 'barra-acoes' },
       el('div', { class: 'acoes-esquerda' },
-        el('div', { class: 'acoes-status' }, barra.status, barra.nota, el('span', { class: 'espaco', style: { flex: 1 } }), barra.dica),
+        el('div', { class: 'acoes-status' }, barra.status, barra.nota, el('span', { class: 'espaco', style: { flex: 1 } }), barra.dica, barra.relogio),
         barra.tamanhos,
         el('div', { class: 'linha-slider' }, barra.slider, barra.valor, barra.unidade)),
       el('div', { class: 'acoes-botoes' }, barra.fold, barra.call, barra.raise));
@@ -1107,12 +1140,13 @@
   // ================================================================ ciclo
   let tokenPartida = 0;
   /** A interface só atende a partida atual; chamadas de uma partida já encerrada são ignoradas. */
-  function uiDaPartida(token) {
+  function uiDaPartida(token, remota) {
     const proxy = {};
     Object.keys(ui).forEach(k => {
       proxy[k] = (...args) => {
         if (token !== tokenPartida || !est && k !== 'aoIniciar' && k !== 'aoNovaMao' && k !== 'aoInfo') {
-          return k === 'pedirAcao' ? Promise.resolve('fold') : undefined;
+          // mesa com amigos: nunca larga a mão sozinha (null = nenhuma jogada enviada)
+          return k === 'pedirAcao' ? Promise.resolve(remota ? null : 'fold') : undefined;
         }
         return ui[k](...args);
       };
@@ -1124,7 +1158,7 @@
     encerrar(false);
     montar(config);
     const token = ++tokenPartida;
-    partida = (config.criarPartida || P.Partida.criar)(Object.assign({}, config, { heroi: { nome: P.Config.get('nome'), mostraPerdedoras: P.Config.get('mostrarPerdedoras') } }), uiDaPartida(token));
+    partida = (config.criarPartida || P.Partida.criar)(Object.assign({}, config, { heroi: { nome: P.Config.get('nome'), mostraPerdedoras: P.Config.get('mostrarPerdedoras') } }), uiDaPartida(token, !!config.remota));
     iniciarHud();
     try {
       await partida.rodar();
@@ -1188,7 +1222,8 @@
       }
     }
     tokenPartida++;
-    if (pendente) pendente.resolve('fold');
+    pararSegundos();
+    if (pendente) pendente.resolve(cfg && cfg.remota ? null : 'fold');
     partida = null;
     est = null;
     pausas = 0;

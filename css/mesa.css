@@ -194,6 +194,9 @@
 .acoes-status { display: flex; align-items: center; gap: 10px; font-size: 13px; line-height: 1.3; color: var(--texto-2); height: 34px; overflow: hidden; }
 .acoes-status b { color: var(--texto); }
 #acoes-status-txt { min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+/* mesa com amigos: segundos que faltam para quem está na vez */
+.relogio-vez { flex: none; margin-left: auto; padding: 2px 8px; border-radius: 10px; background: rgba(0,0,0,.35); color: var(--ouro); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.relogio-vez.urgente { color: #fff; background: var(--erro); }
 /* dica do coach dentro da barra (painel fechado) */
 #acoes-status-txt.com-coach { cursor: pointer; display: grid; min-width: 0; line-height: 1.3; }
 #acoes-status-txt.com-coach > span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

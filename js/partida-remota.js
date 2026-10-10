@@ -151,7 +151,10 @@
           // aba escondida (o navegador freia os timers) ou atraso de mais de uma mão: aplica sem animar.
           // (O normal é a próxima mão chegar enquanto o showdown ainda anima: isso não acelera.)
           const adiante = new Set(fila.filter(x => x.tipo === 'mao' && x.numero > numero).map(x => x.numero)).size;
-          ui.acelerar(document.hidden || adiante >= 2 || fila.length > 8);
+          // a sua vez já chegou e a mesa daqui está atrasada: corre até ela (o prazo corre no servidor)
+          const suaVez = fila.some(x => x.tipo === 'mao' && x.vista.vez === eu && x.vista.acoes);
+          const atrasada = Date.now() - m.recebidaEm > 1500;
+          ui.acelerar(document.hidden || adiante >= 2 || fila.length > 8 || (suaVez && atrasada));
           try {
             if (m.tipo === 'jogo') await placar(m);
             else if (m.tipo === 'mao') await mao(m);

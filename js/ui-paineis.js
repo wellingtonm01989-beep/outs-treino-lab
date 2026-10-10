@@ -489,7 +489,7 @@
       corpo.appendChild(el('div', { class: 'campo' }, el('span', { text: rotulo }), linha));
     };
     grupo('Tema da mesa', 'tema', [['verde', 'Verde'], ['azul', 'Azul'], ['vermelho', 'Vermelho'], ['preto', 'Preto']]);
-    grupo('Velocidade do jogo (bots e animações)', 'velocidade', [['lenta', 'Lenta'], ['normal', 'Normal'], ['rapida', 'Rápida'], ['turbo', 'Turbo']]);
+    grupo('Velocidade do jogo (bots e animações; na mesa com amigos é sempre Normal)', 'velocidade', [['lenta', 'Lenta'], ['normal', 'Normal'], ['rapida', 'Rápida'], ['turbo', 'Turbo']]);
     grupo('Modo do coach', 'modoCoach', [['sempre', 'Dicas sempre visíveis'], ['pedido', 'Só quando eu pedir'], ['quiz', 'Modo quiz'], ['desligado', 'Desligado (análise só no fim)']]);
     grupo('Valores na mesa', 'unidade', [['dinheiro', '$ / fichas'], ['bb', 'Big blinds (bb)']]);
     const chave = (rotulo, k) => corpo.appendChild(el('label', { class: 'chave' }, el('input', { type: 'checkbox', checked: C.get(k) ? true : null, onchange: e => C.set(k, e.target.checked) }), el('i'), el('span', { text: rotulo })));
