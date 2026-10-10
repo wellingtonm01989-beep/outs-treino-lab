@@ -464,15 +464,22 @@ teste('partida: quem sai fica fora (jogadas automáticas na hora) e volta quando
   caio.enviar({ tipo: 'sair' });
   const placar = await caio.espera(m => m.tipo === 'jogo' && m.jogadores[assentoCaio].fora);
   igual(placar.jogadores[assentoCaio].desistiu, false, 'sair não é desistir');
-  // com o Caio fora, a vez dele nunca fica esperando: o servidor joga por ele na hora
-  let esperouCaio = false;
+  // com o Caio fora, a vez dele nunca fica esperando: o servidor dá fold por ele na hora.
+  // E é sempre fold, nunca check (mesmo quando ele poderia passar de graça no BB).
+  let esperouCaio = false, caioFoldou = false, caioChecou = false;
   ana.ouvintes.push(() => {
     const m = ana.fila[ana.fila.length - 1];
-    if (m && m.tipo === 'mao' && !m.vista.terminada && m.vista.vez === assentoCaio) esperouCaio = true;
+    if (!m || m.tipo !== 'mao') return;
+    if (!m.vista.terminada && m.vista.vez === assentoCaio) esperouCaio = true;
+    for (const ev of m.eventos) if (ev.tipo === 'acao' && ev.assento === assentoCaio) {
+      if (ev.acao === 'fold') caioFoldou = true;
+      if (ev.acao === 'check') caioChecou = true;
+    }
   });
   const n0 = ana.jogo.numero;
   await jogarAte([ana, bia], () => ana.jogo.numero >= n0 + 3 || ana.fim, pagaTudo, 20000);
   ok(!esperouCaio, 'a vez do Caio não esperou por ele');
+  ok(caioFoldou && !caioChecou, 'Caio fora: fold em toda mão, nunca check');
   ok(!ana.fim && ana.jogo.jogadores[assentoCaio].posicao === null, 'Caio continua no jogo');
   // volta pelo botão (mesma conexão)
   caio.enviar({ tipo: 'entrar', token: caio.token, voltar: true });

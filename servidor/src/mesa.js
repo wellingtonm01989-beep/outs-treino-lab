@@ -325,10 +325,12 @@ export class Mesa extends DurableObject {
       if (!this.mao.terminada()) {
         const vez = this.mao.vez();
         const j = e.jogo.jogadores[vez];
-        // saiu da mesa, ou caiu e perdeu a vez (até reconectar)
-        const fora = j.fora || (this.ausentes.has(vez) && !this.conectados().has(j.token));
-        if (j.desistiu || fora) {
-          await this.registrarAcao(vez, j.desistiu ? 'fold' : Jogo.acaoAutomatica(this.mao));
+        // caiu a conexão e perdeu a vez (volta a jogar normal ao reconectar)
+        const ausente = this.ausentes.has(vez) && !this.conectados().has(j.token);
+        if (j.desistiu || j.fora || ausente) {
+          // quem saiu da mesa (ou desistiu) dá fold em toda mão até voltar;
+          // quem só perdeu a conexão passa de graça quando dá (check), senão fold
+          await this.registrarAcao(vez, (j.desistiu || j.fora) ? 'fold' : Jogo.acaoAutomatica(this.mao));
           continue;
         }
         this.transmitirMao();

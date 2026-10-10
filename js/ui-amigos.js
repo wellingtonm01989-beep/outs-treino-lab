@@ -452,7 +452,7 @@
     situacao: () => {
       const eu = st.jogo && st.jogo.jogadores[st.jogo.meuAssento];
       if (eu && eu.posicao) return document.createTextNode(`Você saiu em ${eu.posicao}º lugar. Dá para continuar assistindo até o fim.`);
-      if (eu && eu.fora) return document.createTextNode('Você saiu da mesa. Enquanto estiver fora, a mesa passa ou larga por você em todas as mãos. Volte quando quiser, enquanto a partida não terminar.');
+      if (eu && eu.fora) return document.createTextNode('Você saiu da mesa. Enquanto estiver fora, você dá fold automático em toda mão. Volte quando quiser, enquanto a partida não terminar.');
       return document.createTextNode('A partida desta mesa está acontecendo agora.');
     },
 
