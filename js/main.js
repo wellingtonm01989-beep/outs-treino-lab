@@ -21,11 +21,12 @@
     ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>'
     : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="m23 9-6 6"/><path d="m17 9 6 6"/></svg>';
 
-  function atualizarSaldo() { $('#saldo').textContent = P.Formato.dinheiro(P.Banca.saldo()); }
+  // a banca aparece no topo do app e, no PC, também na barra da mesa
+  function atualizarSaldo() { $$('.saldo-valor').forEach(e => { e.textContent = P.Formato.dinheiro(P.Banca.saldo()); }); }
 
   function aplicarPreferencias() {
     document.body.classList.toggle('quatro-cores', !!P.Config.get('quatroCores'));
-    $('#btn-som').innerHTML = ICONE_SOM(P.Config.get('som'));
+    $$('.btn-som').forEach(b => { b.innerHTML = ICONE_SOM(P.Config.get('som')); });
   }
 
   function irPara(tela) {

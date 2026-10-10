@@ -18,6 +18,14 @@
 .mesa-barra .detalhe { color: var(--texto-2); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mesa-barra .espaco { flex: 1; }
 .mesa-barra .btn { min-height: 30px; padding: 0 10px; font-size: 12.5px; }
+/* na mesa fica uma barra só: a de cima do app some e Cola, banca e som vêm para a barra da mesa */
+.app.em-jogo .topo { display: none; }
+.mesa-barra .btn-icone { width: 30px; padding: 0; }
+.mesa-barra .btn-icone svg { width: 16px; height: 16px; }
+.saldo-barra { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.1; white-space: nowrap; }
+.saldo-barra small { font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--texto-3); }
+.saldo-barra b { font-size: 13px; color: var(--ouro-2); font-variant-numeric: tabular-nums; }
+.mesa-barra.sem-rotulo .saldo-barra { display: none; }
 .resultado-pos { color: var(--ok); } .resultado-neg { color: var(--erro); }
 
 /* palco */

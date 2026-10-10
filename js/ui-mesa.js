@@ -76,6 +76,10 @@
       el('button', { class: 'btn so-largo', text: 'Opções', onclick: () => overlay('config') }),
       el('button', { class: 'btn so-largo oculto', id: 'mb-mesas', text: 'Mesas', title: 'Assistir às outras mesas do torneio', onclick: () => alternarMesas() }),
       el('button', { class: 'btn', id: 'mb-coach', text: 'Coach', title: 'Mostrar/recolher o coach', onclick: () => P.UICoach.alternar() }),
+      // PC: na mesa a barra de cima do app some (sobra altura para a mesa); o que ela tinha vem para cá
+      el('button', { class: 'btn so-largo', text: 'Cola', title: 'Cola de consulta rápida', onclick: () => overlay('cola') }),
+      cfg.semBanca ? null : el('span', { class: 'saldo-barra so-largo', title: 'Banca fictícia', html: '<small>Banca</small><b class="saldo-valor"></b>' }),
+      el('button', { class: 'btn btn-icone btn-som so-largo', title: 'Som ligado/desligado', html: $('#btn-som') ? $('#btn-som').innerHTML : '', onclick: () => $('#btn-som').click() }),
       el('button', { class: 'btn so-largo', text: cfg.remota ? 'Sair da mesa' : 'Sair para o lobby', onclick: sair }),
       el('button', { class: 'btn so-celular', id: 'mb-menu', title: 'Menu', html: '&#9776;<span class="rot-menu"> Menu</span>', onclick: abrirMenu }));
 
@@ -294,18 +298,35 @@
     oval.style.borderRadius = '';
     oval.querySelector('.mesa-centro').style.top = '';
     palco.style.removeProperty('--assento-heroi-l');
+    const cartaDe = ow => Math.max(32, Math.min(74, ow * 0.066));
+    const avatarDe = ow => Math.max(34, Math.min(50, ow * 0.055));
     let ow = Math.min(W * 0.74, (H - 200) * 2.15);
     ow = Math.max(300, ow);
+    const cx = W / 2;
+    let cy = H / 2 - Math.min(16, H * 0.025);
+    // Quem senta no alto da mesa precisa de espaço acima do assento para as cartas (maiores no
+    // showdown) e o balão da jogada, sem entrar embaixo da barra: a mesa desce (se sobrar
+    // espaço embaixo) e, se ainda faltar, diminui um pouco.
+    const sobe = Math.max(0, ...Array.from({ length: lugares - 1 }, (_, i) => -Math.sin((90 + (i + 1) * 360 / lugares) * Math.PI / 180)));
+    for (let volta = 0; volta < 4 && sobe > 0.3; volta++) {
+      const oh = ow / 2.15, assentoH = avatarDe(ow) + 12;
+      const acima = assentoH / 2 + Math.max(cartaDe(ow) * 1.05 - 10, 40) + 4;
+      const falta = acima - (cy - (oh / 2 + 24) * sobe);
+      if (falta <= 0.5) break;
+      const sobraBaixo = H - 6 - (cy + oh / 2 + 38 + assentoH / 2);
+      const desce = Math.max(0, Math.min(falta, sobraBaixo));
+      cy += desce;
+      if (falta - desce > 0.5) ow = Math.max(300, ow - (falta - desce) * 2 * 2.15 / sobe);
+    }
     const oh = ow / 2.15;
-    const cx = W / 2, cy = H / 2 - Math.min(16, H * 0.025);
     Object.assign(oval.style, { left: (cx - ow / 2) + 'px', top: (cy - oh / 2) + 'px', width: ow + 'px', height: oh + 'px' });
-    const cartaL = Math.max(32, Math.min(74, ow * 0.066));
+    const cartaL = cartaDe(ow);
     const assentoL = Math.max(128, Math.min(176, ow * 0.2));
     palco.style.setProperty('--carta-l', cartaL + 'px');
     palco.style.setProperty('--carta-heroi-l', (cartaL * 1.12) + 'px');
     palco.style.setProperty('--carta-bot-l', (cartaL * 0.6) + 'px');
     palco.style.setProperty('--assento-l', assentoL + 'px');
-    palco.style.setProperty('--avatar-l', Math.max(34, Math.min(50, ow * 0.055)) + 'px');
+    palco.style.setProperty('--avatar-l', avatarDe(ow) + 'px');
     palco.style.setProperty('--borda-l', Math.max(12, Math.min(22, ow * 0.024)) + 'px');
     const rx = ow / 2 + 8, ry = oh / 2 + 24;
     const pos = [];
@@ -1176,7 +1197,7 @@
     if (cfg.remota) {
       if (partida.jogando()) {
         pausar(true);
-        const ok = await P.UI.confirmar('Desistir da partida?', 'Se sair agora você desiste: fica fora desta partida, com a pior colocação, e quem continuar segue jogando.', 'Desistir', 'Continuar jogando');
+        const ok = await P.UI.confirmar('Sair da mesa?', 'Enquanto você estiver fora, a mesa passa ou larga por você em todas as mãos. Dá para voltar quando quiser, pelo link da mesa, enquanto a partida não terminar.', 'Sair da mesa', 'Continuar jogando');
         pausar(false);
         if (!ok) return;
       }
