@@ -205,7 +205,7 @@
 .nota-imprecisa { background: rgba(245,165,36,.16); color: #f5b54a; }
 .nota-erro { background: rgba(239,83,80,.16); color: #ff7b78; }
 .nota-grave { background: #8f1d1b; color: #fff; }
-.tamanhos { display: flex; gap: 4px; flex-wrap: wrap; min-height: 27px; }   /* altura fixa: a mesa não pula entre as vezes */
+.tamanhos { display: flex; gap: 4px; flex-wrap: wrap; height: 28px; overflow: hidden; }   /* altura fixa: a mesa não pula entre as vezes */
 .tamanhos button { border: 1px solid var(--borda-forte); background: var(--superficie-2); color: var(--texto-2); font: 700 12px var(--fonte); padding: 5px 9px; border-radius: 6px; cursor: pointer; }
 .tamanhos button:hover:not(:disabled) { color: var(--texto); border-color: var(--texto-3); }
 .tamanhos button.recomendado { border-color: var(--ok); color: var(--ok); }

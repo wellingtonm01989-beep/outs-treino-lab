@@ -223,7 +223,7 @@
   .barra-acoes { height: auto; grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 6px 8px calc(8px + env(safe-area-inset-bottom)); }
   .acoes-esquerda { gap: 5px; }
   .acoes-status { font-size: 12px; gap: 6px; height: 32px; line-height: 1.3; }
-  .tamanhos { flex-wrap: nowrap; gap: 4px; min-height: 30px; }     /* altura fixa: a mesa não pula */
+  .tamanhos { flex-wrap: nowrap; gap: 4px; height: 30px; }     /* altura fixa: a mesa não pula */
   .tamanhos button { flex: 1; min-width: 0; padding: 7px 0; font-size: 12px; }
   .linha-slider { gap: 6px; }
   .linha-slider .entrada { width: 80px; height: 32px; }
@@ -250,7 +250,7 @@
   .acoes-esquerda { gap: 5px; }
   .acoes-status { font-size: 11px; line-height: 1.25; flex-wrap: wrap; min-height: 0; height: auto; gap: 4px; }   /* coluna ao lado: não empurra a mesa */
   #acoes-status-txt { flex-basis: 100%; -webkit-line-clamp: 3; }
-  .tamanhos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; min-height: 54px; align-content: start; }
+  .tamanhos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; height: 54px; align-content: start; }
   .tamanhos button { padding: 5px 0; font-size: 11.5px; }
   .linha-slider { gap: 4px; }
   .linha-slider .entrada { width: 64px; height: 28px; font-size: 13px; padding: 0 6px; }
