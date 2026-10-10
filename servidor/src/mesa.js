@@ -16,8 +16,11 @@
      duas, a mão em andamento é refeita igualzinha quando o objeto acorda.
    - Blinds pelo relógio no começo de cada mão; animações e pausas no cliente.
 
-   Cliente → servidor: entrar {nome, token?} · sair · comecar (anfitrião)
+   Cliente → servidor: entrar {nome, token?, voltar?} · sair · comecar (anfitrião)
                        acao {numero, acao}
+   Depois que a partida começa, ninguém novo senta, mas quem estava nela volta
+   pelo token ou pelo mesmo nome. "sair" no meio da partida deixa o jogador
+   fora da mesa (jogadas automáticas) até ele pedir para voltar (voltar: true).
    Servidor → cliente: sala · voce · erro {motivo, texto} · encerrada
                        jogo (placar da partida, por jogador) · mao (eventos
                        novos + a vista de quem recebe) · fim {classificacao}
@@ -178,16 +181,23 @@ export class Mesa extends DurableObject {
     const e = this.estado;
     // esta conexão já está sentada: só repete quem ela é (e o estado da partida)
     const atual = tokenDe(ws) && e.jogadores.find(x => x.token === tokenDe(ws));
-    if (atual) { enviar(ws, this.voce(atual)); return this.colocarNaPartida(ws, atual); }
+    if (atual) { enviar(ws, this.voce(atual)); return this.colocarNaPartida(ws, atual, msg.voltar === true); }
 
     const token = typeof msg.token === 'string' ? msg.token : '';
     let j = token ? e.jogadores.find(x => x.token === token) : null;
     if (!j) {
-      if (e.status !== 'espera') return this.erro(ws, 'comecou', 'A partida já começou.');
       const nome = limparNome(msg.nome);
       if (!nome) return this.erro(ws, 'nome', `Digite um nome de 1 a ${TAM_NOME} caracteres.`);
       const chave = nome.toLocaleLowerCase('pt-BR');
-      if (e.jogadores.some(x => x.nome.toLocaleLowerCase('pt-BR') === chave)) return this.erro(ws, 'nome-repetido', 'Já tem alguém com esse nome na mesa.');
+      const mesmoNome = e.jogadores.find(x => x.nome.toLocaleLowerCase('pt-BR') === chave);
+      if (e.status !== 'espera') {
+        // partida começada: quem já estava nela volta para o mesmo lugar pelo nome
+        // (fechou a aba, trocou de aparelho…), desde que não esteja conectado agora
+        if (!mesmoNome) return this.erro(ws, 'comecou', 'A partida já começou e ninguém nela tem esse nome. Para voltar ao seu lugar, digite o mesmo nome com que você entrou.');
+        if (this.conectados().has(mesmoNome.token)) return this.erro(ws, 'conectado', `${mesmoNome.nome} está na mesa agora, em outra aba ou aparelho. Se for você, feche a outra e tente de novo.`);
+        return this.sentarComo(ws, mesmoNome, msg);
+      }
+      if (mesmoNome) return this.erro(ws, 'nome-repetido', 'Já tem alguém com esse nome na mesa.');
       // o lugar 0 fica guardado para o anfitrião
       const anfitriao = !!token && token === e.tokenAnfitriao;
       const lugar = anfitriao ? 0 : this.lugarLivre();
@@ -196,18 +206,23 @@ export class Mesa extends DurableObject {
       e.jogadores.push(j);
       await this.salvar();
     }
+    return this.sentarComo(ws, j, msg);
+  }
+
+  /** Esta conexão passa a ser o jogador j (novo, voltando pelo token ou pelo nome). */
+  async sentarComo(ws, j, msg) {
     // o mesmo jogador aberto em outra aba: fica valendo a conexão nova
     for (const outro of this.ctx.getWebSockets()) {
       if (outro !== ws && tokenDe(outro) === j.token) {
         outro.serializeAttachment({ token: null });
-        enviar(outro, { tipo: 'erro', motivo: 'outra-aba', texto: 'Essa mesa foi aberta em outra aba.' });
+        enviar(outro, { tipo: 'erro', motivo: 'outra-aba', texto: 'Essa mesa foi aberta em outra aba ou aparelho.' });
         fechar(outro, FECHA.OUTRA_ABA, 'aberta em outra aba');
       }
     }
     ws.serializeAttachment({ token: j.token });
     enviar(ws, this.voce(j));
     this.transmitirSala();
-    await this.colocarNaPartida(ws, j);
+    await this.colocarNaPartida(ws, j, msg.voltar === true);
   }
 
   async sair(ws) {
@@ -222,13 +237,15 @@ export class Mesa extends DurableObject {
       fechar(ws, 1000, 'saiu');
       return this.transmitirSala(ws);
     }
-    // durante a partida, sair é desistir (vale também para o anfitrião): larga a mão
-    // na vez dele e sai no fim da mão, com a pior colocação
-    fechar(ws, 1000, 'saiu');
+    // durante a partida, sair não é desistir: o jogador fica "fora" (a mesa passa ou larga
+    // por ele na hora, em todas as mãos) e volta quando quiser enquanto a partida não
+    // terminar. A conexão continua aberta (ele segue vendo a sala e pode voltar por ela).
     const jj = e.status === 'jogando' && this.jogadorDoJogo(j.token);
-    if (jj && jj.posicao === null && !jj.desistiu) {
-      jj.desistiu = true;
+    if (!jj) return fechar(ws, 1000, 'saiu');
+    if (jj.posicao === null && !jj.fora) {
+      jj.fora = true;
       await this.salvar();
+      this.transmitirJogo();
       await this.avancar();
     }
   }
@@ -308,7 +325,8 @@ export class Mesa extends DurableObject {
       if (!this.mao.terminada()) {
         const vez = this.mao.vez();
         const j = e.jogo.jogadores[vez];
-        const fora = this.ausentes.has(vez) && !this.conectados().has(j.token);
+        // saiu da mesa, ou caiu e perdeu a vez (até reconectar)
+        const fora = j.fora || (this.ausentes.has(vez) && !this.conectados().has(j.token));
         if (j.desistiu || fora) {
           await this.registrarAcao(vez, j.desistiu ? 'fold' : Jogo.acaoAutomatica(this.mao));
           continue;
@@ -359,12 +377,20 @@ export class Mesa extends DurableObject {
     if (atual === null || atual > quando) await this.ctx.storage.setAlarm(quando);
   }
 
-  /** Jogador sentado que (re)conecta: recebe a partida como ela está e, se estava pausada, ela volta. */
-  async colocarNaPartida(ws, j) {
+  /**
+   * Jogador sentado que (re)conecta: recebe a partida como ela está e, se estava pausada, ela volta.
+   * voltar: ele pediu para voltar à mesa (botão); a reconexão automática não tira ninguém de "fora".
+   */
+  async colocarNaPartida(ws, j, voltar) {
     const e = this.estado;
     if (e.status === 'espera') return;
     const jj = this.jogadorDoJogo(j.token);
     if (!jj) return;
+    if (voltar && jj.fora && e.status === 'jogando') {
+      jj.fora = false;
+      await this.salvar();
+      this.transmitirJogo();
+    }
     enviar(ws, this.msgJogo(jj.assento));
     if (e.status === 'fim') return enviar(ws, this.msgFim());
     this.ausentes.delete(jj.assento);
@@ -411,7 +437,7 @@ export class Mesa extends DurableObject {
       fichasIniciais: jogo.fichasIniciais, premio: jogo.premio, premios: jogo.premios, numero: jogo.numero,
       pausada: this.estado.status === 'jogando' && !this.mao,
       terminada: this.estado.status === 'fim',
-      jogadores: jogo.jogadores.map(j => ({ assento: j.assento, nome: j.nome, fichas: j.fichas, posicao: j.posicao, desistiu: j.desistiu, conectado: con.has(j.token) }))
+      jogadores: jogo.jogadores.map(j => ({ assento: j.assento, nome: j.nome, fichas: j.fichas, posicao: j.posicao, desistiu: j.desistiu, fora: !!j.fora, conectado: con.has(j.token) }))
     };
   }
 
@@ -442,10 +468,10 @@ export class Mesa extends DurableObject {
   /** Tokens com conexão aberta agora. */
   conectados(excluir) { return new Set(this.abertos(excluir).map(tokenDe).filter(Boolean)); }
 
-  /** Alguém que ainda está no jogo e não desistiu está conectado? */
+  /** Alguém que ainda está no jogo está sentado à mesa (conectado e sem ter saído)? */
   alguemPresente() {
     const con = this.conectados();
-    return Jogo.restantes(this.estado.jogo).some(j => !j.desistiu && con.has(j.token));
+    return Jogo.restantes(this.estado.jogo).some(j => !j.desistiu && !j.fora && con.has(j.token));
   }
 
   excesso(ws) {

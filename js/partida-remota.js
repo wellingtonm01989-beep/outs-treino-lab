@@ -180,7 +180,7 @@
         if (j.assento === eu) await ui.aoMensagem(`Você ${j.desistiu ? 'desistiu' : 'saiu'} em ${lugar}. Pode continuar assistindo ou sair da mesa.`, 'nivel');
         else await ui.aoMensagem(`${j.nome} ${j.desistiu ? 'desistiu' : 'saiu'} em ${lugar}`, 'saida');
       }
-      if (m.pausada) await ui.aoMensagem('Partida parada: ninguém que está jogando está conectado.', 'info');
+      if (m.pausada) await ui.aoMensagem('Partida parada: ninguém que está jogando está na mesa agora.', 'info');
       await ui.aoInfo(info());
     }
 
@@ -261,13 +261,13 @@
       terminou(fim);
     }
 
-    /** Saiu da mesa pelo botão: se ainda estava jogando, é desistência. */
+    /** Saiu da mesa pelo botão: se ainda estava jogando, fica "fora" (a mesa joga por ele) e pode voltar. */
     function sair() {
       if (!ativo) return null;
-      const desistiu = jogando();
-      if (desistiu) cfg.enviar({ tipo: 'sair' });
+      const saiu = jogando();
+      if (saiu) cfg.enviar({ tipo: 'sair' });
       desligar();
-      if (cfg.aoSair) cfg.aoSair({ desistiu });
+      if (cfg.aoSair) cfg.aoSair({ saiu });
       return null;
     }
 

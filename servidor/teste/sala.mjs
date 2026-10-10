@@ -456,19 +456,40 @@ teste('partida: até o fim, com colocação e premiação', async () => {
   igual((await ana.espera('erro')).motivo, 'acao', 'depois do fim não há jogada');
 });
 
-teste('partida: quem desiste sai no fim da mão, em último', async () => {
-  const { clientes: [ana, bia, caio] } = await mesaCom(['Ana', 'Bia', 'Caio']);
+teste('partida: quem sai fica fora (jogadas automáticas na hora) e volta quando quiser', async () => {
+  const { codigo, clientes: [ana, bia, caio] } = await mesaCom(['Ana', 'Bia', 'Caio']);
   ana.enviar({ tipo: 'comecar' });
   for (const c of [ana, bia, caio]) await c.espera('mao');
   const assentoCaio = caio.jogo.meuAssento;
   caio.enviar({ tipo: 'sair' });
-  igual(await caio.fechamento(), 1000, 'conexão do Caio fechada');
-  // os outros jogam até o Caio aparecer eliminado
-  await jogarAte([ana, bia], () => ana.jogo.jogadores[assentoCaio].posicao !== null, pagaTudo, 20000);
-  const caioNoPlacar = ana.jogo.jogadores[assentoCaio];
-  igual(caioNoPlacar.posicao, 3, 'Caio em 3º');
-  igual(caioNoPlacar.desistiu, true, 'marcado como desistente');
-  ok(!ana.fim, 'a partida continua para os outros dois');
+  const placar = await caio.espera(m => m.tipo === 'jogo' && m.jogadores[assentoCaio].fora);
+  igual(placar.jogadores[assentoCaio].desistiu, false, 'sair não é desistir');
+  // com o Caio fora, a vez dele nunca fica esperando: o servidor joga por ele na hora
+  let esperouCaio = false;
+  ana.ouvintes.push(() => {
+    const m = ana.fila[ana.fila.length - 1];
+    if (m && m.tipo === 'mao' && !m.vista.terminada && m.vista.vez === assentoCaio) esperouCaio = true;
+  });
+  const n0 = ana.jogo.numero;
+  await jogarAte([ana, bia], () => ana.jogo.numero >= n0 + 3 || ana.fim, pagaTudo, 20000);
+  ok(!esperouCaio, 'a vez do Caio não esperou por ele');
+  ok(!ana.fim && ana.jogo.jogadores[assentoCaio].posicao === null, 'Caio continua no jogo');
+  // volta pelo botão (mesma conexão)
+  caio.enviar({ tipo: 'entrar', token: caio.token, voltar: true });
+  // (os placares de antes, com ele fora, ficam para trás na fila)
+  await caio.espera(m => m.tipo === 'jogo' && !m.jogadores[assentoCaio].fora);
+  // fechou a aba e perdeu o token: volta pelo mesmo nome
+  await caio.fechar();
+  const volta = await conectado('Caio (outro aparelho)', codigo);
+  volta.enviar({ tipo: 'entrar', nome: 'caio', voltar: true });
+  igual((await volta.espera('voce')).token, caio.token, 'mesmo lugar, mesmo token');
+  igual((await volta.espera('jogo')).meuAssento, assentoCaio, 'mesmo assento');
+  // não toma o lugar de quem está conectado
+  const intruso = await conectado('Intruso', codigo);
+  intruso.enviar({ tipo: 'entrar', nome: 'Bia', voltar: true });
+  igual((await intruso.espera('erro')).motivo, 'conectado', 'Bia está conectada');
+  intruso.enviar({ tipo: 'entrar', nome: 'Zé' });
+  igual((await intruso.espera('erro')).motivo, 'comecou', 'nome que não está na partida');
 });
 
 async function rodar() {
