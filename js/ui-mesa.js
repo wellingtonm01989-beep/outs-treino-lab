@@ -99,7 +99,8 @@
     faixa = el('div', { class: 'faixa-vencedor' });
     msgs = el('div', { class: 'mesa-msgs' });
     palco.append(voadores, faixa, msgs);
-    if (cfg.modo !== 'cash') { hud = el('div', { class: 'hud-torneio' }); palco.appendChild(hud); } else hud = null;
+    // torneio: a faixa do torneio fica na barra de cima (no PC centralizada; no celular, versão curta)
+    if (cfg.modo !== 'cash') { hud = el('div', { class: 'hud-torneio' }); barraInfo.insertBefore(hud, barraInfo.querySelector('.espaco')); barraInfo.classList.add('com-hud'); } else hud = null;
 
     coluna.append(barraInfo, palco, montarBarraAcoes());
     tela.appendChild(coluna);
@@ -155,13 +156,12 @@
     tela.style.setProperty('--acoes-l', barra.raiz.offsetWidth + 'px');
     const compacto = W < 640 || H < 400;
     palco.classList.toggle('compacto', compacto);
-    if (hud) {   // torneio: na tela pequena o HUD vai para a barra de cima e não ocupa a mesa
-      const alvo = compacto ? barraInfo : palco;
-      if (hud.parentNode !== alvo) {
-        if (compacto) barraInfo.insertBefore(hud, barraInfo.querySelector('.espaco')); else palco.appendChild(hud);
-        if (partida && partida.ativo()) renderHud(partida.info());
-      }
-      barraInfo.classList.toggle('com-hud', compacto);
+    if (hud) {   // torneio: na tela pequena a faixa da barra de cima mostra só o essencial
+      const mudou = hud.classList.contains('curto') !== compacto;
+      hud.classList.toggle('curto', compacto);
+      barraInfo.classList.toggle('hud-curto', compacto);
+      if (mudou && partida && partida.ativo()) renderHud(partida.info());
+      ajustarBarra(true);
     }
     if (compacto) layoutCompacto(W, H); else layoutNormal(W, H);
     if (est) {
@@ -285,14 +285,13 @@
   }
 
   function layoutNormal(W, H) {
-    const topo = hud ? 30 : 0;                       // espaço da faixa do torneio
     oval.style.borderRadius = '';
     oval.querySelector('.mesa-centro').style.top = '';
     palco.style.removeProperty('--assento-heroi-l');
-    let ow = Math.min(W * 0.74, (H - 200 - topo) * 2.15);
+    let ow = Math.min(W * 0.74, (H - 200) * 2.15);
     ow = Math.max(300, ow);
     const oh = ow / 2.15;
-    const cx = W / 2, cy = (H + topo) / 2 - Math.min(16, H * 0.025);
+    const cx = W / 2, cy = H / 2 - Math.min(16, H * 0.025);
     Object.assign(oval.style, { left: (cx - ow / 2) + 'px', top: (cy - oh / 2) + 'px', width: ow + 'px', height: oh + 'px' });
     const cartaL = Math.max(32, Math.min(74, ow * 0.066));
     const assentoL = Math.max(128, Math.min(176, ow * 0.2));
@@ -1071,7 +1070,7 @@
     const premios = info.premios.slice(0, 3).map((v, i) => `${i + 1}º ${fp(v)}`).join(' · ');
     const item = (rot, val, extra) => `<div class="item${extra ? ' extra' : ''}"><span>${rot}</span><b>${val}</b></div>`;
     hud.title = info.premios.length ? 'Premiação: ' + info.premios.map((v, i) => `${i + 1}º ${fp(v)}`).join(', ') : 'Sem premiação';
-    if (hud.parentNode === barraInfo) {   // versão curta, na barra de cima (celular)
+    if (hud.classList.contains('curto')) {   // versão curta (celular)
       hud.innerHTML = item(`Nível ${info.nivel}`, `${F.fichas(b.sb)}/${F.fichas(b.bb)}`) + `<div class="relogio">${tempo}</div>` +
         item('Jogadores', `${info.restantes}/${info.field}`) + item('Posição', `${info.posicao}º`) + estado;
       return;
@@ -1082,6 +1081,20 @@
       `<div class="barra-nivel extra"><i style="width:${Math.min(100, prog * 100)}%"></i></div><span class="sep"></span>` +
       item('Jogadores', `${info.restantes}/${info.field}`) + (info.mesas > 1 ? item('Mesas', info.mesas) : '') + item('Stack médio', F.fichas(info.stackMedio), true) +
       item('Sua posição', `${info.posicao}º`) + item(`Pagos: ${info.pagos}`, premios, true) + estado;
+    ajustarBarra(false);
+  }
+
+  /**
+   * No PC a faixa do torneio fica no meio da barra de cima. Se não couber, some
+   * primeiro o nome do torneio e depois os itens extras (barrinha do nível,
+   * stack médio, prêmios). Recomeça do zero só ao redimensionar (sem piscar).
+   */
+  function ajustarBarra(recomecar) {
+    if (!hud || hud.classList.contains('curto')) return;
+    if (recomecar) { barraInfo.classList.remove('sem-rotulo'); hud.classList.remove('apertado'); }
+    const cabe = () => hud.scrollWidth <= hud.clientWidth + 1 && barraInfo.scrollWidth <= barraInfo.clientWidth + 1;
+    if (!cabe()) barraInfo.classList.add('sem-rotulo');
+    if (!cabe()) hud.classList.add('apertado');
   }
 
   function iniciarHud() {

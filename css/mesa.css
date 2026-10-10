@@ -190,8 +190,10 @@
   padding: 10px 14px; border-top: 1px solid var(--borda); background: linear-gradient(180deg, #121922, #0c1117);
 }
 .acoes-esquerda { display: grid; gap: 6px; min-width: 0; }
-.acoes-status { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--texto-2); min-height: 22px; }
+/* altura fixa de duas linhas (status + dica do coach): se a barra mudar de altura, a mesa é redesenhada e "pula" */
+.acoes-status { display: flex; align-items: center; gap: 10px; font-size: 13px; line-height: 1.3; color: var(--texto-2); height: 34px; overflow: hidden; }
 .acoes-status b { color: var(--texto); }
+#acoes-status-txt { min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
 /* dica do coach dentro da barra (painel fechado) */
 #acoes-status-txt.com-coach { cursor: pointer; display: grid; min-width: 0; line-height: 1.3; }
 #acoes-status-txt.com-coach > span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
