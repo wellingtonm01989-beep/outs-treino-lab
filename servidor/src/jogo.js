@@ -72,10 +72,19 @@ export function motorDaMao(mao, acoes) {
   return m;
 }
 
-/** Jogada automática (tempo esgotado ou jogador fora): passa se der, senão larga. */
-export function acaoAutomatica(m) {
-  const v = m.acoesValidas();
-  return v && v.podeCheck ? 'check' : 'fold';
+/**
+ * Jogada automática de quem não responde (saiu da mesa, caiu ou estourou o prazo): fold.
+ * Exceção: quem começou a mão com 1 big blind ou menos, na vez dele no small ou no big
+ * blind, põe tudo (all-in) em vez de deixar as últimas fichas irem embora nos blinds.
+ */
+export function acaoSemResposta(m, assento) {
+  const v = m.vista(assento);
+  const eu = v.jogadores.find(j => j.assento === assento);
+  const naBlind = assento === v.assentoSB || assento === v.assentoBB;
+  if (!eu || !naBlind || eu.fichasIniciais > v.blinds.bb) return 'fold';
+  const a = m.acoesValidas();
+  if (a.podeApostar) return 'allin';
+  return a.podeCheck ? 'check' : 'call';   // curto assim, pagar já é pôr tudo
 }
 
 /** Jogada recebida do cliente, só com o que o motor entende (ou null). */

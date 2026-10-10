@@ -411,7 +411,7 @@ teste('partida: a jogada vale para os dois (e quem está na vez recebe o prazo)'
   }
 });
 
-teste('partida: prazo esgotado passa ou larga sozinho', async () => {
+teste('partida: prazo esgotado sem resposta é fold', async () => {
   const { ana, bia } = ctx.p1;
   await dormir(100);
   const vez = daVez(ana) || daVez(bia);
@@ -420,7 +420,7 @@ teste('partida: prazo esgotado passa ou larga sozinho', async () => {
   // ninguém joga: o servidor joga por quem está na vez quando o prazo acaba
   const m = await ana.espera(x => x.tipo === 'mao' && x.eventos.some(e => e.tipo === 'acao' && e.assento === meu), TEMPO_ACAO_MS + 3000);
   const ev = m.eventos.find(e => e.tipo === 'acao' && e.assento === meu);
-  ok(ev.acao === 'check' || ev.acao === 'fold', 'jogada automática: ' + ev.acao);
+  igual(ev.acao, 'fold', 'jogada automática');
 });
 
 teste('partida: quem reconecta recebe a mão inteira e o placar', async () => {

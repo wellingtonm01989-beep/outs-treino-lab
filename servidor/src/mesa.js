@@ -33,8 +33,7 @@ const ABANDONO_MS = 30 * 60 * 1000;          // mesa sem ninguém conectado é a
 const VIDA_ESPERA_MS = 12 * 60 * 60 * 1000;  // sala de espera que nunca começa é apagada depois disso
 const FIM_MS = 10 * 60 * 1000;               // depois do fim, o resultado fica disponível por 10 min
 const TEMPO_ACAO_MS = 30000;                 // prazo de cada jogada
-const FOLGA_MAO_MS = 8000;                   // + animação do fim da mão anterior e da distribuição
-const FOLGA_ACAO_MS = 3000;                  // + animação da jogada anterior
+const GRACA_MS = 5000;                       // + 5 s além do tempo normal (cobre também as animações); depois, fold
 const MAX_PASSOS = 300;                      // trava do laço de jogadas automáticas
 const MAX_MENSAGEM = 1024;                   // caracteres por mensagem
 const MAX_MSGS = 20, JANELA_MSGS_MS = 10000; // no máximo 20 mensagens a cada 10 s por conexão
@@ -80,7 +79,7 @@ export class Mesa extends DurableObject {
     // os testes encurtam os tempos pelo wrangler dev --var
     this.abandonoMs = +env.ABANDONO_MS || ABANDONO_MS;
     this.tempoAcao = +env.TEMPO_ACAO_MS || TEMPO_ACAO_MS;
-    this.folgas = env.TEMPO_ACAO_MS ? { mao: 0, acao: 0 } : { mao: FOLGA_MAO_MS, acao: FOLGA_ACAO_MS };
+    this.folgas = env.TEMPO_ACAO_MS ? { mao: 0, acao: 0 } : { mao: GRACA_MS, acao: GRACA_MS };
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
     ctx.blockConcurrencyWhile(async () => {
       const salvo = await ctx.storage.get(['estado', 'acoes']);
@@ -171,7 +170,7 @@ export class Mesa extends DurableObject {
       const vez = this.mao.vez();
       // caiu a conexão: as próximas vezes dele são automáticas até ele voltar
       if (!this.conectados().has(e.jogo.jogadores[vez].token)) this.ausentes.add(vez);
-      await this.registrarAcao(vez, Jogo.acaoAutomatica(this.mao));
+      await this.registrarAcao(vez, Jogo.acaoSemResposta(this.mao, vez));
     }
     await this.avancar();
   }
@@ -328,9 +327,8 @@ export class Mesa extends DurableObject {
         // caiu a conexão e perdeu a vez (volta a jogar normal ao reconectar)
         const ausente = this.ausentes.has(vez) && !this.conectados().has(j.token);
         if (j.desistiu || j.fora || ausente) {
-          // quem saiu da mesa (ou desistiu) dá fold em toda mão até voltar;
-          // quem só perdeu a conexão passa de graça quando dá (check), senão fold
-          await this.registrarAcao(vez, (j.desistiu || j.fora) ? 'fold' : Jogo.acaoAutomatica(this.mao));
+          // fold em toda mão até voltar (com 1 BB ou menos, all-in na vez do small/big blind)
+          await this.registrarAcao(vez, j.desistiu ? 'fold' : Jogo.acaoSemResposta(this.mao, vez));
           continue;
         }
         this.transmitirMao();

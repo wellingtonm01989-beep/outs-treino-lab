@@ -900,7 +900,7 @@
     barra.status = el('span', { id: 'acoes-status-txt', text: 'Preparando a mesa…' });
     barra.nota = el('span');
     barra.dica = el('button', { class: 'btn oculto', html: 'Pedir dica<span class="so-largo"> (H)</span>', onclick: pedirDica });
-    barra.relogio = el('span', { class: 'relogio-vez oculto', title: 'Tempo para jogar (quando acaba, a mesa passa ou larga por você)' });
+    barra.relogio = el('span', { class: 'relogio-vez oculto', title: 'Tempo para jogar (tempo normal + 5 s; quando acaba, é fold)' });
     barra.status.addEventListener('click', () => { if (barra.status.classList.contains('com-coach')) P.UICoach.alternar(true); });
     barra.tamanhos = el('div', { class: 'tamanhos' });
     barra.slider = el('input', { type: 'range' });
@@ -1197,7 +1197,7 @@
     if (cfg.remota) {
       if (partida.jogando()) {
         pausar(true);
-        const ok = await P.UI.confirmar('Sair da mesa?', 'Enquanto você estiver fora, você dá fold automático em toda mão. Dá para voltar quando quiser, pelo link da mesa, enquanto a partida não terminar.', 'Sair da mesa', 'Continuar jogando');
+        const ok = await P.UI.confirmar('Sair da mesa?', 'Enquanto você estiver fora, você dá fold automático em toda mão (com 1 big blind ou menos, vai all-in na vez do small ou do big blind). Dá para voltar quando quiser, pelo link da mesa, enquanto a partida não terminar.', 'Sair da mesa', 'Continuar jogando');
         pausar(false);
         if (!ok) return;
       }

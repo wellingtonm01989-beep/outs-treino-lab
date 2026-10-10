@@ -29,6 +29,35 @@ function jogadaAleatoria(m) {
   return { tipo: v.tipoAposta, ate: v.minAte + P.RNG.inteiroAbaixo(Math.max(1, v.maxAte - v.minAte + 1)) };
 }
 
+const passaOuPaga = m => (m.acoesValidas().podeCheck ? 'check' : 'call');
+
+teste('sem resposta: fold; com 1 big blind ou menos, all-in na vez do small ou do big blind', () => {
+  const bb = P.Estruturas.nivelSNGProporcional(0, 1500).bb;
+  // 3 jogadores com o botão no assento 0: small blind = 1, big blind = 2, o botão age primeiro
+  const mao = fichas => {
+    const jogo = Jogo.criarJogo(Object.assign({}, CONFIG, { lugares: 3 }), sentados(3), 0);
+    fichas.forEach((f, i) => { jogo.jogadores[i].fichas = f; });
+    jogo.botao = 2;   // a próxima mão anda o botão para o assento 0
+    return Jogo.novaMao(jogo, 0);
+  };
+  let m = mao([1500, 1500, 1500]);
+  ok(m.vez() === 0 && Jogo.acaoSemResposta(m, 0) === 'fold', 'stack normal: fold');
+  m = mao([bb, 1500, 1500]);
+  ok(Jogo.acaoSemResposta(m, 0) === 'fold', 'curto, mas no botão (fora dos blinds): fold');
+  m = mao([1500, 1500 , 1500]);
+  m.agir(0, 'call');
+  ok(m.vez() === 1 && Jogo.acaoSemResposta(m, 1) === 'fold', 'small blind com stack normal: fold');
+  m = mao([1500, bb, 1500]);
+  m.agir(0, 'call');
+  const acao = Jogo.acaoSemResposta(m, 1);
+  ok(acao !== 'fold', 'small blind com 1 BB: não larga (' + acao + ')');
+  m.agir(1, acao);
+  ok(m.vista(1).jogadores.find(j => j.assento === 1).allin, 'small blind com 1 BB: ficou all-in');
+  // big blind com 1 BB ou menos: o próprio blind já põe tudo
+  m = mao([1500, 1500, bb]);
+  ok(m.vista(2).jogadores.find(j => j.assento === 2).allin, 'big blind com 1 BB: all-in ao pôr o blind');
+});
+
 teste('blinds proporcionais às fichas iniciais (com 1.500 é a estrutura do app)', () => {
   for (let i = 0; i < 25; i++) ok(json(P.Estruturas.nivelSNGProporcional(i, 1500)) === json(P.Estruturas.nivelSNG(i)), 'nível ' + i);
   for (const stack of [500, 2500, 3000, 5000, 100000]) {
@@ -111,7 +140,7 @@ teste('quem desiste sai no fim da mão com a pior colocação', () => {
   const jogo = Jogo.criarJogo(CONFIG, sentados(3), 0);
   const m = Jogo.novaMao(jogo, 0);
   jogo.jogadores[1].desistiu = true;
-  while (!m.terminada()) m.agir(m.vez(), m.vez() === 1 ? 'fold' : Jogo.acaoAutomatica(m));
+  while (!m.terminada()) m.agir(m.vez(), m.vez() === 1 ? 'fold' : passaOuPaga(m));
   const r = Jogo.concluirMao(jogo, m);
   ok(r.eliminados.length === 1 && r.eliminados[0].assento === 1 && jogo.jogadores[1].posicao === 3, 'desistente em 3º');
   ok(jogo.jogadores[1].fichas === 0 && !r.fim, 'fichas do desistente saem e o jogo segue');
