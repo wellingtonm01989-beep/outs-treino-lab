@@ -1197,7 +1197,7 @@
     if (cfg.remota) {
       if (partida.jogando()) {
         pausar(true);
-        const ok = await P.UI.confirmar('Sair da mesa?', 'Enquanto você estiver fora, você dá fold automático em toda mão (com 1 big blind ou menos, vai all-in na vez do small ou do big blind). Dá para voltar quando quiser, pelo link da mesa, enquanto a partida não terminar.', 'Sair da mesa', 'Continuar jogando');
+        const ok = await P.UI.confirmar('Sair da mesa?', 'Enquanto você estiver fora, na sua vez a mesa espera o tempo acabar e dá fold por você (com 1 big blind ou menos, vai all-in). Dá para voltar quando quiser, pelo link da mesa, enquanto a partida não terminar.', 'Sair da mesa', 'Continuar jogando');
         pausar(false);
         if (!ok) return;
       }

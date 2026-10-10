@@ -141,7 +141,7 @@
       jogo: m, criarPartida: P.PartidaRemota.criar,
       enviar: obj => !!(st.conexao && st.conexao.enviar(obj)),
       // saiu pelo botão: fica na aba da mesa com amigos, com o botão para voltar
-      // (se ainda estava jogando, dá fold automático em toda mão até ele voltar)
+      // (se ainda estava jogando, na vez dele a mesa espera o tempo e dá fold, até ele voltar)
       aoSair: () => { st.foraDaMesa = true; render(); },
       aoTerminar: () => { P.UIMesa.encerrar(false); P.App.irPara('amigos'); }
     });
@@ -452,7 +452,7 @@
     situacao: () => {
       const eu = st.jogo && st.jogo.jogadores[st.jogo.meuAssento];
       if (eu && eu.posicao) return document.createTextNode(`Você saiu em ${eu.posicao}º lugar. Dá para continuar assistindo até o fim.`);
-      if (eu && eu.fora) return document.createTextNode('Você saiu da mesa. Enquanto estiver fora, você dá fold automático em toda mão (com 1 big blind ou menos, vai all-in na vez do small ou do big blind). Volte quando quiser, enquanto a partida não terminar.');
+      if (eu && eu.fora) return document.createTextNode('Você saiu da mesa. Enquanto estiver fora, na sua vez a mesa espera o tempo acabar e dá fold por você (com 1 big blind ou menos, vai all-in). Volte quando quiser, enquanto a partida não terminar.');
       return document.createTextNode('A partida desta mesa está acontecendo agora.');
     },
 

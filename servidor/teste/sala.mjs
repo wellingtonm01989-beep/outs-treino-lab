@@ -456,7 +456,7 @@ teste('partida: até o fim, com colocação e premiação', async () => {
   igual((await ana.espera('erro')).motivo, 'acao', 'depois do fim não há jogada');
 });
 
-teste('partida: quem sai fica fora (jogadas automáticas na hora) e volta quando quiser', async () => {
+teste('partida: quem sai fica fora (a mesa espera o prazo e dá fold) e volta quando quiser', async () => {
   const { codigo, clientes: [ana, bia, caio] } = await mesaCom(['Ana', 'Bia', 'Caio']);
   ana.enviar({ tipo: 'comecar' });
   for (const c of [ana, bia, caio]) await c.espera('mao');
@@ -464,22 +464,25 @@ teste('partida: quem sai fica fora (jogadas automáticas na hora) e volta quando
   caio.enviar({ tipo: 'sair' });
   const placar = await caio.espera(m => m.tipo === 'jogo' && m.jogadores[assentoCaio].fora);
   igual(placar.jogadores[assentoCaio].desistiu, false, 'sair não é desistir');
-  // com o Caio fora, a vez dele nunca fica esperando: o servidor dá fold por ele na hora.
-  // E é sempre fold, nunca check (mesmo quando ele poderia passar de graça no BB).
-  let esperouCaio = false, caioFoldou = false, caioChecou = false;
+  // com o Caio fora, a vez dele espera o prazo inteiro, como a de todo mundo; quando o
+  // tempo acaba, a mesa dá fold por ele (nunca check, nem quando ele poderia passar no BB)
+  let vezDoCaio = 0, menorEspera = Infinity, folds = 0, checks = 0;
   ana.ouvintes.push(() => {
     const m = ana.fila[ana.fila.length - 1];
     if (!m || m.tipo !== 'mao') return;
-    if (!m.vista.terminada && m.vista.vez === assentoCaio) esperouCaio = true;
     for (const ev of m.eventos) if (ev.tipo === 'acao' && ev.assento === assentoCaio) {
-      if (ev.acao === 'fold') caioFoldou = true;
-      if (ev.acao === 'check') caioChecou = true;
+      if (vezDoCaio) menorEspera = Math.min(menorEspera, Date.now() - vezDoCaio);
+      vezDoCaio = 0;
+      if (ev.acao === 'fold') folds++;
+      if (ev.acao === 'check') checks++;
     }
+    if (!m.vista.terminada && m.vista.vez === assentoCaio && !vezDoCaio) vezDoCaio = Date.now();
   });
   const n0 = ana.jogo.numero;
-  await jogarAte([ana, bia], () => ana.jogo.numero >= n0 + 3 || ana.fim, pagaTudo, 20000);
-  ok(!esperouCaio, 'a vez do Caio não esperou por ele');
-  ok(caioFoldou && !caioChecou, 'Caio fora: fold em toda mão, nunca check');
+  await jogarAte([ana, bia], () => folds >= 2 || ana.fim, pagaTudo, 30000);
+  ok(folds >= 2 && checks === 0, `Caio fora: fold quando o tempo acaba, nunca check (${folds} folds, ${checks} checks)`);
+  ok(menorEspera >= TEMPO_ACAO_MS - 300, 'a mesa esperou o prazo do Caio: ' + menorEspera + ' ms');
+  ok(ana.jogo.numero > n0, 'as mãos seguem');
   ok(!ana.fim && ana.jogo.jogadores[assentoCaio].posicao === null, 'Caio continua no jogo');
   // volta pelo botão (mesma conexão)
   caio.enviar({ tipo: 'entrar', token: caio.token, voltar: true });

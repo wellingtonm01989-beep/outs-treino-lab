@@ -20,7 +20,8 @@
                        acao {numero, acao}
    Depois que a partida começa, ninguém novo senta, mas quem estava nela volta
    pelo token ou pelo mesmo nome. "sair" no meio da partida deixa o jogador
-   fora da mesa (jogadas automáticas) até ele pedir para voltar (voltar: true).
+   fora da mesa até ele pedir para voltar (voltar: true); na vez
+   dele, a mesa espera o prazo acabar e dá fold (ou all-in com 1 BB ou menos).
    Servidor → cliente: sala · voce · erro {motivo, texto} · encerrada
                        jogo (placar da partida, por jogador) · mao (eventos
                        novos + a vista de quem recebe) · fim {classificacao}
@@ -74,7 +75,6 @@ export class Mesa extends DurableObject {
     this.acoes = null;        // { numero, lista: [{assento, acao}], prazo }
     this.prazo = null;        // quando acaba a vez de quem está jogando agora
     this.enviados = 0;        // eventos da mão já transmitidos
-    this.ausentes = new Set();// assentos que caíram e perderam a vez: jogam no automático até voltar
     this.ritmo = new Map();   // ws → { inicio, n }: contagem de mensagens (só em memória)
     // os testes encurtam os tempos pelo wrangler dev --var
     this.abandonoMs = +env.ABANDONO_MS || ABANDONO_MS;
@@ -168,8 +168,6 @@ export class Mesa extends DurableObject {
     // jogando: acabou o prazo de quem está na vez?
     if (this.mao && !this.mao.terminada() && this.prazo && Date.now() >= this.prazo - 250) {
       const vez = this.mao.vez();
-      // caiu a conexão: as próximas vezes dele são automáticas até ele voltar
-      if (!this.conectados().has(e.jogo.jogadores[vez].token)) this.ausentes.add(vez);
       await this.registrarAcao(vez, Jogo.acaoSemResposta(this.mao, vez));
     }
     await this.avancar();
@@ -258,7 +256,6 @@ export class Mesa extends DurableObject {
     if (e.jogadores.length < 2) return this.erro(ws, 'comecar', 'Precisa de pelo menos 2 jogadores sentados.');
     e.status = 'jogando';
     e.jogo = Jogo.criarJogo(e.config, e.jogadores, Date.now());
-    this.ausentes = new Set();
     this.iniciarMao();
     await this.salvar();
     this.transmitirSala();
@@ -270,7 +267,6 @@ export class Mesa extends DurableObject {
     const e = this.estado;
     const j = e.status === 'jogando' && this.jogadorDoJogo(tokenDe(ws));
     if (!j) return this.erro(ws, 'acao', 'Você não está jogando esta partida.');
-    this.ausentes.delete(j.assento);
     const m = this.mao;
     const acao = Jogo.acaoLimpa(msg.acao);
     if (!m || m.terminada() || msg.numero !== m.numero || m.vez() !== j.assento || !acao) {
@@ -308,7 +304,7 @@ export class Mesa extends DurableObject {
 
   /**
    * Faz o jogo andar até precisar de alguém: jogadas automáticas de quem
-   * desistiu ou caiu, fim de mão, eliminação, próxima mão. Para (pausa) se
+   * desistiu, fim de mão, eliminação, próxima mão. Para (pausa) se
    * não houver ninguém jogando conectado, para não rodar mãos sozinho.
    */
   async avancar() {
@@ -323,14 +319,9 @@ export class Mesa extends DurableObject {
       }
       if (!this.mao.terminada()) {
         const vez = this.mao.vez();
-        const j = e.jogo.jogadores[vez];
-        // caiu a conexão e perdeu a vez (volta a jogar normal ao reconectar)
-        const ausente = this.ausentes.has(vez) && !this.conectados().has(j.token);
-        if (j.desistiu || j.fora || ausente) {
-          // fold em toda mão até voltar (com 1 BB ou menos, all-in na vez do small/big blind)
-          await this.registrarAcao(vez, j.desistiu ? 'fold' : Jogo.acaoSemResposta(this.mao, vez));
-          continue;
-        }
+        // Todo mundo tem o mesmo prazo, inclusive quem saiu da mesa ou caiu: a mesa espera
+        // o tempo acabar e só então joga por ele (fold, ou all-in com 1 BB ou menos; ver alarm)
+        if (e.jogo.jogadores[vez].desistiu) { await this.registrarAcao(vez, 'fold'); continue; }
         this.transmitirMao();
         await this.agendarAlarme(this.prazo);
         return;
@@ -338,7 +329,6 @@ export class Mesa extends DurableObject {
       // fim da mão: últimos eventos, eliminações e a próxima mão (ou o fim)
       this.transmitirMao();
       const r = Jogo.concluirMao(e.jogo, this.mao);
-      r.eliminados.forEach(j => this.ausentes.delete(j.assento));
       this.mao = null;
       if (r.fim) return this.terminar();
       if (!this.alguemPresente()) {
@@ -393,9 +383,11 @@ export class Mesa extends DurableObject {
     }
     enviar(ws, this.msgJogo(jj.assento));
     if (e.status === 'fim') return enviar(ws, this.msgFim());
-    this.ausentes.delete(jj.assento);
-    if (this.mao) this.enviarMao(ws, jj.assento, 0, this.mao.eventos());
-    else await this.avancar();
+    if (this.mao) {
+      this.enviarMao(ws, jj.assento, 0, this.mao.eventos());
+      // se todos tinham saído, o alarme do abandono tomou o lugar do prazo da vez: volta o prazo
+      await this.agendarAlarme(this.prazo);
+    } else await this.avancar();
   }
 
   // ------------------------------------------------------- mensagens do jogo
