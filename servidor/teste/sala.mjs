@@ -54,7 +54,7 @@ function criarMesa(config, origem = ORIGEM) {
   if (origem) headers.Origin = origem;
   return fetch(HTTP + '/mesas', { method: 'POST', headers, body: typeof config === 'string' ? config : JSON.stringify(config) });
 }
-const CONFIG = { lugares: 3, fichas: 1500, velocidade: 'turbo' };
+const CONFIG = { lugares: 3, fichas: 2500, velocidade: 'turbo', premio: 2000 };
 
 class Cliente {
   constructor(rotulo) { this.rotulo = rotulo; this.fila = []; this.ouvintes = []; }
@@ -141,6 +141,10 @@ teste('recusa opções inválidas', async () => {
   igual((await criarMesa({ lugares: 12, fichas: 1500, velocidade: 'turbo' })).status, 400, '12 lugares');
   igual((await criarMesa({ lugares: 6, fichas: 1500, velocidade: 'relampago' })).status, 400, 'velocidade');
   igual((await criarMesa({ lugares: 6, fichas: 10, velocidade: 'turbo' })).status, 400, 'fichas');
+  igual((await criarMesa({ lugares: 6, fichas: 1500, velocidade: 'turbo', premio: -100 })).status, 400, 'prêmio negativo');
+  igual((await criarMesa({ lugares: 6, fichas: 1500, velocidade: 'turbo', premio: 20.5 })).status, 400, 'prêmio fora de centavos');
+  igual((await criarMesa({ lugares: 6, fichas: 1500, velocidade: 'turbo', premio: 1000001 })).status, 400, 'prêmio acima de R$ 10.000');
+  igual((await criarMesa({ lugares: 6, fichas: 1500, velocidade: 'turbo', premio: '2000' })).status, 400, 'prêmio em texto');
   igual((await criarMesa('isso não é json')).status, 400, 'json inválido');
   igual((await criarMesa('{"x":"' + 'a'.repeat(3000) + '"}')).status, 413, 'pedido grande');
 });
@@ -175,6 +179,8 @@ teste('anfitrião cria a mesa e senta no lugar 0', async () => {
   const sala = await ana.espera('sala');
   igual(sala.jogadores.length, 0, 'sala vazia');
   igual(sala.config.lugares, 3, 'lugares');
+  igual(sala.config.fichas, 2500, 'fichas com valor livre');
+  igual(sala.config.premio, 2000, 'prêmio de R$ 20,00 em centavos');
   igual(sala.status, 'espera', 'status');
   ana.enviar({ tipo: 'entrar', nome: 'Ana', token: tokenAnfitriao });
   const eu = await ana.espera('voce');

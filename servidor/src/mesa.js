@@ -209,7 +209,7 @@ export class Mesa extends DurableObject {
     const conectados = new Set(this.abertos(excluir).map(tokenDe).filter(Boolean));
     return {
       tipo: 'sala', codigo: e.codigo, status: e.status,
-      config: { lugares: e.config.lugares, fichas: e.config.fichas, velocidade: e.config.velocidade },
+      config: { lugares: e.config.lugares, fichas: e.config.fichas, velocidade: e.config.velocidade, premio: e.config.premio || 0 },
       jogadores: e.jogadores.slice().sort((a, b) => a.lugar - b.lugar)
         .map(j => ({ lugar: j.lugar, nome: j.nome, anfitriao: j.anfitriao, conectado: conectados.has(j.token) }))
     };

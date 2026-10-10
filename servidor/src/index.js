@@ -15,6 +15,7 @@ export { Mesa } from './mesa.js';
 
 const ORIGEM_SITE = 'https://wellingtonm01989-beep.github.io';
 const MAX_CORPO = 2048;          // bytes no POST /mesas
+const MAX_PREMIO = 1000000;      // R$ 10.000,00 em centavos (só informativo: o dinheiro fica fora do app)
 
 function origemPermitida(origem, env) {
   if (origem === ORIGEM_SITE) return true;
@@ -32,7 +33,10 @@ function validarConfig(c) {
   if (!Number.isInteger(lugares) || lugares < 2 || lugares > 9) return { erro: 'A mesa precisa ter de 2 a 9 lugares.' };
   if (!Number.isInteger(fichas) || fichas < 500 || fichas > 100000) return { erro: 'Fichas iniciais inválidas.' };
   if (c.velocidade !== 'regular' && c.velocidade !== 'turbo') return { erro: 'Velocidade inválida.' };
-  return { config: { lugares, fichas, velocidade: c.velocidade, bots: c.bots === true } };
+  // prêmio total fixo em centavos, combinado pelo anfitrião (0 = sem premiação)
+  const premio = c.premio === undefined ? 0 : c.premio;
+  if (!Number.isInteger(premio) || premio < 0 || premio > MAX_PREMIO) return { erro: 'Premiação inválida (de R$ 0 a R$ 10.000).' };
+  return { config: { lugares, fichas, velocidade: c.velocidade, premio, bots: c.bots === true } };
 }
 
 async function criarMesa(req, env, cors) {

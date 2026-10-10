@@ -13,8 +13,11 @@
   const F = P.Formato, E = P.Estruturas, R = P.Rede;
 
   const FICHAS = [1500, 3000, 5000];
+  const FICHAS_MIN = 500, FICHAS_MAX = 100000, PREMIO_MAX = 1000000;   // limites do servidor (premio em centavos)
   const st = {
-    form: Object.assign({ lugares: 6, fichas: E.SNG_STACK, velocidade: 'regular' }, P.Armazenamento.ler('amigos.form', {})),
+    // premio: prêmio total fixo em centavos, combinado pelo anfitrião (0 = sem premiação)
+    form: Object.assign({ lugares: 6, fichas: E.SNG_STACK, velocidade: 'regular', premio: 0 }, P.Armazenamento.ler('amigos.form', {})),
+    premioTexto: null,     // o que está digitado no campo de premiação
     codigo: null,          // mesa aberta nesta aba
     conexao: null,
     conexaoEstado: 'fechada',
@@ -31,6 +34,29 @@
 
   const nomeSalvo = () => P.Armazenamento.ler('amigos.nome', '') || (P.Config.get('nome') !== 'Você' ? P.Config.get('nome') : '');
   const raiz = () => document.getElementById('tela-amigos');
+
+  // ------------------------------------------------------- premiação (R$)
+  const reais = c => 'R$ ' + (c / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (st.premioTexto === null) st.premioTexto = st.form.premio ? reais(st.form.premio).slice(3) : '';
+
+  /** "20", "20,50", "20.50", "R$ 1.234,56" → centavos; vazio → 0; inválido → null. */
+  function lerReais(texto) {
+    const s = String(texto || '').replace(/R\$|\s/g, '');
+    if (!s) return 0;
+    let numero;
+    if (/^\d+(,\d{1,2})?$/.test(s)) numero = s.replace(',', '.');                                     // 20 · 20,50
+    else if (/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(s)) numero = s.replace(/\./g, '').replace(',', '.'); // 1.234,56
+    else if (/^\d+\.\d{1,2}$/.test(s)) numero = s;                                                     // 20.50
+    else return null;
+    const c = Math.round(parseFloat(numero) * 100);
+    return c <= PREMIO_MAX ? c : null;
+  }
+
+  /** Divisão automática do prêmio pelo número de jogadores (regra do Sit & Go do app). */
+  function divisao(premio, jogadores) {
+    return E.valoresPremios(premio, E.percentuaisSNG(Math.max(2, jogadores)))
+      .map((v, i) => `${i + 1}º ${reais(v)}`).join(' · ');
+  }
 
   // --------------------------------------------------------- conexão
   function abrirMesa(codigo) {
@@ -97,10 +123,14 @@
 
   async function criar() {
     if (st.ocupado || !nomeDigitado()) return;
+    const premio = lerReais(st.premioTexto);
+    if (premio === null) { st.aviso = 'Premiação inválida: use só números, como 20 ou 20,50 (até R$ 10.000).'; atualizar(); return; }
+    st.form.premio = premio;
+    P.Armazenamento.gravar('amigos.form', st.form);
     Object.assign(st, { ocupado: true, aviso: null });
     atualizar();
     try {
-      const r = await R.criarMesa({ lugares: st.form.lugares, fichas: st.form.fichas, velocidade: st.form.velocidade });
+      const r = await R.criarMesa({ lugares: st.form.lugares, fichas: st.form.fichas, velocidade: st.form.velocidade, premio });
       R.gravarToken(r.codigo, r.tokenAnfitriao);
       history.replaceState(null, '', '#mesa=' + r.codigo);
       abrirMesa(r.codigo);
@@ -255,15 +285,27 @@
       campoNomeAtual.value = nome;   // não perde o que já foi digitado
     };
     const dur = E.SNG_DURACAO;
+    // fichas: os valores prontos ou qualquer outro
+    const fichas = opcoes(FICHAS.map(f => [f, F.fichas(f)]), st.form.fichas, v => escolher('fichas', v));
+    const outras = el('input', { class: 'entrada entrada-fichas' + (FICHAS.indexOf(st.form.fichas) < 0 ? ' ativo' : ''), type: 'number', min: FICHAS_MIN, max: FICHAS_MAX, step: 100, value: st.form.fichas, inputmode: 'numeric', title: 'Outro valor de fichas' });
+    outras.addEventListener('change', () => escolher('fichas', Math.max(FICHAS_MIN, Math.min(FICHAS_MAX, Math.round(+outras.value) || E.SNG_STACK))));
+    fichas.appendChild(outras);
+    // premiação: valor total fixo, digitado em reais
+    const premio = el('input', { class: 'entrada entrada-premio', type: 'text', inputmode: 'decimal', value: st.premioTexto, placeholder: 'Ex.: 20,00', maxlength: 12 });
+    premio.addEventListener('input', () => { st.premioTexto = premio.value; atualizarPartes(); });
+    premio.addEventListener('keydown', e => { if (e.key === 'Enter') criar(); });
     const form = el('section', { class: 'painel amigos-form' },
       el('h3', { text: 'Nova mesa' }),
       campoNome(criar),
-      el('div', { class: 'campo' }, el('span', { text: 'Lugares na mesa' }),
-        opcoes([2, 3, 4, 5, 6, 7, 8, 9].map(n => [n, String(n)]), st.form.lugares, v => escolher('lugares', v))),
-      el('div', { class: 'campo' }, el('span', { text: 'Fichas iniciais (iguais para todos)' }),
-        opcoes(FICHAS.map(f => [f, F.fichas(f)]), st.form.fichas, v => escolher('fichas', v))),
+      el('div', { class: 'campo' }, el('span', { text: 'Lugares na mesa (no máximo)' }),
+        opcoes([2, 3, 4, 5, 6, 7, 8, 9].map(n => [n, String(n)]), st.form.lugares, v => escolher('lugares', v)),
+        nota('Não precisa encher: a partida começa com 2 ou mais jogadores, quando você quiser.')),
+      el('div', { class: 'campo' }, el('span', { text: 'Fichas iniciais (iguais para todos)' }), fichas),
       el('div', { class: 'campo' }, el('span', { text: 'Velocidade dos níveis' }),
         opcoes([['regular', `Regular (${dur.regular / 60} min)`], ['turbo', `Turbo (${dur.turbo / 60} min)`]], st.form.velocidade, v => escolher('velocidade', v))),
+      el('label', { class: 'campo' }, el('span', { text: 'Premiação total (R$)' }),
+        el('div', { class: 'linha-premio' }, el('b', { text: 'R$' }), premio)),
+      parte('divisao', 'div', 'amigos-divisao'),
       parte('aviso'),
       parte('botao-criar'));
     return el('div', { class: 'amigos-grade' }, form, comoFunciona());
@@ -275,9 +317,10 @@
       el('ol', {},
         el('li', { text: 'Você cria a mesa e recebe um link.' }),
         el('li', { text: 'Manda o link no WhatsApp. Quem abrir digita só o nome e já senta. Sem cadastro.' }),
+        el('li', { text: 'Você começa a partida quando quiser, com 2 ou mais jogadores, sem esperar a mesa encher.' }),
         el('li', { text: 'Sit & Go: todos começam com as mesmas fichas, os blinds sobem e quem perde tudo sai. O último que sobrar vence.' }),
         el('li', { text: 'Quando a partida termina, a mesa é apagada e o link para de funcionar.' })),
-      el('div', { class: 'amigos-pix', html: '<b>Dinheiro de verdade fica fora do app.</b> Cada um paga a inscrição por Pix ao organizador, e o organizador paga os prêmios. O app não cobra taxa e não mexe com pagamento.' }));
+      el('div', { class: 'amigos-pix', html: '<b>Dinheiro de verdade fica fora do app.</b> A premiação que você define aqui aparece para todos e é dividida pelo número de jogadores, mas o acerto é por Pix, entre vocês. O app não cobra taxa e não mexe com pagamento.' }));
   }
 
   function telaVoltando() {
@@ -294,13 +337,14 @@
       campoNome(sentar),
       parte('aviso'),
       parte('botao-sentar'),
-      nota('Dinheiro de verdade fica fora do app: a inscrição e os prêmios são combinados com quem organizou.'));
+      nota('Dinheiro de verdade fica fora do app: o acerto da premiação é por Pix, com quem organizou.'));
   }
 
   function telaSala() {
     const link = R.linkDaMesa(st.codigo);
     const campoLink = el('input', { class: 'entrada', type: 'text', readonly: true, value: link, onfocus: e => e.target.select() });
-    const convite = `Bora jogar poker? Entra na minha mesa: ${link}`;
+    const premio = st.sala && st.sala.config.premio;
+    const convite = `Bora jogar poker?${premio ? ` Premiação de ${reais(premio)}.` : ''} Entra na minha mesa: ${link}`;
     const lado = el('aside', { class: 'painel amigos-lado' },
       el('h3', { text: 'Convide pelo link' }),
       el('div', { class: 'link-mesa' }, campoLink, el('button', { class: 'btn', text: 'Copiar', onclick: () => copiarLink(campoLink) })),
@@ -313,7 +357,7 @@
     const principal = el('section', { class: 'painel amigos-form' },
       el('div', { class: 'amigos-cab' }, el('h3', { text: 'Sala de espera' }), el('span', { class: 'selo info', text: 'Mesa ' + st.codigo }), parte('conexao', 'span')),
       parte('lugares', 'div', 'lugares-amigos'),
-      el('div', { class: 'amigos-pix', html: '<b>Dinheiro de verdade fica fora do app.</b> Cada um paga a inscrição por Pix ao organizador, e o organizador paga os prêmios.' }));
+      el('div', { class: 'amigos-pix', html: '<b>Dinheiro de verdade fica fora do app.</b> A premiação é dividida conforme quantos começarem a partida, e o acerto é por Pix, entre vocês.' }));
     return el('div', { class: 'amigos-grade' }, principal, lado);
   }
 
@@ -347,11 +391,27 @@
       if (!s) return nota('Buscando a mesa…');
       const anf = s.jogadores.find(j => j.anfitriao);
       const linha = (a, b) => el('div', {}, el('span', { text: a }), el('b', { text: b }));
+      const premio = s.config.premio || 0;
+      const n = Math.max(2, s.jogadores.length);
       return el('div', { class: 'resumo-mesa' },
         anf ? linha('Anfitrião', anf.nome) : null,
         linha('Jogadores', `${s.jogadores.length} de ${s.config.lugares}`),
         linha('Fichas iniciais', F.fichas(s.config.fichas)),
-        linha('Níveis', `${E.SNG_DURACAO[s.config.velocidade] / 60} min (${s.config.velocidade})`));
+        linha('Níveis', `${E.SNG_DURACAO[s.config.velocidade] / 60} min (${s.config.velocidade})`),
+        linha('Premiação', premio ? reais(premio) : 'sem premiação'),
+        // a divisão segue quantos estão sentados agora; vale a de quando a partida começar
+        premio ? linha(`Divisão com ${n} jogadores`, divisao(premio, n)) : null);
+    },
+
+    /** Prévia da divisão na tela de criar mesa. */
+    divisao: () => {
+      const premio = lerReais(st.premioTexto);
+      if (premio === null) return el('p', { class: 'amigos-erro', text: 'Valor inválido: use só números, como 20 ou 20,50 (até R$ 10.000).' });
+      if (!premio) return nota('Deixe vazio para jogar sem premiação.');
+      // faixas da divisão automática (2 · 3 a 6 · 7 a 9) que cabem no número de lugares escolhido
+      const faixas = [[2, 2, '2 jogadores'], [3, 6, '3 a 6 jogadores'], [7, 9, '7 a 9 jogadores']].filter(f => f[0] <= st.form.lugares);
+      return [nota('Dividida automaticamente pelo número de jogadores que começarem:')].concat(
+        faixas.map(([de, , rotulo]) => el('div', {}, el('span', { text: rotulo }), el('b', { text: divisao(premio, de) }))));
     },
 
     lugares: () => {
@@ -383,7 +443,8 @@
         const sozinho = !st.sala || st.sala.jogadores.length < 2;
         return [
           el('button', { class: 'btn btn-ouro btn-sentar', disabled: true, text: 'Começar partida' }),
-          nota(sozinho ? 'Espere pelo menos mais um jogador entrar.' : 'O jogo em rede ainda está sendo construído: por enquanto dá para montar a sala e ver quem entrou.'),
+          nota(sozinho ? 'Com mais um jogador já dá para começar: não precisa esperar a mesa encher.'
+            : 'Não precisa esperar a mesa encher. O jogo em rede ainda está sendo construído: por enquanto o botão fica desligado.'),
           el('button', { class: 'btn', text: 'Cancelar mesa', onclick: sair })
         ];
       }

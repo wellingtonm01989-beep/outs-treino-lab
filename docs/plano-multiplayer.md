@@ -15,6 +15,8 @@ Decidido em 09/10/2026. Este arquivo é o ponto de partida para quem continuar o
 - Quem abre o link digita **só o nome** e já ocupa um lugar livre. Sem cadastro, sem e-mail.
 - Formato **Sit & Go**: todos começam com as mesmas fichas, blinds sobem, **quem perde tudo sai da mesa**, o último que sobra vence.
 - Quando a partida termina, **a mesa é apagada** e o link deixa de funcionar. Nova partida = novo link.
+- O anfitrião escolhe as **fichas iniciais** (1.500, 3.000, 5.000 ou outro valor de 500 a 100.000) e a **premiação total fixa em R$** (ex.: R$ 20, não importa quantos entrem; vazio = sem premiação). A divisão é **automática pelo número de jogadores que começarem**: 2 jogadores, 100% para o 1º; 3 a 6, 65/35; 7 a 9, 50/30/20 (`P.Estruturas.percentuaisSNG`). Decidido em 10/10/2026.
+- O anfitrião **começa a partida quando quiser, com 2 ou mais jogadores**, sem esperar a mesa encher. Os lugares escolhidos na criação são o máximo.
 - **Dinheiro real fica FORA do app.** Cada um paga a inscrição por Pix ao organizador; o app mostra a premiação combinada e o resumo final; o organizador paga os prêmios por Pix. O app nunca processa pagamento. Sem rake/taxa para a casa.
 
 ## Arquitetura escolhida
@@ -157,15 +159,15 @@ No cliente, a ideia é uma "partida remota" que chama os **mesmos callbacks de i
 
 ## Premiação e acerto (fora do app)
 
-- Na criação: valor da inscrição (só informativo, em R$) e divisão (ex.: 50/30/20; reaproveitar `P.Estruturas` do Sit & Go).
-- Na sala de espera e na mesa: total arrecadado e prêmio de cada posição.
+- **Já feito (10/10/2026):** na criação o anfitrião digita o prêmio total fixo em R$ (só informativo; vai no `POST /mesas` como `premio` em centavos, de 0 a R$ 10.000). A sala de espera mostra o prêmio e a divisão com quem está sentado agora (`P.Estruturas.percentuaisSNG` + `valoresPremios`), e o convite do WhatsApp cita o prêmio.
+- Falta (etapa 4): congelar a divisão pelo número de jogadores **quando a partida começar** e mostrar na mesa o prêmio de cada posição.
 - No fim: classificação final + "quanto cada um recebe", para o organizador pagar por Pix. Histórico de cada mão com a ordem do baralho e o lacre para tirar dúvidas.
 
 ## Etapas
 
 1. **Servidor mínimo** (casa): criar mesa, entrar pelo link com nome, sala de espera em tempo real. Teste com várias abas. **Feita e publicada em 10/10/2026.**
-2. **Jogo em rede**: motor no Durable Object, vistas por jogador, ações validadas, animações no cliente via `ui-mesa.js`.
-3. **Torneio completo**: blinds pelo relógio, eliminação, tempo de ação, reconexão, bots opcionais, fim da partida e limpeza da mesa.
+2. **Jogo em rede**: motor no Durable Object, vistas por jogador, ações validadas, animações no cliente via `ui-mesa.js`. `comecar` só do anfitrião, com 2 ou mais sentados (a mesa não precisa estar cheia); ao começar, a sala fecha para novas entradas.
+3. **Torneio completo**: blinds pelo relógio (proporcionais às fichas iniciais: a estrutura do Sit & Go do app foi feita para 1.500), eliminação, tempo de ação, reconexão, bots opcionais, fim da partida e limpeza da mesa.
 4. **Lacre do baralho + premiação/acerto + relatório do coach no fim.**
 5. **Testes**: simulação automática com N clientes (casa) + roteiro de interface no navegador (trabalho) + partida real com amigos.
 
