@@ -1,7 +1,8 @@
 /* ==========================================================================
    OUTS · Treino Lab — main.js
-   Inicialização e navegação entre telas (lobby, mesa, treino relâmpago,
-   estatísticas, histórico, auditoria), banca, som e preferências visuais.
+   Inicialização e navegação entre telas (lobby, mesa, mesa com amigos,
+   treino relâmpago, estatísticas, histórico, auditoria), banca, som e
+   preferências visuais. Um link #mesa=CODIGO abre direto a mesa com amigos.
 
    Parâmetros de URL usados só para testes automáticos:
      ?demo=cash|sng|torneio&lugares=N   abre direto uma mesa (&participantes=N no SNG)
@@ -13,7 +14,7 @@
 
   const { $, $$ } = P.UI;
   const F = P.Formato;
-  const TELAS = ['lobby', 'mesa', 'treino', 'estatisticas', 'historico', 'auditoria'];
+  const TELAS = ['lobby', 'mesa', 'amigos', 'treino', 'estatisticas', 'historico', 'auditoria'];
   let telaAtual = 'lobby';
 
   const ICONE_SOM = on => on
@@ -38,6 +39,7 @@
     atualizarSaldo();
     const raiz = $('#tela-' + tela);
     if (tela === 'lobby') P.UILobby.render();
+    else if (tela === 'amigos') P.UIAmigos.render();
     else if (tela === 'treino') P.UIPaineis.renderTreino(raiz);
     else if (tela === 'estatisticas') P.UIPaineis.renderEstatisticas(raiz);
     else if (tela === 'historico') P.UIPaineis.renderHistorico(raiz);
@@ -134,6 +136,8 @@
     document.addEventListener('pointerdown', () => P.Som.desbloquear(), { once: true });
     const interrupcao = verificarInterrupcao();
     document.addEventListener('visibilitychange', () => marcarSessao());
+    // link de mesa com amigos colado nesta aba (fora de uma partida contra bots)
+    window.addEventListener('hashchange', () => { if (P.Rede.temMesaNoLink() && telaAtual !== 'mesa') irPara('amigos'); });
     setInterval(() => { if (telaAtual === 'mesa') marcarSessao(); }, 20000);
 
     // atalhos de teste/demonstração pela URL
@@ -159,6 +163,8 @@
       iniciarPartida(cfg);
       return;
     }
+    // convite de mesa com amigos (#mesa=CODIGO): vai direto para ela (a partida salva fica para depois)
+    if (P.Rede.temMesaNoLink()) { irPara('amigos'); return; }
     // partida que ficou aberta (o app foi fechado no meio): volta direto para ela
     const salva = P.Partida.salva();
     if (salva) {

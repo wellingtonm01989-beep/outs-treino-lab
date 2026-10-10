@@ -26,3 +26,7 @@ A mesa se ajusta ao celular em pé (mesa vertical, botões grandes embaixo) e de
 ## Testes
 
 Abra `testes.html` no navegador para rodar todos os testes automáticos. `testes/celular.html` mostra o app em telas do tamanho de celulares.
+
+## Mesa com amigos (em construção)
+
+Sit & Go pela internet com um link para os amigos. O servidor fica em `servidor/` (Cloudflare Workers + Durable Objects) e precisa de Node para testar e publicar. O plano e o passo a passo estão em `docs/plano-multiplayer.md`.

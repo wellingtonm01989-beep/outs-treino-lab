@@ -51,7 +51,7 @@
   }
 
   async function telas() {
-    for (const t of ['lobby', 'treino', 'estatisticas', 'historico', 'auditoria']) {
+    for (const t of ['lobby', 'amigos', 'treino', 'estatisticas', 'historico', 'auditoria']) {
       P.App.irPara(t);
       await dormir(400);
       const c = cortados($('#tela-' + t)).concat(cortados($('.topo')));

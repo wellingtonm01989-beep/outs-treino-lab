@@ -1,3 +1,8 @@
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# servidor (Node + wrangler)
+node_modules/
+.wrangler/
+.dev.vars

@@ -2,11 +2,12 @@
 
 Decidido em 09/10/2026. Este arquivo é o ponto de partida para quem continuar o trabalho (inclusive o Claude Code no computador de casa).
 
-## Onde paramos (09/10/2026)
+## Onde paramos (10/10/2026)
 
-- Nada do multiplayer foi construído ainda. O jogo de hoje (cash, Sit & Go com várias mesas, torneio, coach) é todo local, no navegador, e está no GitHub Pages.
-- Já decidido: arquitetura (Cloudflare), protocolo, premiação fora do app, e as regras para caber no plano grátis (seções abaixo).
-- **Próximo passo em casa:** seguir "Para preparar em casa" e começar a etapa 1 (servidor mínimo). Logo na primeira partida de teste, **conferir no painel da Cloudflare** a dúvida em aberto sobre a contagem das mensagens (ver "Cotas do plano grátis").
+- **Etapa 1 feita e testada localmente** (`wrangler dev`): criar mesa, entrar pelo link só com o nome, sala de espera em tempo real, reconexão, sair/cancelar e limpeza da mesa abandonada. Ver "Etapa 1: o que existe" e "Como testar em casa".
+- **Publicado na Cloudflare em 10/10/2026:** `https://outs-mesas.outs-mesas.workers.dev` (conta wellington.m01989@gmail.com; o subdomínio `outs-mesas` foi registrado automaticamente pelo primeiro deploy e pode ser trocado no painel, em Workers → subdomínio; se trocar, atualizar `SERVIDOR_PUBLICADO` em `js/rede.js`). Testado de ponta a ponta contra o servidor publicado (criar, entrar, ping, cancelar). Pelo localhost o app continua usando o servidor local.
+- **Próximo passo:** testar pelo GitHub Pages com o celular e anotar no painel o consumo (dúvida dos 20:1 em "Cotas do plano grátis"). Depois, etapa 2.
+- Pendente das regras do plano grátis: o **contador de consumo** (regra 6) ainda não existe; faz sentido na etapa 3, quando já houver partidas de verdade para medir.
 
 ## O que o usuário quer
 
@@ -89,20 +90,23 @@ Na prática: no pessimista, 5 mesas jogando 24 h ou ~30 mesas numa noite de 4 h;
 - **Math.random proibido** em qualquer coisa ligada às cartas (no servidor também).
 - O computador do trabalho **não tem Node/npm/npx/Python**: tudo que precisa de Node (servidor, wrangler, testes do servidor) é feito no **computador de casa**. O cliente continua testável no trabalho (Edge headless, `testes.html`, `testes/celular.html`).
 
-## Estrutura proposta
+## Estrutura
 
 ```
 servidor/                 ← só em casa (Node + wrangler)
   wrangler.toml
-  package.json
+  package.json            ← npm test · npm run dev · npm run cliente · npm run deploy
   src/
     janela.js             ← define globalThis.window = globalThis (importar ANTES dos arquivos do núcleo)
-    nucleo.js             ← importa ../../js/rng.js, baralho.js, avaliador.js, motor.js (e bots.js etc. se usar bots)
+    nucleo.js             ← importa ../../js/rng.js (etapa 2: baralho.js, avaliador.js, motor.js; bots.js se usar bots)
     index.js              ← Worker: rotas HTTP + upgrade para WebSocket
-    mesa.js               ← Durable Object "Mesa": estado da partida, relógio dos blinds, tempo de ação
-  teste/                  ← simulação com vários clientes WebSocket
-js/rede.js                ← cliente: conexão WebSocket, reconexão, mensagens
+    mesa.js               ← Durable Object "Mesa": sala de espera (etapa 2+: estado da partida, blinds, tempo de ação)
+  teste/
+    sala.mjs              ← simulação com vários clientes WebSocket (sobe o wrangler dev sozinho)
+    servir-cliente.mjs    ← serve o app em http://localhost:8080 para testar com o servidor local
+js/rede.js                ← cliente: conexão WebSocket, reconexão, mensagens, token da aba
 js/ui-amigos.js           ← aba "Mesa com amigos": criar mesa, sala de espera, entrar pelo link
+css/amigos.css
 ```
 
 Os arquivos do núcleo são IIFEs que usam `window.Poker`. Como os `import` são içados, o `globalThis.window = globalThis` precisa estar num módulo separado importado primeiro (`janela.js`).
@@ -135,6 +139,20 @@ Segurança do servidor: aceitar só a origem `https://wellingtonm01989-beep.gith
 - Tempo de ação: ~30 s; ao esgotar, check se possível, senão fold. Jogador desconectado: check/fold automático até voltar. (Prazo controlado pelo alarme único da regra 2 em "Cotas do plano grátis".)
 - O cliente só envia mensagem quando age (`acao`) ou entra/sai: nada de "pronto", batimentos ou confirmações, porque cada mensagem recebida consome cota.
 
+### Etapa 1: o que existe
+
+- Mensagens já implementadas. Cliente → servidor: `entrar {nome, token?}`, `sair`, e o texto `ping` (respondido `pong` pela própria Cloudflare, sem acordar a mesa nem gastar cota). Servidor → cliente: `sala {codigo, status, config, jogadores: [{lugar, nome, anfitriao, conectado}]}` (nunca leva tokens), `voce {lugar, token, anfitriao}`, `erro {motivo, texto}` e `encerrada {motivo, texto}`.
+- Quem abre o link recebe a `sala` logo ao conectar, antes de digitar o nome.
+- O **lugar 0 fica guardado para o anfitrião** (o `tokenAnfitriao` do `POST /mesas` é o token dele). Os outros sentam no primeiro lugar livre.
+- Nome: até 18 caracteres, sem caracteres invisíveis; não pode repetir na mesa (maiúsculas não contam).
+- Mesma pessoa (mesmo token) em outra aba: vale a conexão nova; a antiga recebe `erro outra-aba` e pode "Usar nesta aba".
+- `sair` libera o lugar. `sair` do anfitrião **cancela a mesa**: todos recebem `encerrada` e o estado é apagado.
+- Limpeza pelo alarme único: sala sem ninguém conectado por 30 min é apagada (inclusive a mesa criada que ninguém abriu); sala de espera que nunca começa é apagada em 12 h.
+- Estado: uma linha (`estado`) gravada só quando alguém entra ou sai. Conectado/desconectado sai das próprias conexões e não grava nada.
+- Limites: mensagem de até 1.024 caracteres e 20 mensagens a cada 10 s por conexão; código fora do formato nem chega ao Durable Object.
+- Códigos de fechamento definitivos (o cliente não reconecta): 1009 mensagem grande, 4001 outra aba, 4008 excesso de mensagens, 4404 mesa inexistente, 4410 mesa encerrada. Nos outros casos o cliente reconecta sozinho (1 s, 2 s, 4 s… até 15 s, e na hora em que a internet ou a aba voltam) e reenvia `entrar {token}`.
+- **Ponto para decidir:** o token fica no **sessionStorage** (um por aba, o que permite testar com várias abas). Quem **fechar a aba** e abrir o link de novo (por exemplo, saiu do navegador do WhatsApp para o Chrome) vira outra pessoa, e o lugar antigo fica "desconectado" com o nome ocupado. Opções para a etapa 3: o anfitrião remover quem caiu na sala de espera, ou guardar o token também no localStorage.
+
 No cliente, a ideia é uma "partida remota" que chama os **mesmos callbacks de interface** que `P.Partida` usa hoje (`aoNovaMao`, `aoEventos`, `aoVezDoBot`, `pedirAcao`, `aoFimDaMao`, `aoFimDaPartida`...), para reaproveitar `js/ui-mesa.js` inteiro.
 
 ## Premiação e acerto (fora do app)
@@ -145,7 +163,7 @@ No cliente, a ideia é uma "partida remota" que chama os **mesmos callbacks de i
 
 ## Etapas
 
-1. **Servidor mínimo** (casa): criar mesa, entrar pelo link com nome, sala de espera em tempo real. Teste com várias abas.
+1. **Servidor mínimo** (casa): criar mesa, entrar pelo link com nome, sala de espera em tempo real. Teste com várias abas. **Feita e publicada em 10/10/2026.**
 2. **Jogo em rede**: motor no Durable Object, vistas por jogador, ações validadas, animações no cliente via `ui-mesa.js`.
 3. **Torneio completo**: blinds pelo relógio, eliminação, tempo de ação, reconexão, bots opcionais, fim da partida e limpeza da mesa.
 4. **Lacre do baralho + premiação/acerto + relatório do coach no fim.**
@@ -153,9 +171,17 @@ No cliente, a ideia é uma "partida remota" que chama os **mesmos callbacks de i
 
 ## Para preparar em casa
 
-1. Instalar o Node.js LTS (nodejs.org) e o Git.
+1. Instalar o Node.js LTS (nodejs.org) e o Git. No Windows, o servidor local da Cloudflare (workerd) também precisa do **Visual C++ Redistributable 2015–2022 (x64)**: `winget install --id Microsoft.VCRedist.2015+.x64 -e` (já instalado no PC de casa em 10/10/2026).
 2. `git clone https://github.com/wellingtonm01989-beep/outs-treino-lab.git`
 3. Criar conta gratuita na Cloudflare (dash.cloudflare.com) — não pede cartão.
 4. Abrir a pasta no Claude Code e pedir para ler este arquivo.
-5. Quando o servidor existir: `npx wrangler login` e `npx wrangler deploy` (dentro de `servidor/`).
+5. Publicar (dentro de `servidor/`): `npx wrangler login` e `npm run deploy`. No primeiro deploy o wrangler pede para escolher o subdomínio `workers.dev`; copiar o endereço que ele mostrar (`https://outs-mesas.<subdominio>.workers.dev`) para `SERVIDOR_PUBLICADO` em `js/rede.js` e fazer o push. Conferir abrindo o endereço: deve responder "no ar".
 6. Depois da primeira partida de teste publicada: abrir o painel da Cloudflare (Workers & Pages → o Worker → Métricas / Durable Objects) e anotar aqui quantas requisições e linhas gravadas uma partida gastou. Isso resolve a dúvida dos 20:1 e ajusta a tabela de estimativa.
+
+## Como testar em casa
+
+Dentro de `servidor/` (na primeira vez: `npm install`):
+
+- `npm test`: simulação automática com vários clientes WebSocket. Sobe o `wrangler dev` sozinho numa porta própria, com o tempo de abandono encurtado. São 17 cenários: origem, opções inválidas, mesa inexistente, anfitrião, convidado, nomes, mesa cheia, queda e reconexão, outra aba, ping, sair, mensagens inválidas, excesso, cancelar e alarme de abandono.
+- Teste com várias abas: `npm run dev` (servidor em http://localhost:8787) e, em outro terminal, `npm run cliente` (app em http://localhost:8080). Abrir http://localhost:8080 → aba **Mesa com amigos** → criar a mesa → abrir o link em outras abas. Pelo localhost o app usa o servidor local sozinho.
+- No Windows, se a porta 8787 continuar ocupada depois de parar o `npm run dev`, sobrou um `workerd.exe`: fechar pelo Gerenciador de Tarefas.

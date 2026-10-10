@@ -1,0 +1,13 @@
+# Servidor da "Mesa com amigos" (ver docs/plano-multiplayer.md).
+# Testar localmente: npm run dev   ·   Publicar: npm run deploy
+name = "outs-mesas"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+[[durable_objects.bindings]]
+name = "MESAS"
+class_name = "Mesa"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Mesa"]   # Durable Objects com SQLite: os que o plano gratuito permite

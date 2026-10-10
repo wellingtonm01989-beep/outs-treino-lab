@@ -58,6 +58,7 @@
 <link rel="stylesheet" href="css/mesa.css">
 <link rel="stylesheet" href="css/coach.css">
 <link rel="stylesheet" href="css/paineis.css">
+<link rel="stylesheet" href="css/amigos.css">
 <link rel="stylesheet" href="css/celular.css">
 </head>
 <body>
@@ -69,6 +70,7 @@
     </a>
     <nav class="nav" id="nav">
       <button data-tela="lobby" class="ativo"><i class="icone-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 11 12 4l9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></i><span>Lobby</span></button>
+      <button data-tela="amigos"><i class="icone-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8"/><path d="M18.5 14.4c1.8.8 3 2.8 3 5.6"/></svg></i><span><span class="so-largo">Mesa com amigos</span><span class="so-celular">Amigos</span></span></button>
       <button data-tela="treino"><i class="icone-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></i><span>Treino<span class="so-largo"> relâmpago</span></span></button>
       <button data-tela="estatisticas"><i class="icone-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 20V11M11 20V5M17 20v-6M3 20h18"/></svg></i><span>Estatísticas</span></button>
       <button data-tela="historico"><i class="icone-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></i><span>Histórico</span></button>
@@ -85,6 +87,7 @@
   <main class="app-corpo">
     <section class="tela" id="tela-lobby"></section>
     <section class="tela tela-mesa oculto" id="tela-mesa"></section>
+    <section class="tela oculto" id="tela-amigos"></section>
     <section class="tela oculto" id="tela-treino"></section>
     <section class="tela oculto" id="tela-estatisticas"></section>
     <section class="tela oculto" id="tela-historico"></section>
@@ -122,6 +125,9 @@
 <script src="js/ui-mesas.js"></script>
 <script src="js/ui-mesa.js"></script>
 <script src="js/ui-lobby.js"></script>
+<!-- mesa com amigos (servidor em servidor/) -->
+<script src="js/rede.js"></script>
+<script src="js/ui-amigos.js"></script>
 <script src="js/ui-paineis.js"></script>
 <script src="js/main.js"></script>
 </body>

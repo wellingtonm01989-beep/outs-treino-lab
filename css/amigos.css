@@ -1,0 +1,60 @@
+/* ==========================================================================
+   OUTS · Treino Lab — amigos.css
+   Aba "Mesa com amigos": criar mesa, entrar pelo link e sala de espera.
+   ========================================================================== */
+
+.amigos { display: grid; gap: 0; }
+.amigos-grade { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; align-items: start; }
+.amigos-form, .amigos-lado { display: grid; gap: 14px; padding: 18px; }
+.amigos-centro { width: 100%; max-width: 640px; margin: 0 auto; }
+.amigos-caixa { display: grid; gap: 12px; padding: 20px; }
+.amigos-caixa p { margin: 0; color: var(--texto-2); }
+.amigos-cab { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.amigos-cab h2, .amigos-cab h3 { margin-right: auto; }
+.amigos-nota { color: var(--texto-3); font-size: 12px; }
+.amigos-erro { margin: 0; color: var(--erro); font-size: 13px; font-weight: 600; }
+.amigos-acoes { display: flex; flex-wrap: wrap; gap: 8px; }
+.amigos-acoes-sala { display: grid; gap: 8px; }
+.amigos-lado ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; color: var(--texto-2); font-size: 13px; }
+.amigos-pix {
+  background: var(--fundo-2); border: 1px solid var(--borda); border-left: 3px solid var(--ouro);
+  border-radius: 8px; padding: 10px 12px; font-size: 12.5px; color: var(--texto-2);
+}
+.amigos-pix b { color: var(--texto); }
+
+/* link para convidar */
+.link-mesa { display: flex; gap: 6px; }
+.link-mesa .entrada { flex: 1; min-width: 0; font: 600 12.5px var(--fonte-mono); color: var(--ouro-2); }
+.btn-whats { text-decoration: none; background: #1f7a4a; border-color: #2a9a5f; color: #fff; }
+.btn-whats:hover { background: #25915a; border-color: #34b06f; }
+
+/* lugares da mesa */
+.lugares-amigos { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+.lugar-amigo {
+  display: flex; align-items: center; gap: 10px; min-width: 0; padding: 9px 12px;
+  background: var(--fundo-2); border: 1px solid var(--borda); border-radius: 10px;
+  transition: border-color var(--transicao), opacity var(--transicao);
+}
+.lugar-amigo .num {
+  flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--superficie-3); color: var(--texto-2); font-size: 12px; font-weight: 700;
+}
+.lugar-amigo .quem { display: grid; min-width: 0; line-height: 1.25; }
+.lugar-amigo .quem b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lugar-amigo .quem small { color: var(--texto-3); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lugar-amigo .ponto { flex: none; width: 8px; height: 8px; margin-left: auto; border-radius: 50%; background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+.lugar-amigo.fora { opacity: .65; }
+.lugar-amigo.fora .ponto { background: var(--texto-3); box-shadow: none; }
+.lugar-amigo.livre { border-style: dashed; background: none; }
+.lugar-amigo.livre .quem b { color: var(--texto-3); font-weight: 600; }
+.lugar-amigo.voce { border-color: var(--ouro); box-shadow: 0 0 0 1px var(--ouro) inset; }
+.lugar-amigo.voce .num { background: var(--ouro); color: #1d1606; }
+
+@media (max-width: 1100px) {
+  .amigos-grade { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  .amigos-form, .amigos-lado, .amigos-caixa { padding: 14px; }
+  .lugares-amigos { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .lugar-amigo { padding: 8px 9px; gap: 8px; }
+}

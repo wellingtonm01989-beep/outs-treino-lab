@@ -1,0 +1,15 @@
+{
+  "name": "outs-mesas",
+  "private": true,
+  "type": "module",
+  "description": "Servidor da mesa com amigos (Cloudflare Workers + Durable Objects)",
+  "scripts": {
+    "dev": "wrangler dev --var PERMITIR_LOCALHOST:1",
+    "cliente": "node teste/servir-cliente.mjs",
+    "test": "node teste/sala.mjs",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.149.0"
+  }
+}
