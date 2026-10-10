@@ -4,6 +4,8 @@
    eventos do motor (distribuição carta a carta, fichas indo ao pote, board
    virando, pote entregue ao vencedor), barra de ações com slider/atalhos
    de tamanho e teclado (F, C, R, Enter), HUD de torneio e o painel do coach.
+   Também desenha a mesa com amigos (cfg.remota, partida-remota.js): sem coach,
+   com o relógio de quem está na vez e "Sair" valendo desistência.
    ========================================================================== */
 (function (P) {
   'use strict';
@@ -27,7 +29,9 @@
   let ctxFmt = { modo: 'cash', bb: 1 };
   const barra = {};
 
-  const fv = () => VELOCIDADES[P.Config.get('velocidade')] || 1;
+  // mesa com amigos: aba escondida ou mensagens acumuladas → eventos aplicados sem animação
+  let pressa = false;
+  const fv = () => (pressa ? 0 : VELOCIDADES[P.Config.get('velocidade')] || 1);
   const fmt = v => F.valor(v, ctxFmt);
   const fmtReal = v => (ctxFmt.modo === 'cash' ? F.dinheiro(v) : F.fichas(v));
 
@@ -54,6 +58,7 @@
     tela = $('#tela-mesa');
     tela.innerHTML = '';
     tela.dataset.tema = P.Config.get('tema');
+    tela.classList.toggle('sem-coach', !!cfg.remota);   // contra os amigos o coach fica desligado
 
     const coluna = el('div', { class: 'mesa-coluna' });
     barraInfo = el('div', { class: 'mesa-barra' },
@@ -65,7 +70,7 @@
       el('button', { class: 'btn so-largo', text: 'Opções', onclick: () => overlay('config') }),
       el('button', { class: 'btn so-largo oculto', id: 'mb-mesas', text: 'Mesas', title: 'Assistir às outras mesas do torneio', onclick: () => alternarMesas() }),
       el('button', { class: 'btn', id: 'mb-coach', text: 'Coach', title: 'Mostrar/recolher o coach', onclick: () => P.UICoach.alternar() }),
-      el('button', { class: 'btn so-largo', text: 'Sair para o lobby', onclick: sair }),
+      el('button', { class: 'btn so-largo', text: cfg.remota ? 'Sair da mesa' : 'Sair para o lobby', onclick: sair }),
       el('button', { class: 'btn so-celular', id: 'mb-menu', title: 'Menu', html: '&#9776;<span class="rot-menu"> Menu</span>', onclick: abrirMenu }));
 
     // celular: a barra de cima fica escondida (não cobre as cartas do showdown); este botão no canto a mostra
@@ -98,7 +103,7 @@
 
     coluna.append(barraInfo, palco, montarBarraAcoes());
     tela.appendChild(coluna);
-    P.UICoach.montar(tela, { aoMudarModo: modo => { if (pendente && vistaAtual && modo !== 'desligado') P.UICoach.pedirDica(pendente.analise); if (modo === 'desligado') limparSugestao(); } });
+    P.UICoach.montar(tela, { aoMudarModo: modo => { if (pendente && pendente.analise && vistaAtual && modo !== 'desligado') P.UICoach.pedirDica(pendente.analise); if (modo === 'desligado') limparSugestao(); } });
 
     if (observador) observador.disconnect();
     observador = new ResizeObserver(() => layout());
@@ -504,14 +509,36 @@
             resolve(acao);
           }
         };
-        P.UICoach.novaDecisao(extra.analise, extra.ctx).then(() => {
+        const pronto = cfg.remota ? Promise.resolve() : P.UICoach.novaDecisao(extra.analise, extra.ctx);
+        pronto.then(() => {
           if (!pendente) return;
           bloquear(false);
-          if (P.Config.get('modoCoach') === 'sempre') extra.analise.then(an => { if (pendente) sugerir(an); });
+          if (P.Config.get('modoCoach') === 'sempre' && extra.analise) extra.analise.then(an => { if (pendente) sugerir(an); });
           status(textoStatusHeroi(vista));
         });
       });
     },
+
+    /** Mesa com amigos: marca quem está na vez com o relógio do prazo (ms que faltam). */
+    marcarVez(s, ms) {
+      assentos.forEach((a, i) => { if (i !== s) a.raiz.classList.remove('vez'); });
+      const a = assentos[s];
+      if (!a) return;
+      a.raiz.classList.add('vez');
+      const barraT = a.tempo.firstChild;
+      barraT.style.transition = 'none';
+      barraT.style.transform = 'scaleX(1)';
+      void barraT.offsetWidth;
+      barraT.style.transition = `transform ${Math.max(0, ms)}ms linear`;
+      barraT.style.transform = 'scaleX(0)';
+      if (s !== HEROI && est.jogadores[s]) status(`Vez de ${esc(est.jogadores[s].nome)}…`);
+    },
+
+    /** Mesa com amigos: o tempo acabou e o servidor jogou por você; o pedido aberto cai. */
+    cancelarPedido() { if (pendente) pendente.resolve(null); },
+
+    /** Mesa com amigos: sem animações enquanto a aba está escondida ou há mensagens acumuladas. */
+    acelerar(sim) { pressa = !!sim; },
 
     aoAnaliseParcial(an) { P.UICoach.atualizarParcial(an); },
 
@@ -579,7 +606,8 @@
 
   // ======================================================= animação de eventos
   async function animar(ev) {
-    if (!est || !geo) return;
+    if (!est) return;
+    if (!geo) { aplicarSemAnimar(ev); return; }
     const meu = est;                         // se a mesa for encerrada no meio, para
     const f = fv();
     const s = ev.assento;
@@ -699,9 +727,41 @@
     }
   }
 
+  /**
+   * Janela ainda sem tamanho (sem geometria para animar): aplica o evento direto,
+   * para as cartas e o board não se perderem. Fichas e potes vêm de sincronizar().
+   */
+  function aplicarSemAnimar(ev) {
+    const s = ev.assento;
+    if (ev.tipo === 'distribuicao') {
+      ev.ordem.forEach(x => {
+        const a = assentos[x];
+        a.cartas.innerHTML = '';
+        (x === HEROI ? est.jogadores[x].cartas : [null, null]).forEach(c => a.cartas.appendChild(P.UI.carta(x === HEROI ? c : null, { fechada: x !== HEROI })));
+      });
+    } else if (ev.tipo === 'rua') {
+      ev.cartas.forEach(c => { boardEl.replaceChild(P.UI.carta(c), boardEl.children[est.board.length]); est.board.push(c); });
+    } else if (ev.tipo === 'mostra' && ev.mostrou) {
+      const a = assentos[s];
+      est.mostrados[s] = { melhores: ev.melhores, descricao: ev.descricao };
+      if (s !== HEROI) { a.cartas.innerHTML = ''; ev.cartas.forEach(c => a.cartas.appendChild(P.UI.carta(c))); }
+      a.raiz.classList.add('mostrou');
+      a.desc.textContent = ev.descricao;
+      a.desc.classList.remove('oculto');
+    } else if (ev.tipo === 'acao') {
+      assentos[s].raiz.classList.remove('vez');
+      if (ev.acao === 'fold') {
+        est.jogadores[s].foldou = true;
+        if (s === HEROI) Array.prototype.forEach.call(assentos[s].cartas.children, c => c.classList.add('apagada'));
+        else assentos[s].cartas.innerHTML = '';
+      }
+    }
+  }
+
   async function animarAcao(ev, j) {
     const meu = est;
     const f = fv(), s = ev.assento;
+    assentos[s].raiz.classList.remove('vez');
     j.fichas = ev.fichas;
     const antes = j.apostaRua;
     j.apostaRua = ev.apostaRua;
@@ -849,7 +909,7 @@
     const bb = vista.blinds.bb;
     barra.fold.disabled = false;
     barra.call.innerHTML = (v.podeCheck ? 'Check' : `Pagar<small>${fmt(v.valorCall)}${v.callAllin ? ' (all-in)' : ''}</small>`) + '<kbd>C</kbd>';
-    barra.dica.classList.toggle('oculto', P.Config.get('modoCoach') !== 'pedido');
+    barra.dica.classList.toggle('oculto', P.Config.get('modoCoach') !== 'pedido' || !!cfg.remota);
     barra.tamanhos.innerHTML = '';
     if (!v.podeApostar) {
       barra.raise.disabled = true;
@@ -956,7 +1016,7 @@
 
   /** "Pedir dica": mostra a análise no painel e, com ele fechado, a dica na barra. */
   function pedirDica() {
-    if (!pendente) return;
+    if (!pendente || !pendente.analise) return;
     const an = pendente.analise;
     P.UICoach.pedirDica(an);
     if (an) an.then(x => linhaCoach(x));
@@ -1007,9 +1067,10 @@
     const prog = info.restanteMs !== null ? 1 - info.restanteMs / dur : 0;
     const b = info.blinds, p = info.proximo;
     const estado = info.itm ? '<span class="estado itm">NA PREMIAÇÃO</span>' : info.bolha ? '<span class="estado bolha">BOLHA</span>' : '';
-    const premios = info.premios.slice(0, 3).map((v, i) => `${i + 1}º ${F.dinheiro(v)}`).join(' · ');
+    const fp = info.fmtPremio || F.dinheiro;   // mesa com amigos: reais
+    const premios = info.premios.slice(0, 3).map((v, i) => `${i + 1}º ${fp(v)}`).join(' · ');
     const item = (rot, val, extra) => `<div class="item${extra ? ' extra' : ''}"><span>${rot}</span><b>${val}</b></div>`;
-    hud.title = 'Premiação: ' + info.premios.map((v, i) => `${i + 1}º ${F.dinheiro(v)}`).join(', ');
+    hud.title = info.premios.length ? 'Premiação: ' + info.premios.map((v, i) => `${i + 1}º ${fp(v)}`).join(', ') : 'Sem premiação';
     if (hud.parentNode === barraInfo) {   // versão curta, na barra de cima (celular)
       hud.innerHTML = item(`Nível ${info.nivel}`, `${F.fichas(b.sb)}/${F.fichas(b.bb)}`) + `<div class="relogio">${tempo}</div>` +
         item('Jogadores', `${info.restantes}/${info.field}`) + item('Posição', `${info.posicao}º`) + estado;
@@ -1050,7 +1111,7 @@
     encerrar(false);
     montar(config);
     const token = ++tokenPartida;
-    partida = P.Partida.criar(Object.assign({}, config, { heroi: { nome: P.Config.get('nome'), mostraPerdedoras: P.Config.get('mostrarPerdedoras') } }), uiDaPartida(token));
+    partida = (config.criarPartida || P.Partida.criar)(Object.assign({}, config, { heroi: { nome: P.Config.get('nome'), mostraPerdedoras: P.Config.get('mostrarPerdedoras') } }), uiDaPartida(token));
     iniciarHud();
     try {
       await partida.rodar();
@@ -1065,6 +1126,17 @@
 
   async function sair() {
     if (!partida) { P.App.irPara('lobby'); return; }
+    if (cfg.remota) {
+      if (partida.jogando()) {
+        pausar(true);
+        const ok = await P.UI.confirmar('Desistir da partida?', 'Se sair agora você desiste: fica fora desta partida, com a pior colocação, e quem continuar segue jogando.', 'Desistir', 'Continuar jogando');
+        pausar(false);
+        if (!ok) return;
+      }
+      encerrar(true);
+      P.App.irPara('amigos');
+      return;
+    }
     if (partida.ativo() && cfg.modo !== 'cash' && !partida.fim()) {
       pausar(true);
       const ok = await P.UI.confirmar('Abandonar?', 'Se sair agora você perde o buy-in e a partida termina para você.', 'Abandonar', 'Continuar jogando');
@@ -1097,7 +1169,7 @@
     let r = null;
     if (partida) {
       r = partida.sair();
-      if (abandonou && cfg && cfg.modo !== 'cash' && !partida.fim()) {
+      if (abandonou && cfg && cfg.modo !== 'cash' && !cfg.remota && !partida.fim()) {
         const n = cfg.modo === 'sng' ? Math.max(cfg.lugares, cfg.participantes || cfg.lugares) : cfg.field;
         P.Estatisticas.registrarTorneio(cfg.modo === 'sng' ? 'sng' : 'torneio', cfg.buyin.total, 0, n, n);
       }
@@ -1146,7 +1218,7 @@
       ['historico', 'Histórico de mãos'], ['estatisticas', 'Estatísticas'], ['config', 'Opções'], ['cola', 'Cola de consulta'],
       ['som', P.Config.get('som') ? 'Desligar o som' : 'Ligar o som'],
       document.fullscreenEnabled && !instalado ? ['telaCheia', document.fullscreenElement ? 'Sair da tela cheia' : 'Tela cheia'] : null,
-      ['sair', 'Sair para o lobby']
+      ['sair', cfg.remota ? 'Sair da mesa' : 'Sair para o lobby']
     ].filter(Boolean);
     pausar(true);
     let escolha;

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "wrangler dev --var PERMITIR_LOCALHOST:1",
     "cliente": "node teste/servir-cliente.mjs",
-    "test": "node teste/sala.mjs",
+    "test": "node teste/jogo.mjs && node teste/sala.mjs",
     "deploy": "wrangler deploy"
   },
   "devDependencies": {

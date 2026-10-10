@@ -2,7 +2,9 @@
    OUTS · Treino Lab — ui-amigos.js
    Aba "Mesa com amigos": o anfitrião monta a mesa e recebe um link único;
    quem abre o link digita só o nome e senta num lugar livre; a sala de
-   espera mostra em tempo real quem está na mesa e quem está conectado.
+   espera mostra em tempo real quem está na mesa e quem está conectado; o
+   anfitrião começa a partida (2 ou mais) e ela abre na mesa de sempre
+   (ui-mesa.js + partida-remota.js). No fim, a classificação e os prêmios.
    Dinheiro de verdade fica fora do app (Pix com o organizador).
    A conexão fica em rede.js; o servidor em servidor/ (Cloudflare).
    ========================================================================== */
@@ -27,6 +29,10 @@
     aviso: null,           // erro ao criar ou ao sentar (nome repetido, mesa cheia…)
     ocupado: false,        // criando a mesa ou esperando a resposta do "entrar"
     voltando: false,       // tem token nesta aba: está voltando sozinho para o lugar
+    jogo: null,            // último placar da partida (mensagem "jogo")
+    resultado: null,       // classificação final (mensagem "fim")
+    foraDaMesa: false,     // saiu da mesa depois de eliminado: não reabre sozinha a cada mão
+    comecando: false,      // o anfitrião apertou "Começar" e espera o servidor
     desenhada: null        // vista que está na tela (para só atualizar as partes que mudam)
   };
   let campoNomeAtual = null;   // campo "Seu nome" da tela atual
@@ -62,7 +68,7 @@
   function abrirMesa(codigo) {
     if (st.codigo === codigo && (st.conexao || st.fim)) return;
     fecharConexao();
-    Object.assign(st, { codigo, sala: null, eu: null, fim: null, aviso: null, ocupado: false, voltando: !!R.lerToken(codigo) });
+    Object.assign(st, { codigo, sala: null, eu: null, fim: null, aviso: null, ocupado: false, voltando: !!R.lerToken(codigo), jogo: null, resultado: null, foraDaMesa: false, comecando: false });
     st.conexao = R.conectar(codigo, { estado: aoEstado, mensagem: aoMensagem });
   }
 
@@ -74,6 +80,8 @@
 
   function aoEstado(nome, info) {
     st.conexaoEstado = nome;
+    const partida = P.PartidaRemota.atual();
+    if (partida) partida.conexao(nome);
     if (nome === 'aberta') {
       // já sentou nesta aba (ou acabou de criar a mesa): volta para o mesmo lugar
       const token = R.lerToken(st.codigo);
@@ -81,6 +89,7 @@
     } else if (nome === 'fechada') {
       st.conexao = null;
       if (!st.fim) st.fim = fimPorCodigo(info && info.codigo);
+      fecharMesaDoJogo();
     }
     atualizar();
   }
@@ -93,18 +102,65 @@
   }
 
   function aoMensagem(m) {
-    if (m.tipo === 'sala') st.sala = m;
+    if (m.tipo === 'jogo' || m.tipo === 'mao' || m.tipo === 'fim' || (m.tipo === 'erro' && m.motivo === 'acao')) { tratarPartida(m); return; }
+    if (m.tipo === 'sala') { st.sala = m; if (m.status !== 'espera') st.comecando = false; }
     else if (m.tipo === 'voce') {
       Object.assign(st, { eu: m, aviso: null, ocupado: false });
       R.gravarToken(st.codigo, m.token);
     } else if (m.tipo === 'erro') {
-      Object.assign(st, { ocupado: false, voltando: false });
+      Object.assign(st, { ocupado: false, voltando: false, comecando: false });
       if (m.motivo === 'inexistente' || m.motivo === 'outra-aba') st.fim = { motivo: m.motivo, texto: m.texto };
       else st.aviso = m.texto;
     } else if (m.tipo === 'encerrada') {
       st.fim = { motivo: 'encerrada', texto: m.texto };
       R.apagarToken(st.codigo);
+      fecharMesaDoJogo();
     }
+    atualizar();
+  }
+
+  // ---------------------------------------------------------- partida
+  /** Mensagens do jogo vão para a mesa aberta; sem mesa, a primeira notícia da partida abre a mesa. */
+  function tratarPartida(m) {
+    if (m.tipo === 'jogo') st.jogo = m;
+    if (m.tipo === 'fim') st.resultado = m;
+    const partida = P.PartidaRemota.atual();
+    if (partida) partida.receber(m);
+    else if (m.tipo === 'jogo' && !m.terminada && !st.foraDaMesa) abrirMesaDoJogo(m);
+    atualizar();
+  }
+
+  function abrirMesaDoJogo(m) {
+    st.foraDaMesa = false;
+    P.App.iniciarPartida({
+      modo: 'sng', remota: true, lugares: m.lugares, velocidade: m.velocidade,
+      semBanca: true, semSalvar: true, buyin: { total: 0, premio: 0 },
+      jogo: m, criarPartida: P.PartidaRemota.criar,
+      enviar: obj => !!(st.conexao && st.conexao.enviar(obj)),
+      // saiu pelo botão: se desistiu, larga a mesa; se já estava fora do jogo, só deixa de assistir
+      aoSair: ({ desistiu }) => { if (desistiu) voltarAoInicio(); else { st.foraDaMesa = true; render(); } },
+      aoTerminar: () => { P.UIMesa.encerrar(false); P.App.irPara('amigos'); }
+    });
+  }
+
+  /** A mesa fechou por fora (mesa apagada, outra aba): para a partida aqui sem desistir. */
+  function fecharMesaDoJogo() {
+    const partida = P.PartidaRemota.atual();
+    if (!partida) return;
+    partida.desligar();
+    P.UIMesa.encerrar(false);
+    P.App.irPara('amigos');
+  }
+
+  /** Voltar a assistir (depois de sair da mesa já eliminado): o servidor manda a mão de novo. */
+  function voltarParaMesa() {
+    st.foraDaMesa = false;
+    if (st.conexao) st.conexao.enviar({ tipo: 'entrar', token: R.lerToken(st.codigo) });
+  }
+
+  function comecar() {
+    if (st.comecando || !st.conexao) return;
+    st.comecando = st.conexao.enviar({ tipo: 'comecar' });
     atualizar();
   }
 
@@ -161,7 +217,7 @@
   function voltarAoInicio() {
     if (st.codigo) R.apagarToken(st.codigo);
     fecharConexao();
-    Object.assign(st, { codigo: null, sala: null, eu: null, fim: null, aviso: null, ocupado: false });
+    Object.assign(st, { codigo: null, sala: null, eu: null, fim: null, aviso: null, ocupado: false, jogo: null, resultado: null, foraDaMesa: false, comecando: false });
     if (R.temMesaNoLink()) history.replaceState(null, '', location.pathname + location.search);
     render();
   }
@@ -185,9 +241,10 @@
   function vista() {
     if (!R.online()) return 'sem-internet';
     if (!R.servidor()) return 'sem-servidor';
+    if (st.resultado) return 'resultado';
     if (st.fim) return 'fim';
     if (!st.codigo) return 'criar';
-    if (st.eu) return 'sala';
+    if (st.eu) return st.sala && st.sala.status !== 'espera' ? 'em-jogo' : 'sala';
     // tem token nesta aba (acabou de criar a mesa ou recarregou): volta sozinho para o lugar
     return st.voltando ? 'voltando' : 'entrar';
   }
@@ -209,7 +266,7 @@
     st.desenhada = v;
     campoNomeAtual = null;
     r.innerHTML = '';
-    const desenhar = { 'sem-internet': telaSemInternet, 'sem-servidor': telaSemServidor, fim: telaFim, criar: telaCriar, voltando: telaVoltando, entrar: telaEntrar, sala: telaSala }[v];
+    const desenhar = { 'sem-internet': telaSemInternet, 'sem-servidor': telaSemServidor, fim: telaFim, criar: telaCriar, voltando: telaVoltando, entrar: telaEntrar, sala: telaSala, 'em-jogo': telaEmJogo, resultado: telaResultado }[v];
     r.appendChild(el('div', { class: 'conteudo amigos' },
       el('div', { class: 'titulo-tela' }, el('h1', { text: 'Mesa com amigos' }),
         el('p', { text: 'Sit & Go pela internet: crie a mesa, mande o link e jogue com quem entrar.' })),
@@ -361,6 +418,24 @@
     return el('div', { class: 'amigos-grade' }, principal, lado);
   }
 
+  function telaEmJogo() {
+    const eu = st.jogo && st.jogo.jogadores[st.jogo.meuAssento];
+    return caixa(
+      el('div', { class: 'amigos-cab' }, el('h2', { text: 'Partida em andamento' }), el('span', { class: 'selo info', text: 'Mesa ' + st.codigo }), parte('conexao', 'span')),
+      el('p', { text: eu && eu.posicao ? `Você saiu em ${eu.posicao}º lugar. Dá para continuar assistindo até o fim.` : 'A partida desta mesa está acontecendo agora.' }),
+      el('div', { class: 'amigos-acoes' },
+        el('button', { class: 'btn btn-ouro', text: 'Voltar para a mesa', onclick: voltarParaMesa }),
+        el('button', { class: 'btn', text: 'Largar esta mesa', onclick: voltarAoInicio })));
+  }
+
+  function telaResultado() {
+    return caixa(
+      el('div', { class: 'amigos-cab' }, el('h2', { text: 'Fim da partida' }), el('span', { class: 'selo info', text: 'Mesa ' + st.codigo })),
+      P.PartidaRemota.tabelaResultado(st.resultado, st.jogo ? st.jogo.meuAssento : -1),
+      nota('A mesa é apagada alguns minutos depois do fim. Para jogar de novo, crie uma mesa nova e mande o link.'),
+      el('div', { class: 'amigos-acoes' }, el('button', { class: 'btn btn-ouro', text: 'Criar uma mesa nova', onclick: voltarAoInicio })));
+  }
+
   // ------------------------------------------------- partes que mudam ao vivo
   const PARTES = {
     aviso: () => st.aviso ? el('p', { class: 'amigos-erro', text: st.aviso }) : null,
@@ -380,9 +455,10 @@
     'botao-sentar': () => {
       const pronta = st.sala && st.conexaoEstado === 'aberta';
       const cheia = st.sala && st.sala.jogadores.length >= st.sala.config.lugares;
+      const comecou = st.sala && st.sala.status !== 'espera';
       return el('button', {
-        class: 'btn btn-ouro btn-sentar', disabled: !pronta || cheia || st.ocupado ? true : null, onclick: sentar,
-        text: !pronta ? 'Conectando à mesa…' : cheia ? 'Mesa cheia' : st.ocupado ? 'Sentando…' : 'Sentar à mesa'
+        class: 'btn btn-ouro btn-sentar', disabled: !pronta || cheia || comecou || st.ocupado ? true : null, onclick: sentar,
+        text: !pronta ? 'Conectando à mesa…' : comecou ? 'A partida já começou' : cheia ? 'Mesa cheia' : st.ocupado ? 'Sentando…' : 'Sentar à mesa'
       });
     },
 
@@ -440,11 +516,14 @@
 
     acoes: () => {
       if (st.eu && st.eu.anfitriao) {
-        const sozinho = !st.sala || st.sala.jogadores.length < 2;
+        const n = st.sala ? st.sala.jogadores.length : 0;
         return [
-          el('button', { class: 'btn btn-ouro btn-sentar', disabled: true, text: 'Começar partida' }),
-          nota(sozinho ? 'Com mais um jogador já dá para começar: não precisa esperar a mesa encher.'
-            : 'Não precisa esperar a mesa encher. O jogo em rede ainda está sendo construído: por enquanto o botão fica desligado.'),
+          el('button', {
+            class: 'btn btn-ouro btn-sentar', disabled: n < 2 || st.comecando ? true : null, onclick: comecar,
+            text: st.comecando ? 'Começando…' : n < 2 ? 'Começar partida' : `Começar partida (${n} jogadores)`
+          }),
+          nota(n < 2 ? 'Com mais um jogador já dá para começar: não precisa esperar a mesa encher.'
+            : 'Não precisa esperar a mesa encher. Depois de começar, ninguém novo entra.'),
           el('button', { class: 'btn', text: 'Cancelar mesa', onclick: sair })
         ];
       }

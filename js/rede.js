@@ -43,7 +43,7 @@
   /** Nome como o servidor aceita (sem caracteres invisíveis, espaços simples) ou null. */
   function limparNome(bruto) {
     const s = String(bruto || '').normalize('NFC')
-      .replace(/[\u0000-\u001f\u007f-\u009f­​-‏‪-‮⁠-⁯﻿]/g, '')
+      .replace(/[\u0000-\u001f\u007f-\u009f\u00ad\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g, '')
       .replace(/\s+/g, ' ').trim();
     const n = Array.from(s).length;
     return n >= 1 && n <= TAM_NOME ? s : null;

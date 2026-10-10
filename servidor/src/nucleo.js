@@ -1,11 +1,15 @@
 /* ==========================================================================
    OUTS · servidor — nucleo.js
-   Reaproveita no servidor os mesmos arquivos do app (sem cópia). Por enquanto
-   só a aleatoriedade (rng.js, crypto.getRandomValues); na etapa 2 entram
-   baralho.js, avaliador.js e motor.js.
+   Reaproveita no servidor os mesmos arquivos do app (sem cópia): aleatoriedade
+   (crypto), baralho, avaliador de mãos, motor de apostas e as estruturas de
+   blinds e premiação. A ordem importa: cada arquivo usa os anteriores.
    ========================================================================== */
 import './janela.js';
 import '../../js/rng.js';
+import '../../js/baralho.js';
+import '../../js/avaliador.js';
+import '../../js/motor.js';
+import '../../js/torneio.js';
 
 export const P = globalThis.window.Poker;
 

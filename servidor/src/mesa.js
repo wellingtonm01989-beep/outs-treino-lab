@@ -1,25 +1,38 @@
 /* ==========================================================================
    OUTS · servidor — mesa.js
-   Durable Object "Mesa": uma instância por link. Nesta etapa cuida da sala de
-   espera: quem está sentado, em que lugar, quem é o anfitrião e quem está
-   conectado agora.
+   Durable Object "Mesa": uma instância por link. Cuida da sala de espera
+   (quem está sentado, quem é o anfitrião, quem está conectado) e da partida:
+   embaralha, guarda o baralho, manda a cada jogador só a própria vista,
+   valida as jogadas, controla o prazo de cada vez e termina com a premiação.
+   As regras entre as mãos ficam em jogo.js; a mão em si é o motor.js do app.
 
    Regras para caber no plano grátis (docs/plano-multiplayer.md):
    - WebSocket pela Hibernation API (ctx.acceptWebSocket); pings respondidos
      por setWebSocketAutoResponse, sem acordar o objeto.
-   - Nada de setTimeout: o que espera tempo usa o alarme (um só por mesa).
-   - O estado fica numa linha só ("estado"), gravada quando a sala muda.
-     Conectado/desconectado não grava nada: sai das próprias conexões.
+   - Nada de setTimeout: o que espera tempo usa o alarme (um só por mesa,
+     remarcado só quando ele toca; ver agendarAlarme).
+   - "estado" (uma linha) é gravado quando a sala muda e uma vez por mão (com
+     o baralho da mão); "acoes" (uma linha pequena) a cada jogada. Com as
+     duas, a mão em andamento é refeita igualzinha quando o objeto acorda.
+   - Blinds pelo relógio no começo de cada mão; animações e pausas no cliente.
 
-   Mensagens do cliente:  entrar {nome, token?} · sair
-   Mensagens do servidor: sala {...} · voce {lugar, token, anfitriao}
-                          erro {motivo, texto} · encerrada {motivo, texto}
+   Cliente → servidor: entrar {nome, token?} · sair · comecar (anfitrião)
+                       acao {numero, acao}
+   Servidor → cliente: sala · voce · erro {motivo, texto} · encerrada
+                       jogo (placar da partida, por jogador) · mao (eventos
+                       novos + a vista de quem recebe) · fim {classificacao}
    ========================================================================== */
 import { DurableObject } from 'cloudflare:workers';
 import { tokenNovo } from './nucleo.js';
+import * as Jogo from './jogo.js';
 
-const ABANDONO_MS = 30 * 60 * 1000;          // sala sem ninguém conectado é apagada depois disso
+const ABANDONO_MS = 30 * 60 * 1000;          // mesa sem ninguém conectado é apagada depois disso
 const VIDA_ESPERA_MS = 12 * 60 * 60 * 1000;  // sala de espera que nunca começa é apagada depois disso
+const FIM_MS = 10 * 60 * 1000;               // depois do fim, o resultado fica disponível por 10 min
+const TEMPO_ACAO_MS = 30000;                 // prazo de cada jogada
+const FOLGA_MAO_MS = 8000;                   // + animação do fim da mão anterior e da distribuição
+const FOLGA_ACAO_MS = 3000;                  // + animação da jogada anterior
+const MAX_PASSOS = 300;                      // trava do laço de jogadas automáticas
 const MAX_MENSAGEM = 1024;                   // caracteres por mensagem
 const MAX_MSGS = 20, JANELA_MSGS_MS = 10000; // no máximo 20 mensagens a cada 10 s por conexão
 const TAM_NOME = 18;
@@ -31,7 +44,8 @@ const ABERTA = 1;   // WebSocket.readyState
 const TEXTO_FIM = {
   cancelada: 'O anfitrião cancelou a mesa.',
   abandonada: 'A mesa ficou vazia e foi apagada.',
-  expirada: 'A mesa ficou tempo demais esperando e foi apagada.'
+  expirada: 'A mesa ficou tempo demais esperando e foi apagada.',
+  terminada: 'A partida terminou e a mesa foi apagada.'
 };
 
 function enviar(ws, msg) { try { ws.send(JSON.stringify(msg)); } catch (e) { /* conexão já caiu */ } }
@@ -42,7 +56,7 @@ const tokenDe = ws => (ws.deserializeAttachment() || {}).token || null;
 function limparNome(bruto) {
   if (typeof bruto !== 'string') return null;
   const s = bruto.normalize('NFC')
-    .replace(/[\u0000-\u001f\u007f-\u009f­​-‏‪-‮⁠-⁯﻿]/g, '')
+    .replace(/[\u0000-\u001f\u007f-\u009f\u00ad\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g, '')
     .replace(/\s+/g, ' ').trim();
   const n = Array.from(s).length;
   return n >= 1 && n <= TAM_NOME ? s : null;
@@ -51,12 +65,36 @@ function limparNome(bruto) {
 export class Mesa extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
-    // { codigo, config, status, criadaEm, tokenAnfitriao, jogadores: [{ token, nome, lugar, anfitriao }] }
+    // { codigo, config, status: espera|jogando|fim, criadaEm, tokenAnfitriao,
+    //   jogadores: [{ token, nome, lugar, anfitriao }], jogo (jogo.js), classificacao }
     this.estado = null;
+    this.mao = null;          // mão em andamento no motor (refeita ao acordar)
+    this.acoes = null;        // { numero, lista: [{assento, acao}], prazo }
+    this.prazo = null;        // quando acaba a vez de quem está jogando agora
+    this.enviados = 0;        // eventos da mão já transmitidos
+    this.ausentes = new Set();// assentos que caíram e perderam a vez: jogam no automático até voltar
     this.ritmo = new Map();   // ws → { inicio, n }: contagem de mensagens (só em memória)
-    this.abandonoMs = +env.ABANDONO_MS || ABANDONO_MS;   // os testes encurtam pelo wrangler dev --var
+    // os testes encurtam os tempos pelo wrangler dev --var
+    this.abandonoMs = +env.ABANDONO_MS || ABANDONO_MS;
+    this.tempoAcao = +env.TEMPO_ACAO_MS || TEMPO_ACAO_MS;
+    this.folgas = env.TEMPO_ACAO_MS ? { mao: 0, acao: 0 } : { mao: FOLGA_MAO_MS, acao: FOLGA_ACAO_MS };
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
-    ctx.blockConcurrencyWhile(async () => { this.estado = (await ctx.storage.get('estado')) || null; });
+    ctx.blockConcurrencyWhile(async () => {
+      const salvo = await ctx.storage.get(['estado', 'acoes']);
+      this.estado = salvo.get('estado') || null;
+      this.refazerMao(salvo.get('acoes'));
+    });
+  }
+
+  /** Acordou: refaz a mão em andamento a partir do baralho guardado e das jogadas. */
+  refazerMao(acoes) {
+    const jogo = this.estado && this.estado.status === 'jogando' && this.estado.jogo;
+    if (!jogo || !jogo.mao) return;
+    const desta = acoes && acoes.numero === jogo.mao.numero;
+    this.acoes = desta ? acoes : { numero: jogo.mao.numero, lista: [], prazo: null };
+    this.mao = Jogo.motorDaMao(jogo.mao, this.acoes.lista);
+    this.prazo = desta && this.acoes.lista.length ? this.acoes.prazo : jogo.mao.prazo;
+    this.enviados = this.mao.totalEventos();
   }
 
   async salvar() { await this.ctx.storage.put('estado', this.estado); }
@@ -98,6 +136,8 @@ export class Mesa extends DurableObject {
     if (!msg || typeof msg !== 'object') return this.erro(ws, 'formato', 'Mensagem inválida.');
     if (msg.tipo === 'entrar') return this.entrar(ws, msg);
     if (msg.tipo === 'sair') return this.sair(ws);
+    if (msg.tipo === 'comecar') return this.comecar(ws);
+    if (msg.tipo === 'acao') return this.acao(ws, msg);
     return this.erro(ws, 'tipo', 'Mensagem desconhecida.');
   }
 
@@ -107,27 +147,38 @@ export class Mesa extends DurableObject {
     if (!this.estado) return;
     if (tokenDe(ws)) this.transmitirSala(ws);
     // ficou sem ninguém conectado: se ninguém voltar, o alarme apaga a mesa
-    if (!this.abertos(ws).length) await this.ctx.storage.setAlarm(Date.now() + this.abandonoMs);
+    // (no fim da partida o alarme do fim já está marcado)
+    if (this.estado.status !== 'fim' && !this.abertos(ws).length) await this.ctx.storage.setAlarm(Date.now() + this.abandonoMs);
   }
 
   async webSocketError(ws) { return this.webSocketClose(ws); }
 
   async alarm() {
-    if (!this.estado) return;
+    const e = this.estado;
+    if (!e) return;
+    if (e.status === 'fim') return this.encerrar('terminada');
     if (!this.abertos().length) return this.encerrar('abandonada');
-    if (this.estado.status === 'espera') {
-      const limite = this.estado.criadaEm + VIDA_ESPERA_MS;
+    if (e.status === 'espera') {
+      const limite = e.criadaEm + VIDA_ESPERA_MS;
       if (Date.now() >= limite) return this.encerrar('expirada');
-      await this.ctx.storage.setAlarm(limite);
+      return this.ctx.storage.setAlarm(limite);
     }
+    // jogando: acabou o prazo de quem está na vez?
+    if (this.mao && !this.mao.terminada() && this.prazo && Date.now() >= this.prazo - 250) {
+      const vez = this.mao.vez();
+      // caiu a conexão: as próximas vezes dele são automáticas até ele voltar
+      if (!this.conectados().has(e.jogo.jogadores[vez].token)) this.ausentes.add(vez);
+      await this.registrarAcao(vez, Jogo.acaoAutomatica(this.mao));
+    }
+    await this.avancar();
   }
 
-  // ------------------------------------------------------------- ações
+  // ------------------------------------------------------- sala de espera
   async entrar(ws, msg) {
     const e = this.estado;
-    // esta conexão já está sentada: só repete quem ela é
+    // esta conexão já está sentada: só repete quem ela é (e o estado da partida)
     const atual = tokenDe(ws) && e.jogadores.find(x => x.token === tokenDe(ws));
-    if (atual) return enviar(ws, this.voce(atual));
+    if (atual) { enviar(ws, this.voce(atual)); return this.colocarNaPartida(ws, atual); }
 
     const token = typeof msg.token === 'string' ? msg.token : '';
     let j = token ? e.jogadores.find(x => x.token === token) : null;
@@ -156,19 +207,217 @@ export class Mesa extends DurableObject {
     ws.serializeAttachment({ token: j.token });
     enviar(ws, this.voce(j));
     this.transmitirSala();
+    await this.colocarNaPartida(ws, j);
   }
 
   async sair(ws) {
-    const j = this.estado.jogadores.find(x => x.token === tokenDe(ws));
+    const e = this.estado;
+    const j = e.jogadores.find(x => x.token === tokenDe(ws));
     if (!j) return fechar(ws, 1000, 'saiu');
-    if (j.anfitriao) return this.encerrar('cancelada');
-    this.estado.jogadores = this.estado.jogadores.filter(x => x !== j);
-    await this.salvar();
-    ws.serializeAttachment({ token: null });
+    if (e.status === 'espera') {
+      if (j.anfitriao) return this.encerrar('cancelada');
+      e.jogadores = e.jogadores.filter(x => x !== j);
+      await this.salvar();
+      ws.serializeAttachment({ token: null });
+      fechar(ws, 1000, 'saiu');
+      return this.transmitirSala(ws);
+    }
+    // durante a partida, sair é desistir (vale também para o anfitrião): larga a mão
+    // na vez dele e sai no fim da mão, com a pior colocação
     fechar(ws, 1000, 'saiu');
-    this.transmitirSala(ws);
+    const jj = e.status === 'jogando' && this.jogadorDoJogo(j.token);
+    if (jj && jj.posicao === null && !jj.desistiu) {
+      jj.desistiu = true;
+      await this.salvar();
+      await this.avancar();
+    }
   }
 
+  // --------------------------------------------------------------- partida
+  async comecar(ws) {
+    const e = this.estado;
+    const eu = e.jogadores.find(x => x.token === tokenDe(ws));
+    if (!eu || !eu.anfitriao) return this.erro(ws, 'comecar', 'Só o anfitrião começa a partida.');
+    if (e.status !== 'espera') return this.erro(ws, 'comecar', 'A partida já começou.');
+    if (e.jogadores.length < 2) return this.erro(ws, 'comecar', 'Precisa de pelo menos 2 jogadores sentados.');
+    e.status = 'jogando';
+    e.jogo = Jogo.criarJogo(e.config, e.jogadores, Date.now());
+    this.ausentes = new Set();
+    this.iniciarMao();
+    await this.salvar();
+    this.transmitirSala();
+    this.transmitirJogo();
+    await this.avancar();
+  }
+
+  async acao(ws, msg) {
+    const e = this.estado;
+    const j = e.status === 'jogando' && this.jogadorDoJogo(tokenDe(ws));
+    if (!j) return this.erro(ws, 'acao', 'Você não está jogando esta partida.');
+    this.ausentes.delete(j.assento);
+    const m = this.mao;
+    const acao = Jogo.acaoLimpa(msg.acao);
+    if (!m || m.terminada() || msg.numero !== m.numero || m.vez() !== j.assento || !acao) {
+      this.erro(ws, 'acao', 'Não é a sua vez.');
+      return this.enviarMao(ws, j.assento, this.enviados, []);
+    }
+    try {
+      await this.registrarAcao(j.assento, acao);
+    } catch (err) {
+      if (!err.doMotor) throw err;
+      this.erro(ws, 'acao', 'Jogada inválida: ' + err.message);
+      return this.enviarMao(ws, j.assento, this.enviados, []);
+    }
+    await this.avancar();
+  }
+
+  /** Aplica a jogada no motor e grava (uma linha pequena) junto com o prazo da próxima vez. */
+  async registrarAcao(assento, acao) {
+    this.mao.agir(assento, acao);
+    this.acoes.lista.push({ assento, acao });
+    this.prazo = this.mao.terminada() ? null : Date.now() + this.tempoAcao + this.folgas.acao;
+    this.acoes.prazo = this.prazo;
+    await this.ctx.storage.put('acoes', this.acoes);
+  }
+
+  /** Começa a próxima mão (quem chama grava o estado: o baralho vai junto). */
+  iniciarMao() {
+    const jogo = this.estado.jogo;
+    this.mao = Jogo.novaMao(jogo, Date.now());
+    this.prazo = Date.now() + this.tempoAcao + this.folgas.mao;
+    jogo.mao.prazo = this.prazo;
+    this.acoes = { numero: jogo.mao.numero, lista: [], prazo: this.prazo };
+    this.enviados = 0;
+  }
+
+  /**
+   * Faz o jogo andar até precisar de alguém: jogadas automáticas de quem
+   * desistiu ou caiu, fim de mão, eliminação, próxima mão. Para (pausa) se
+   * não houver ninguém jogando conectado, para não rodar mãos sozinho.
+   */
+  async avancar() {
+    const e = this.estado;
+    for (let passo = 0; passo < MAX_PASSOS && e.status === 'jogando'; passo++) {
+      if (!this.mao) {   // pausada entre mãos: volta quando alguém estiver presente
+        if (!this.alguemPresente()) return;
+        this.iniciarMao();
+        await this.salvar();
+        this.transmitirJogo();
+        continue;
+      }
+      if (!this.mao.terminada()) {
+        const vez = this.mao.vez();
+        const j = e.jogo.jogadores[vez];
+        const fora = this.ausentes.has(vez) && !this.conectados().has(j.token);
+        if (j.desistiu || fora) {
+          await this.registrarAcao(vez, j.desistiu ? 'fold' : Jogo.acaoAutomatica(this.mao));
+          continue;
+        }
+        this.transmitirMao();
+        await this.agendarAlarme(this.prazo);
+        return;
+      }
+      // fim da mão: últimos eventos, eliminações e a próxima mão (ou o fim)
+      this.transmitirMao();
+      const r = Jogo.concluirMao(e.jogo, this.mao);
+      r.eliminados.forEach(j => this.ausentes.delete(j.assento));
+      this.mao = null;
+      if (r.fim) return this.terminar();
+      if (!this.alguemPresente()) {
+        await this.salvar();
+        this.transmitirJogo();
+        return;
+      }
+      this.iniciarMao();
+      await this.salvar();
+      this.transmitirJogo();
+    }
+    // muitas jogadas automáticas seguidas: continua daqui a pouco pelo alarme
+    if (e.status === 'jogando') await this.agendarAlarme(Date.now() + 1000);
+  }
+
+  async terminar() {
+    const e = this.estado;
+    e.status = 'fim';
+    e.classificacao = Jogo.classificacao(e.jogo);
+    this.mao = null;
+    await this.salvar();
+    await this.ctx.storage.setAlarm(Date.now() + FIM_MS);
+    this.transmitirJogo();
+    const fim = this.msgFim();
+    this.abertos().forEach(ws => enviar(ws, fim));
+    this.transmitirSala();
+  }
+
+  /**
+   * Um único alarme: só marca se não houver nenhum ou se o marcado for depois.
+   * Quando ele toca e a vez ainda não acabou, é remarcado para o prazo atual.
+   */
+  async agendarAlarme(quando) {
+    if (!quando) return;
+    const atual = await this.ctx.storage.getAlarm();
+    if (atual === null || atual > quando) await this.ctx.storage.setAlarm(quando);
+  }
+
+  /** Jogador sentado que (re)conecta: recebe a partida como ela está e, se estava pausada, ela volta. */
+  async colocarNaPartida(ws, j) {
+    const e = this.estado;
+    if (e.status === 'espera') return;
+    const jj = this.jogadorDoJogo(j.token);
+    if (!jj) return;
+    enviar(ws, this.msgJogo(jj.assento));
+    if (e.status === 'fim') return enviar(ws, this.msgFim());
+    this.ausentes.delete(jj.assento);
+    if (this.mao) this.enviarMao(ws, jj.assento, 0, this.mao.eventos());
+    else await this.avancar();
+  }
+
+  // ------------------------------------------------------- mensagens do jogo
+  /** Eventos novos da mão para cada jogador conectado, com a vista dele. */
+  transmitirMao() {
+    const m = this.mao;
+    if (!m) return;
+    const evs = m.eventos();
+    if (evs.length === this.enviados) return;
+    const desde = this.enviados, novos = evs.slice(desde);
+    this.enviados = evs.length;
+    for (const ws of this.abertos()) {
+      const j = this.jogadorDoJogo(tokenDe(ws));
+      if (j) this.enviarMao(ws, j.assento, desde, novos);
+    }
+  }
+
+  enviarMao(ws, assento, desde, eventos) {
+    const m = this.mao;
+    if (!m) return;
+    const vista = m.vista(assento);
+    delete vista.eventos;          // os eventos vão à parte, só os novos
+    enviar(ws, { tipo: 'mao', numero: m.numero, desde, eventos, vista, prazo: !m.terminada() && this.prazo ? Math.max(0, this.prazo - Date.now()) : null });
+  }
+
+  transmitirJogo() {
+    for (const ws of this.abertos()) {
+      const j = this.jogadorDoJogo(tokenDe(ws));
+      if (j) enviar(ws, this.msgJogo(j.assento));
+    }
+  }
+
+  /** Placar da partida visto por um jogador (nada de cartas aqui). */
+  msgJogo(assento) {
+    const jogo = this.estado.jogo, con = this.conectados();
+    return {
+      tipo: 'jogo', codigo: this.estado.codigo, meuAssento: assento, lugares: jogo.lugares,
+      inicio: jogo.inicio, agora: Date.now(), duracaoNivel: jogo.duracaoNivel, velocidade: this.estado.config.velocidade,
+      fichasIniciais: jogo.fichasIniciais, premio: jogo.premio, premios: jogo.premios, numero: jogo.numero,
+      pausada: this.estado.status === 'jogando' && !this.mao,
+      terminada: this.estado.status === 'fim',
+      jogadores: jogo.jogadores.map(j => ({ assento: j.assento, nome: j.nome, fichas: j.fichas, posicao: j.posicao, desistiu: j.desistiu, conectado: con.has(j.token) }))
+    };
+  }
+
+  msgFim() { return { tipo: 'fim', classificacao: this.estado.classificacao, premio: this.estado.config.premio || 0 }; }
+
+  // ------------------------------------------------------------ comuns
   /** Fim da mesa: avisa todo mundo, fecha as conexões e apaga tudo (o link deixa de funcionar). */
   async encerrar(motivo) {
     for (const ws of this.ctx.getWebSockets()) {
@@ -176,14 +425,28 @@ export class Mesa extends DurableObject {
       fechar(ws, FECHA.ENCERRADA, motivo);
     }
     this.estado = null;
+    this.mao = null;
     await this.ctx.storage.deleteAlarm();
     await this.ctx.storage.deleteAll();
   }
 
-  // ------------------------------------------------------------ auxiliares
   erro(ws, motivo, texto) { enviar(ws, { tipo: 'erro', motivo, texto }); }
 
   voce(j) { return { tipo: 'voce', lugar: j.lugar, token: j.token, anfitriao: j.anfitriao }; }
+
+  jogadorDoJogo(token) {
+    const jogo = this.estado && this.estado.jogo;
+    return token && jogo ? jogo.jogadores.find(j => j.token === token) || null : null;
+  }
+
+  /** Tokens com conexão aberta agora. */
+  conectados(excluir) { return new Set(this.abertos(excluir).map(tokenDe).filter(Boolean)); }
+
+  /** Alguém que ainda está no jogo e não desistiu está conectado? */
+  alguemPresente() {
+    const con = this.conectados();
+    return Jogo.restantes(this.estado.jogo).some(j => !j.desistiu && con.has(j.token));
+  }
 
   excesso(ws) {
     const agora = Date.now();
@@ -206,7 +469,7 @@ export class Mesa extends DurableObject {
   /** O que todos veem da sala. Nunca inclui os tokens. */
   sala(excluir) {
     const e = this.estado;
-    const conectados = new Set(this.abertos(excluir).map(tokenDe).filter(Boolean));
+    const conectados = this.conectados(excluir);
     return {
       tipo: 'sala', codigo: e.codigo, status: e.status,
       config: { lugares: e.config.lugares, fichas: e.config.fichas, velocidade: e.config.velocidade, premio: e.config.premio || 0 },

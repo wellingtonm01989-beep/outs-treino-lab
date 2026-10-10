@@ -4,10 +4,11 @@ Decidido em 09/10/2026. Este arquivo é o ponto de partida para quem continuar o
 
 ## Onde paramos (10/10/2026)
 
-- **Etapa 1 feita e testada localmente** (`wrangler dev`): criar mesa, entrar pelo link só com o nome, sala de espera em tempo real, reconexão, sair/cancelar e limpeza da mesa abandonada. Ver "Etapa 1: o que existe" e "Como testar em casa".
-- **Publicado na Cloudflare em 10/10/2026:** `https://outs-mesas.outs-mesas.workers.dev` (conta wellington.m01989@gmail.com; o subdomínio `outs-mesas` foi registrado automaticamente pelo primeiro deploy e pode ser trocado no painel, em Workers → subdomínio; se trocar, atualizar `SERVIDOR_PUBLICADO` em `js/rede.js`). Testado de ponta a ponta contra o servidor publicado (criar, entrar, ping, cancelar). Pelo localhost o app continua usando o servidor local.
-- **Próximo passo:** testar pelo GitHub Pages com o celular e anotar no painel o consumo (dúvida dos 20:1 em "Cotas do plano grátis"). Depois, etapa 2.
-- Pendente das regras do plano grátis: o **contador de consumo** (regra 6) ainda não existe; faz sentido na etapa 3, quando já houver partidas de verdade para medir.
+- **Etapa 1 feita e publicada** (10/10/2026): criar mesa, entrar pelo link só com o nome, sala de espera em tempo real, reconexão, sair/cancelar e limpeza da mesa abandonada. Ver "Etapa 1: o que existe".
+- **Etapa 2 feita e testada localmente** (10/10/2026), com boa parte da 3 junto: o anfitrião começa com 2 ou mais, o servidor dá as cartas, cada um vê só as suas, jogadas validadas, prazo de 30 s com check/fold automático, blinds pelo relógio proporcionais às fichas, eliminação, desistência, reconexão no meio da mão e fim com classificação e prêmios. Ver "Etapa 2: o que existe".
+- **Servidor publicado:** `https://outs-mesas.outs-mesas.workers.dev` (conta wellington.m01989@gmail.com; o subdomínio `outs-mesas` foi registrado automaticamente pelo primeiro deploy e pode ser trocado no painel, em Workers → subdomínio; se trocar, atualizar `SERVIDOR_PUBLICADO` em `js/rede.js`). Pelo localhost o app continua usando o servidor local.
+- **Próximo passo:** publicar a etapa 2, jogar uma partida de verdade com amigos pelo celular e anotar no painel o consumo (dúvida dos 20:1 em "Cotas do plano grátis").
+- Pendente: o **contador de consumo** (regra 6); bots opcionais; o anfitrião remover quem caiu na sala de espera; lacre do baralho e relatório do coach (etapa 4).
 
 ## O que o usuário quer
 
@@ -80,7 +81,7 @@ Na prática: no pessimista, 5 mesas jogando 24 h ou ~30 mesas numa noite de 4 h;
 
 1. **Hibernar sempre.** WebSocket pela Hibernation API (`ctx.acceptWebSocket`, `webSocketMessage`, `webSocketClose`), nunca `ws.accept()`. Nada de `setTimeout`/`setInterval` no servidor: tudo que espera tempo usa **alarm**. Pings via `setWebSocketAutoResponse()`.
 2. **Um único alarme por mesa, sem remarcar a cada jogada.** Guardar o prazo da vez no estado; quando o alarme tocar, conferir de quem é a vez: se o prazo passou, check/fold automático; senão, reagendar para o prazo atual. Assim o alarme toca no máximo ~1 vez a cada 30 s (e não ~700 `setAlarm()` por hora).
-3. **Salvar o estado uma vez por mão** (uma linha com o estado serializado), não a cada jogada. Na volta da hibernação, recarregar dessa linha (e o estado da mão em andamento fica em memória enquanto o objeto está acordado; se perder, a mão é anulada, como no "retomar" do app local).
+3. **Salvar o estado uma vez por mão** (uma linha com o estado serializado, incluindo o baralho da mão) **e uma linha pequena por jogada** (a lista de jogadas da mão e o prazo da vez). *Mudado em 10/10/2026:* o objeto hiberna depois de ~10 s sem mensagens, então bastaria alguém pensar um pouco para a mão em memória se perder. Com o baralho e as jogadas gravados, o motor refaz a mão igualzinha ao acordar (testado em `teste/jogo.mjs`). Custo: ~700 linhas gravadas a mais por mesa-hora; no otimista cai de ~500 para ~110 mesa-horas/dia, ainda muito acima do que o grupo usa.
 4. **Bots e pausas no cliente.** O servidor decide a jogada do bot na hora e manda os eventos; a "pausa para pensar" e as animações acontecem na tela de cada um (como hoje em `ui-mesa.js`). O prazo do humano já inclui o tempo da animação. Bots não geram mensagens nem alarmes.
 5. **Blinds calculados pelo relógio**, no início de cada mão (nível = tempo desde o começo / duração do nível). Sem alarme para subir blind.
 6. **Contador de consumo.** O servidor soma as requisições e gravações do dia (um objeto "Contador" ou contagem aproximada por mesa-hora) e, perto de ~80% da cota, **para de criar mesas novas** com um aviso claro. Assim nenhuma partida em andamento é cortada quando a cota zera.
@@ -100,14 +101,17 @@ servidor/                 ← só em casa (Node + wrangler)
   package.json            ← npm test · npm run dev · npm run cliente · npm run deploy
   src/
     janela.js             ← define globalThis.window = globalThis (importar ANTES dos arquivos do núcleo)
-    nucleo.js             ← importa ../../js/rng.js (etapa 2: baralho.js, avaliador.js, motor.js; bots.js se usar bots)
+    nucleo.js             ← importa ../../js/rng.js, baralho.js, avaliador.js, motor.js e torneio.js (bots.js se usar bots)
     index.js              ← Worker: rotas HTTP + upgrade para WebSocket
-    mesa.js               ← Durable Object "Mesa": sala de espera (etapa 2+: estado da partida, blinds, tempo de ação)
+    mesa.js               ← Durable Object "Mesa": sala de espera, partida, prazo da vez, reconexão, fim
+    jogo.js               ← regras entre as mãos (blinds pelo relógio, nova mão, refazer a mão, eliminação, prêmios)
   teste/
+    jogo.mjs              ← testes das regras direto no Node (inclui refazer a mão depois de "dormir")
     sala.mjs              ← simulação com vários clientes WebSocket (sobe o wrangler dev sozinho)
     servir-cliente.mjs    ← serve o app em http://localhost:8080 para testar com o servidor local
 js/rede.js                ← cliente: conexão WebSocket, reconexão, mensagens, token da aba
-js/ui-amigos.js           ← aba "Mesa com amigos": criar mesa, sala de espera, entrar pelo link
+js/ui-amigos.js           ← aba "Mesa com amigos": criar mesa, sala de espera, começar, resultado
+js/partida-remota.js      ← a partida vista daqui: fala com ui-mesa.js pelos mesmos callbacks de partida.js
 css/amigos.css
 ```
 
@@ -155,19 +159,32 @@ Segurança do servidor: aceitar só a origem `https://wellingtonm01989-beep.gith
 - Códigos de fechamento definitivos (o cliente não reconecta): 1009 mensagem grande, 4001 outra aba, 4008 excesso de mensagens, 4404 mesa inexistente, 4410 mesa encerrada. Nos outros casos o cliente reconecta sozinho (1 s, 2 s, 4 s… até 15 s, e na hora em que a internet ou a aba voltam) e reenvia `entrar {token}`.
 - **Ponto para decidir:** o token fica no **sessionStorage** (um por aba, o que permite testar com várias abas). Quem **fechar a aba** e abrir o link de novo (por exemplo, saiu do navegador do WhatsApp para o Chrome) vira outra pessoa, e o lugar antigo fica "desconectado" com o nome ocupado. Opções para a etapa 3: o anfitrião remover quem caiu na sala de espera, ou guardar o token também no localStorage.
 
-No cliente, a ideia é uma "partida remota" que chama os **mesmos callbacks de interface** que `P.Partida` usa hoje (`aoNovaMao`, `aoEventos`, `aoVezDoBot`, `pedirAcao`, `aoFimDaMao`, `aoFimDaPartida`...), para reaproveitar `js/ui-mesa.js` inteiro.
+### Etapa 2: o que existe
+
+- Mensagens novas. Cliente → servidor: `comecar` (só o anfitrião, com 2 ou mais sentados) e `acao {numero, acao}` (`fold`, `check`, `call`, `allin` ou `{tipo: bet|raise, ate}`; `numero` é o da mão, para não valer numa mão errada). Servidor → cliente:
+  - `jogo`: o placar visto por aquele jogador (`meuAssento`, jogadores com fichas, colocação, desistência e conexão, relógio dos blinds `inicio`/`agora`/`duracaoNivel`, prêmios congelados, `pausada`, `terminada`). Vai no começo, a cada mão nova e ao reconectar.
+  - `mao`: `{numero, desde, eventos, vista, prazo}`, com os eventos novos do motor a partir do índice `desde`, a vista só daquele jogador (sem os eventos) e os ms que faltam para quem está na vez. Ao reconectar, vai com `desde: 0` e a mão inteira.
+  - `fim {classificacao: [{posicao, assento, nome, premio, desistiu}], premio}`.
+- A partida usa só quem estava sentado ao começar: os assentos do motor (0..n-1) seguem a ordem dos lugares da sala. Depois de começar, ninguém novo senta (`erro comecou`).
+- Prêmios congelados no começo pelo número de jogadores que começaram. Blinds: `P.Estruturas.nivelSNGProporcional(nivel, fichas)` (com 1.500 é a estrutura do SNG do app).
+- **Prazo:** 30 s por vez (+8 s no começo da mão e +3 s depois de cada jogada, para as animações). Esgotou: check se der, senão fold. Quem caiu e perdeu a vez fica "ausente" e joga no automático, sem esperar, até voltar. Se ninguém que está jogando estiver conectado, a partida para entre as mãos e volta quando alguém reconectar.
+- **Desistir:** "Sair da mesa" durante a partida pede confirmação; o servidor larga a mão do desistente na vez dele e no fim da mão ele sai com a pior colocação (as fichas dele saem do jogo).
+- Quem é eliminado continua vendo a mesa (ou sai e pode voltar a assistir pela aba). No fim, todos veem a classificação e os prêmios; a mesa é apagada 10 min depois.
+- **No navegador** (`js/partida-remota.js`): conversa com `ui-mesa.js` pelos mesmos callbacks de `partida.js`. Os assentos giram para cada um se ver embaixo. O coach fica escondido. As mensagens são tratadas em fila no ritmo das animações; com a aba escondida ou mais de uma mão de atraso, os eventos são aplicados sem animação. Avatares são fixos pelo nome.
+
+No cliente, a "partida remota" chama os **mesmos callbacks de interface** que `P.Partida` usa (`aoNovaMao`, `aoEventos`, `pedirAcao`, `aoFimDaMao`...), e `js/ui-mesa.js` ganhou só três callbacks (`marcarVez`, `cancelarPedido`, `acelerar`) e a opção `cfg.remota`.
 
 ## Premiação e acerto (fora do app)
 
 - **Já feito (10/10/2026):** na criação o anfitrião digita o prêmio total fixo em R$ (só informativo; vai no `POST /mesas` como `premio` em centavos, de 0 a R$ 10.000). A sala de espera mostra o prêmio e a divisão com quem está sentado agora (`P.Estruturas.percentuaisSNG` + `valoresPremios`), e o convite do WhatsApp cita o prêmio.
-- Falta (etapa 4): congelar a divisão pelo número de jogadores **quando a partida começar** e mostrar na mesa o prêmio de cada posição.
-- No fim: classificação final + "quanto cada um recebe", para o organizador pagar por Pix. Histórico de cada mão com a ordem do baralho e o lacre para tirar dúvidas.
+- **Feito na etapa 2:** a divisão é congelada quando a partida começa, a mesa mostra os prêmios no placar do torneio e o fim mostra a classificação com "quanto cada um recebe", para o organizador pagar por Pix.
+- Falta (etapa 4): histórico de cada mão com a ordem do baralho e o lacre, para tirar dúvidas.
 
 ## Etapas
 
 1. **Servidor mínimo** (casa): criar mesa, entrar pelo link com nome, sala de espera em tempo real. Teste com várias abas. **Feita e publicada em 10/10/2026.**
-2. **Jogo em rede**: motor no Durable Object, vistas por jogador, ações validadas, animações no cliente via `ui-mesa.js`. `comecar` só do anfitrião, com 2 ou mais sentados (a mesa não precisa estar cheia); ao começar, a sala fecha para novas entradas.
-3. **Torneio completo**: blinds pelo relógio (proporcionais às fichas iniciais: a estrutura do Sit & Go do app foi feita para 1.500), eliminação, tempo de ação, reconexão, bots opcionais, fim da partida e limpeza da mesa.
+2. **Jogo em rede**: motor no Durable Object, vistas por jogador, ações validadas, animações no cliente via `ui-mesa.js`. `comecar` só do anfitrião, com 2 ou mais sentados (a mesa não precisa estar cheia); ao começar, a sala fecha para novas entradas. **Feita em 10/10/2026.**
+3. **Torneio completo**: blinds pelo relógio (proporcionais às fichas iniciais), eliminação, tempo de ação, reconexão, fim da partida e limpeza da mesa: **feitos junto com a etapa 2.** Faltam: bots opcionais, contador de consumo (regra 6) e o anfitrião poder remover quem caiu na sala de espera.
 4. **Lacre do baralho + premiação/acerto + relatório do coach no fim.**
 5. **Testes**: simulação automática com N clientes (casa) + roteiro de interface no navegador (trabalho) + partida real com amigos.
 
@@ -184,6 +201,6 @@ No cliente, a ideia é uma "partida remota" que chama os **mesmos callbacks de i
 
 Dentro de `servidor/` (na primeira vez: `npm install`):
 
-- `npm test`: simulação automática com vários clientes WebSocket. Sobe o `wrangler dev` sozinho numa porta própria, com o tempo de abandono encurtado. São 17 cenários: origem, opções inválidas, mesa inexistente, anfitrião, convidado, nomes, mesa cheia, queda e reconexão, outra aba, ping, sair, mensagens inválidas, excesso, cancelar e alarme de abandono.
+- `npm test`: primeiro as regras do jogo direto no Node (`teste/jogo.mjs`, 7 testes: blinds proporcionais, refazer a mão depois de "dormir", cartas só para o dono, eliminação/colocação/prêmios, desistência, jogadas limpas). Depois a simulação com vários clientes WebSocket (`teste/sala.mjs`): sobe o `wrangler dev` sozinho numa porta própria, com o tempo de abandono e o prazo da vez encurtados. São 25 cenários: os 17 da sala de espera e 8 da partida (só o anfitrião começa, cartas só para o dono, jogada fora da vez, jogada valendo para todos, prazo esgotado, reconexão com a mão inteira, partida até o fim com prêmios e desistência).
 - Teste com várias abas: `npm run dev` (servidor em http://localhost:8787) e, em outro terminal, `npm run cliente` (app em http://localhost:8080). Abrir http://localhost:8080 → aba **Mesa com amigos** → criar a mesa → abrir o link em outras abas. Pelo localhost o app usa o servidor local sozinho.
 - No Windows, se a porta 8787 continuar ocupada depois de parar o `npm run dev`, sobrou um `workerd.exe`: fechar pelo Gerenciador de Tarefas.

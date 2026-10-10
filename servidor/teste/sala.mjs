@@ -17,13 +17,14 @@ const HTTP = `http://127.0.0.1:${PORTA}`;
 const WS = `ws://127.0.0.1:${PORTA}`;
 const ORIGEM = 'http://localhost:8080';
 const ABANDONO_MS = 3000;
+const TEMPO_ACAO_MS = 2000;   // prazo de cada jogada, encurtado para os testes
 const dormir = ms => new Promise(r => setTimeout(r, ms));
 
 // ------------------------------------------------------------ servidor
 const estado = mkdtempSync(join(tmpdir(), 'outs-mesas-'));
 const wrangler = spawn(process.execPath, [join(PASTA, 'node_modules/wrangler/bin/wrangler.js'), 'dev',
   '--port', String(PORTA), '--ip', '127.0.0.1', '--persist-to', estado, '--show-interactive-dev-session=false',
-  '--var', 'PERMITIR_LOCALHOST:1', '--var', `ABANDONO_MS:${ABANDONO_MS}`], {
+  '--var', 'PERMITIR_LOCALHOST:1', '--var', `ABANDONO_MS:${ABANDONO_MS}`, '--var', `TEMPO_ACAO_MS:${TEMPO_ACAO_MS}`], {
   cwd: PASTA, env: Object.assign({}, process.env, { WRANGLER_SEND_METRICS: 'false' }), stdio: ['ignore', 'pipe', 'pipe']
 });
 let saidaServidor = '';
@@ -62,7 +63,14 @@ class Cliente {
   /** Abre a conexão. Resolve 'aberta' ou 'recusada' (fechou antes de abrir). */
   abrir(codigo, origem = ORIGEM) {
     this.ws = new WebSocket(`${WS}/mesas/${codigo}/ws`, { headers: { Origin: origem } });
-    this.ws.onmessage = e => { this.fila.push(e.data === 'pong' ? { tipo: 'pong' } : JSON.parse(e.data)); this.ouvintes.forEach(f => f()); };
+    this.ws.onmessage = e => {
+      const m = e.data === 'pong' ? { tipo: 'pong' } : JSON.parse(e.data);
+      if (m.tipo === 'mao') this.mao = m;          // última vista recebida (para jogar)
+      if (m.tipo === 'jogo') this.jogo = m;
+      if (m.tipo === 'fim') this.fim = m;
+      this.fila.push(m);
+      this.ouvintes.forEach(f => f());
+    };
     this.fechado = new Promise(r => { this.ws.onclose = e => r({ code: e.code, reason: e.reason }); });
     return Promise.race([
       new Promise(r => { this.ws.onopen = () => r('aberta'); }),
@@ -307,6 +315,160 @@ teste('mesa abandonada é apagada pelo alarme', async () => {
     await c.abrir(cod);
     igual((await c.espera('erro')).motivo, 'inexistente', cod + ' apagada');
   }
+});
+
+// ------------------------------------------------------------- partida
+/** Mesa com anfitrião e convidados já sentados: [anfitrião, ...convidados]. */
+async function mesaCom(nomes, config) {
+  const r = await criarMesa(Object.assign({ lugares: 6, fichas: 1500, velocidade: 'turbo', premio: 2000 }, config));
+  const { codigo, tokenAnfitriao } = await r.json();
+  const clientes = [];
+  for (let i = 0; i < nomes.length; i++) {
+    const c = await conectado(nomes[i], codigo);
+    c.enviar({ tipo: 'entrar', nome: nomes[i], token: i === 0 ? tokenAnfitriao : undefined });
+    c.token = (await c.espera('voce')).token;
+    clientes.push(c);
+  }
+  return { codigo, clientes };
+}
+
+const daVez = c => c.mao && c.mao.vista.acoes && !c.mao.vista.terminada ? c : null;
+
+/** Joga pelas regras de "politica" até a condição valer (cada cliente age quando chega a vez dele). */
+async function jogarAte(clientes, cond, politica, ms = 20000) {
+  const t0 = Date.now(), feitas = new Map();
+  while (!cond()) {
+    if (Date.now() - t0 > ms) throw new Error('tempo esgotado jogando; última mão: ' + JSON.stringify(clientes.map(c => c.mao && { n: c.mao.numero, vez: c.mao.vista.vez })));
+    for (const c of clientes) {
+      const m = daVez(c);
+      const chave = m && `${m.mao.numero}:${m.mao.desde + m.mao.eventos.length}`;
+      if (m && feitas.get(c) !== chave) {
+        feitas.set(c, chave);
+        c.enviar({ tipo: 'acao', numero: m.mao.numero, acao: politica(m.mao.vista.acoes) });
+      }
+    }
+    await dormir(15);
+  }
+}
+const pagaTudo = v => (v.podeCheck ? 'check' : 'call');
+const allin = v => (v.podeApostar ? 'allin' : v.podeCheck ? 'check' : 'call');
+
+teste('partida: só o anfitrião começa, com 2 ou mais sentados', async () => {
+  const { codigo, clientes: [ana] } = await mesaCom(['Ana']);
+  ana.enviar({ tipo: 'comecar' });
+  igual((await ana.espera('erro')).motivo, 'comecar', 'sozinha não começa');
+  const bia = await conectado('Bia', codigo);
+  bia.enviar({ tipo: 'entrar', nome: 'Bia' });
+  bia.token = (await bia.espera('voce')).token;
+  bia.enviar({ tipo: 'comecar' });
+  igual((await bia.espera('erro')).motivo, 'comecar', 'convidada não começa');
+  ana.enviar({ tipo: 'comecar' });   // mesa de 6 com 2: não precisa encher
+  for (const c of [ana, bia]) {
+    await c.espera(salaCom(s => s.status === 'jogando'));
+    const j = await c.espera('jogo');
+    igual(j.lugares, 2, c.rotulo + ': a partida usa só quem está sentado');
+    igual(j.jogadores.length, 2, c.rotulo + ': jogadores');
+    igual((await c.espera('mao')).numero, 1, c.rotulo + ': primeira mão');
+  }
+  const caio = await conectado('Caio', codigo);
+  caio.enviar({ tipo: 'entrar', nome: 'Caio' });
+  igual((await caio.espera('erro')).motivo, 'comecou', 'depois de começar ninguém novo senta');
+  Object.assign(ctx, { p1: { codigo, ana, bia } });
+});
+
+teste('partida: cada um vê só as próprias cartas', async () => {
+  const { ana, bia } = ctx.p1;
+  for (const c of [ana, bia]) {
+    const eu = c.jogo.meuAssento;
+    c.mao.vista.jogadores.forEach(j => {
+      if (j.assento === eu) ok(j.cartas && j.cartas.length === 2, c.rotulo + ': vê as próprias cartas');
+      else ok(j.cartas === null, c.rotulo + ': não vê as cartas do outro');
+    });
+    ok(!JSON.stringify(c.mao).includes('baralho'), 'o baralho nunca sai do servidor');
+  }
+  igual(ana.jogo.meuAssento === bia.jogo.meuAssento, false, 'assentos diferentes');
+});
+
+teste('partida: jogada fora da vez é recusada', async () => {
+  const { ana, bia } = ctx.p1;
+  const fora = daVez(ana) ? bia : ana;
+  fora.enviar({ tipo: 'acao', numero: fora.mao.numero, acao: 'fold' });
+  igual((await fora.espera('erro')).motivo, 'acao', 'erro');
+  const m = await fora.espera('mao');
+  igual(m.eventos.length, 0, 'recebe a vista de novo, sem eventos');
+});
+
+teste('partida: a jogada vale para os dois (e quem está na vez recebe o prazo)', async () => {
+  const { ana, bia } = ctx.p1;
+  const vez = daVez(ana) || daVez(bia);
+  ok(vez, 'alguém está na vez');
+  ok(vez.mao.prazo > 0 && vez.mao.prazo <= TEMPO_ACAO_MS, 'prazo em ms: ' + vez.mao.prazo);
+  const n = vez.mao.numero;
+  vez.enviar({ tipo: 'acao', numero: n, acao: 'call' });
+  for (const c of [ana, bia]) {
+    const m = await c.espera(x => x.tipo === 'mao' && x.eventos.some(e => e.tipo === 'acao' && e.acao === 'call'));
+    igual(m.numero, n, c.rotulo + ': mesma mão');
+  }
+});
+
+teste('partida: prazo esgotado passa ou larga sozinho', async () => {
+  const { ana, bia } = ctx.p1;
+  await dormir(100);
+  const vez = daVez(ana) || daVez(bia);
+  ok(vez, 'alguém está na vez');
+  const meu = vez.jogo.meuAssento;
+  // ninguém joga: o servidor joga por quem está na vez quando o prazo acaba
+  const m = await ana.espera(x => x.tipo === 'mao' && x.eventos.some(e => e.tipo === 'acao' && e.assento === meu), TEMPO_ACAO_MS + 3000);
+  const ev = m.eventos.find(e => e.tipo === 'acao' && e.assento === meu);
+  ok(ev.acao === 'check' || ev.acao === 'fold', 'jogada automática: ' + ev.acao);
+});
+
+teste('partida: quem reconecta recebe a mão inteira e o placar', async () => {
+  const { codigo, bia } = ctx.p1;
+  await bia.fechar();
+  const volta = await conectado('Bia (volta)', codigo);
+  volta.enviar({ tipo: 'entrar', token: bia.token });
+  await volta.espera('voce');
+  const j = await volta.espera('jogo');
+  ok(j.jogadores.some(x => x.nome === 'Bia'), 'placar');
+  const m = await volta.espera('mao');
+  igual(m.desde, 0, 'desde o começo');
+  igual(m.eventos[0].tipo, 'inicio', 'primeiro evento é o início da mão');
+  ok(m.vista.jogadores.find(x => x.assento === j.meuAssento).cartas.length === 2, 'as próprias cartas de volta');
+  volta.token = bia.token;
+  ctx.p1.bia = volta;
+  ctx.p1.biaVoltou = true;
+});
+
+teste('partida: até o fim, com colocação e premiação', async () => {
+  const { ana, bia, biaVoltou } = ctx.p1;
+  ok(biaVoltou, 'depende do cenário da reconexão');
+  await jogarAte([ana, bia], () => ana.fim && bia.fim, allin, 30000);
+  const c = ana.fim.classificacao;
+  igual(c.length, 2, 'dois classificados');
+  igual(c[0].posicao, 1, '1º');
+  igual(c[0].premio, 2000, '2 jogadores: o campeão leva os R$ 20,00');
+  igual(c[1].premio, 0, '2º sem prêmio');
+  igual(JSON.stringify(bia.fim), JSON.stringify(ana.fim), 'os dois veem o mesmo resultado');
+  const campeao = ana.jogo.jogadores.find(x => x.posicao === 1);
+  igual(campeao.fichas, 3000, 'o campeão fica com todas as fichas');
+  ana.enviar({ tipo: 'acao', numero: 1, acao: 'fold' });
+  igual((await ana.espera('erro')).motivo, 'acao', 'depois do fim não há jogada');
+});
+
+teste('partida: quem desiste sai no fim da mão, em último', async () => {
+  const { clientes: [ana, bia, caio] } = await mesaCom(['Ana', 'Bia', 'Caio']);
+  ana.enviar({ tipo: 'comecar' });
+  for (const c of [ana, bia, caio]) await c.espera('mao');
+  const assentoCaio = caio.jogo.meuAssento;
+  caio.enviar({ tipo: 'sair' });
+  igual(await caio.fechamento(), 1000, 'conexão do Caio fechada');
+  // os outros jogam até o Caio aparecer eliminado
+  await jogarAte([ana, bia], () => ana.jogo.jogadores[assentoCaio].posicao !== null, pagaTudo, 20000);
+  const caioNoPlacar = ana.jogo.jogadores[assentoCaio];
+  igual(caioNoPlacar.posicao, 3, 'Caio em 3º');
+  igual(caioNoPlacar.desistiu, true, 'marcado como desistente');
+  ok(!ana.fim, 'a partida continua para os outros dois');
 });
 
 async function rodar() {

@@ -66,6 +66,24 @@
     return { sb: Math.round(u.sb * f), bb: Math.round(u.bb * f), ante: Math.round(u.bb * f), anteBB: true };
   }
 
+  /** Arredonda para um valor "redondo" de ficha (1, 5, 25, 100 ou 500 conforme o tamanho). */
+  function fichaRedonda(x) {
+    var passo = x < 20 ? 1 : x < 100 ? 5 : x < 1000 ? 25 : x < 10000 ? 100 : 500;
+    return Math.max(passo, Math.round(x / passo) * passo);
+  }
+
+  /**
+   * Nível do SNG para qualquer stack inicial (mesa com amigos): a estrutura de
+   * 1.500 fichas multiplicada pela proporção e arredondada. Com 1.500 é igual a nivelSNG.
+   */
+  function nivelSNGProporcional(i, stack) {
+    var n = nivelSNG(i), f = (stack || SNG_STACK) / SNG_STACK;
+    if (f === 1) return n;
+    var bb = fichaRedonda(n.bb * f);
+    var sb = Math.min(bb - 1, fichaRedonda(n.sb * f));
+    return { sb: Math.max(1, sb), bb: bb, ante: n.ante ? fichaRedonda(n.ante * f) : 0, anteBB: false };
+  }
+
   // ------------------------------------------------------------- premiação
   /**
    * Percentuais do SNG: 2 jogadores 100%; 3-6: 65/35; 7-9: 50/30/20.
@@ -110,6 +128,7 @@
     TORNEIO_DURACAO: TORNEIO_DURACAO,
     nivelSNG: nivelSNG,
     nivelTorneio: nivelTorneio,
+    nivelSNGProporcional: nivelSNGProporcional,
     percentuaisSNG: percentuaisSNG,
     percentuaisTorneio: percentuaisTorneio,
     valoresPremios: valoresPremios
