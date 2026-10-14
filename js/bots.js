@@ -741,6 +741,7 @@
     categoriaDe: categoriaDe,
     decidir: decidir,
     normalizar: normalizar,
+    sortearAvatar: sortearAvatar,     // usado também pelos bots do truco
     // expostos para os testes
     evShove: evShove,
     pctDoShove: pctDoShove

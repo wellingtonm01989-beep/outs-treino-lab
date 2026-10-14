@@ -1,7 +1,7 @@
 {
   "name": "OUTS · Treino Lab",
   "short_name": "OUTS Treino",
-  "description": "Treinador de No-Limit Hold'em com coach de matemática. Dinheiro fictício.",
+  "description": "Treinador de No-Limit Hold'em e truco paulista com coach de matemática. Dinheiro fictício.",
   "id": "./",
   "start_url": "./",
   "scope": "./",

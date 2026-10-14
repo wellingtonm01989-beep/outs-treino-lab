@@ -203,6 +203,54 @@
     await ate(() => $('.mini-mesa-replay'), 3000, 'histórico');
     P.App.irPara('auditoria');
     passo('telas ok');
+
+    // 10) truco: 1 contra 1 com o coach, pedir truco, jogar, sair (fica salva), continuar e descartar
+    P.App.irPara('truco');
+    await ate(() => $('.truco-novo'), 3000, 'tela do truco');
+    if (!$('.tr-regras details')) throw new Error('faltou o "como jogar" do truco');
+    clicar(botaoComTexto('1 contra 1'));
+    clicar(botaoComTexto('Dicas sempre'));
+    clicar(botaoComTexto('Começar partida'));
+    await ate(() => $('.tr-jogo') && $('#app').classList.contains('em-jogo'), 5000, 'mesa do truco');
+    let acoes = 0, pediu = false;
+    const t0 = Date.now();
+    while (acoes < 5) {
+      if (Date.now() - t0 > 90000) throw new Error('truco: tempo esgotado jogando');
+      const prox = $('.tr-fim .btn-ouro'), aceitar = $('.tr-acoes .btn-aceitar:not(:disabled)'), carta = $('.tr-mao.jogavel .tr-carta-mao');
+      if (prox) clicar(prox);
+      else if (aceitar) { clicar(aceitar); acoes++; }
+      else if (carta && !$('.tr-coach .calc')) {
+        const truco = $('.tr-acoes .btn-truco:not(:disabled)');
+        if (!pediu && truco) { clicar(truco); pediu = true; } else clicar(carta);
+        acoes++;
+      }
+      await dormir(200);
+    }
+    const jogoT = P.UITrucoMesa._jogo();
+    if (!jogoT || !jogoT.notas.length) throw new Error('truco: o coach não avaliou nenhuma decisão');
+    clicar($('.tr-coach'));
+    await ate(() => $('.modal .tr-coach-modal'), 3000, 'coach do truco');
+    clicar($('.modal .fechar'));
+    clicar($('.tr-barra button[title="Menu"]'));
+    await ate(() => $('.modal .menu-mesa'), 3000, 'menu do truco');
+    clicar(botaoComTexto('Sair da partida', '.modal'));
+    await ate(() => botaoComTexto('Continuar jogando', '.modal'), 3000, 'confirmação de saída');
+    clicar(botaoComTexto('Sair', '.modal .modal-rodape'));
+    await ate(() => $('.truco-continuar') && !$('#app').classList.contains('em-jogo'), 5000, 'partida salva');
+    clicar(botaoComTexto('Continuar', '.truco-continuar'));
+    await ate(() => $('.tr-jogo'), 5000, 'partida retomada');
+    await dormir(400);
+    clicar($('.tr-barra button[title="Menu"]'));
+    await ate(() => $('.modal .menu-mesa'), 3000, 'menu do truco 2');
+    clicar(botaoComTexto('Sair da partida', '.modal'));
+    await ate(() => botaoComTexto('Continuar jogando', '.modal'), 3000, 'confirmação de saída 2');
+    clicar(botaoComTexto('Sair', '.modal .modal-rodape'));
+    await ate(() => $('.truco-continuar'), 5000, 'partida salva 2');
+    clicar(botaoComTexto('Descartar', '.truco-continuar'));
+    await ate(() => botaoComTexto('Manter', '.modal'), 3000, 'confirmação de descarte');
+    clicar(botaoComTexto('Descartar', '.modal .modal-rodape'));
+    await ate(() => !$('.truco-continuar') && $('.truco-novo'), 3000, 'partida descartada');
+    passo(`truco ok (${jogoT.notas.length} notas do coach)`);
   }
 
   // dentro do simulador de celular (testes/celular.html) o resultado vai também para a página de fora

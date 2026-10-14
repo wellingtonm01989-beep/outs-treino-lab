@@ -23,6 +23,15 @@ A mesa se ajusta ao celular em pé (mesa vertical, botões grandes embaixo) e de
 - **Coach**: dicas sempre visíveis, só quando pedir, modo quiz ou desligado. No fim de cada partida, uma análise completa do desempenho.
 - **Treino relâmpago, estatísticas, histórico com replay e auditoria do embaralhamento** (1.000.000 de baralhos testados).
 
+## Truco paulista
+
+Na aba **Truco**: 1 contra 1 ou em dupla (você e um parceiro bot contra dois), com vira e manilhas, truco/seis/nove/doze, carta coberta, mão de 11, mão de ferro e os sinais do parceiro. Partida até 12 pontos, sem dinheiro.
+
+- **Coach para quem está aprendendo**: na sua vez, a chance de ganhar a mão com cada carta (simulando as cartas que você não vê), qual jogar e se vale pedir truco — com a conta do blefe. Quando pedem truco para você, a chance mínima para aceitar (correr custa 1, aceitar arrisca 3 → 33%; no seis 25%), corrigida pelo placar perto do fim. Nota em cada decisão e resumo no fim da partida.
+- **Bots** Cauteloso, Esperto e Trucador, sorteados a cada partida. Eles só enxergam as próprias cartas e o que está na mesa; o Esperto repara se você corre muito e blefa mais.
+- **Como jogar** com as cartas na tela e **treino de cartas** (qual é a manilha, qual carta ganha).
+- A partida fica salva no começo de cada mão: se o app fechar, ela volta.
+
 ## Testes
 
 Abra `testes.html` no navegador para rodar todos os testes automáticos. `testes/celular.html` mostra o app em telas do tamanho de celulares.

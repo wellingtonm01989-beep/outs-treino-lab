@@ -1,20 +1,22 @@
 /* ==========================================================================
    OUTS · Treino Lab — main.js
    Inicialização e navegação entre telas (lobby, mesa, mesa com amigos,
-   treino relâmpago, estatísticas, histórico, auditoria), banca, som e
+   truco, treino relâmpago, estatísticas, histórico, auditoria), banca, som e
    preferências visuais. Um link #mesa=CODIGO abre direto a mesa com amigos.
 
    Parâmetros de URL usados só para testes automáticos:
      ?demo=cash|sng|torneio&lugares=N   abre direto uma mesa (&participantes=N no SNG)
      &autoheroi=1&maos=N                o herói joga sozinho N mãos
      ?tela=treino|estatisticas|...      abre direto uma tela
+     ?truco=demo&jogadores=2|4          abre direto uma partida de truco
+       &auto=1                          você joga sozinho seguindo o coach
    ========================================================================== */
 (function (P) {
   'use strict';
 
   const { $, $$ } = P.UI;
   const F = P.Formato;
-  const TELAS = ['lobby', 'mesa', 'amigos', 'treino', 'estatisticas', 'historico', 'auditoria'];
+  const TELAS = ['lobby', 'mesa', 'amigos', 'truco', 'treino', 'estatisticas', 'historico', 'auditoria'];
   let telaAtual = 'lobby';
 
   const ICONE_SOM = on => on
@@ -32,6 +34,7 @@
   function irPara(tela) {
     if (TELAS.indexOf(tela) < 0) tela = 'lobby';
     if (telaAtual === 'mesa' && tela !== 'mesa' && P.UIMesa.emJogo()) P.UIMesa.encerrar(true);
+    if (telaAtual === 'truco' && tela !== 'truco' && P.UITrucoMesa.emJogo()) P.UITrucoMesa.encerrar();
     telaAtual = tela;
     TELAS.forEach(t => $('#tela-' + t).classList.toggle('oculto', t !== tela));
     $('#app').classList.toggle('em-jogo', tela === 'mesa');
@@ -41,6 +44,7 @@
     const raiz = $('#tela-' + tela);
     if (tela === 'lobby') P.UILobby.render();
     else if (tela === 'amigos') P.UIAmigos.render();
+    else if (tela === 'truco') P.UITruco.render();
     else if (tela === 'treino') P.UIPaineis.renderTreino(raiz);
     else if (tela === 'estatisticas') P.UIPaineis.renderEstatisticas(raiz);
     else if (tela === 'historico') P.UIPaineis.renderHistorico(raiz);
@@ -149,6 +153,15 @@
       document.body.appendChild(Object.assign(document.createElement('script'), { src: arquivo }));
       return;
     }
+    // truco direto (testes): ?truco=demo&jogadores=4&auto=1
+    if (parametro('truco')) {
+      irPara('truco');
+      const op = { n: +parametro('jogadores') === 2 ? 2 : 4, semSalvar: true };
+      if (parametro('auto')) Object.assign(op, { autoHeroi: true, velocidade: 0.05, amostras: 120 });
+      if (parametro('coach')) op.coach = parametro('coach');
+      P.UITrucoMesa.iniciar(op);
+      return;
+    }
     const demo = parametro('demo');
     if (demo) {
       const E = P.Estruturas;
@@ -174,6 +187,8 @@
       else retomar(salva, interrupcao);
       return;
     }
+    // partida de truco que ficou aberta: volta para ela
+    if (P.UITruco.retomarSeHouver()) return;
     irPara(parametro('tela') || 'lobby');
   }
 
