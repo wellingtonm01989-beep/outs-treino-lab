@@ -104,7 +104,7 @@
     if (vista.cegas) {
       return { cegas: true, linhas: ['<b>Mão de ferro:</b> 11 a 11, ninguém vê as próprias cartas e não tem truco. É pura sorte: escolha qualquer uma. Quem ganhar a mão ganha a partida.'], resumo: 'Mão de ferro: escolha qualquer carta' };
     }
-    const an = IA.analisar(vista, { amostras: (opts && opts.amostras) || 400, perfis: opts && opts.perfis });
+    const an = IA.analisar(vista, { amostras: (opts && opts.amostras) || 400, perfis: opts && opts.perfis, modelos: opts && opts.modelos });
     const melhor = an.cartas[0];
     const linhas = [];
     if (an.cartas.length === 1 && vista.cartas.length === 1) {
@@ -126,7 +126,7 @@
       const nivel = vista.nivel + 1, nomeP = nomesDe(vista)[nivel].toLowerCase();
       const t = an.truco, p = an.p;
       const conta = `Se pedir: eles correm ~${pct(t.correm)} das vezes (vocês levam ${pontos(t.vale)}); quando aceitam, você ganha ${pct(t.pAceito)} valendo ${t.novo}.`;
-      // pedir com a mão na frente quando a conta fecha; blefe só aparece como informação (contra estes bots ele rende pouco)
+      // pedir com a mão na frente quando a conta fecha; blefe só aparece como informação (os bots aprendem quem blefa demais)
       if (p >= 0.5 && t.ganho > 0.05) {
         truco = 'pedir';
         linhaTruco = `<b>Peça ${nomeP}!</b> ${conta}`;
@@ -139,7 +139,7 @@
       } else {
         truco = 'nao';
         linhaTruco = t.ganho > 0.05
-          ? `Pedir ${nomeP} seria blefe (chance ${pct(p)}): a conta até fecha, mas é arriscado — se lerem o blefe, a mão vale ${t.novo}. ${conta}`
+          ? `Pedir ${nomeP} seria blefe (chance ${pct(p)}): pela leitura de agora a conta fecha, mas use com moderação — os bots reparam em quem blefa muito e passam a aceitar mais. ${conta}`
           : p < 0.2 ? `Não peça ${nomeP} agora (chance ${pct(p)}).` : `Não peça ${nomeP} agora (chance ${pct(p)}). ${conta}`;
       }
       if (p >= 0.2 || t.ganho > 0.05) linhaTruco += ` Saldo de pedir: ${t.ganho >= 0 ? '+' : ''}${t.ganho.toFixed(2).replace('.', ',')} ponto por mão.`;
@@ -162,7 +162,7 @@
   // ------------------------------------------------- pediram truco
   function resposta(vista, nivel, opts) {
     configurar(opts);
-    const an = IA.analisar(vista, { amostras: (opts && opts.amostras) || 400, perfis: opts && opts.perfis });
+    const an = IA.analisar(vista, { amostras: (opts && opts.amostras) || 400, perfis: opts && opts.perfis, modelos: opts && opts.modelos });
     const p = an.p;
     const valores = valoresDe(vista);
     const vale = valores[nivel - 1], novo = valores[nivel];
@@ -200,7 +200,7 @@
   // --------------------------------------------------------- mão de 11
   function onze(vista, opts) {
     configurar(opts);
-    const op = { amostras: (opts && opts.amostras) || 400, perfis: opts && opts.perfis };
+    const op = { amostras: (opts && opts.amostras) || 400, perfis: opts && opts.perfis, modelos: opts && opts.modelos };
     // paranaense: antes de decidir, a dupla pode trocar cartas — a conta usa a melhor troca
     const troca = vista.trocaPermitida ? IA.melhorTroca(vista, Object.assign({}, op, { amostras: Math.min(op.amostras, 250) })) : null;
     const an = troca ? null : IA.analisar(vista, op);

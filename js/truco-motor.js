@@ -168,7 +168,7 @@
       if (n === 4 && tipo === 'normal') m.sinais = maos.map(c => sinalDe(c, vira));
       if (ganchos.salvar) ganchos.salvar(estadoParaSalvar());
 
-      await emitir({ tipo: 'inicioMao', maoNumero: est.maoNumero, dador: est.dador, inicio, tipoMao: tipo, placar: est.placar.slice(), vira, equipeOnze: m.equipeOnze });
+      await emitir({ tipo: 'inicioMao', maoNumero: est.maoNumero, dador: est.dador, inicio, tipoMao: tipo, placar: est.placar.slice(), vira, equipeOnze: m.equipeOnze, regras: vr.id, n });
       if (est.parado) return;
 
       if (tipo === 'onze') {
@@ -311,7 +311,7 @@
     }
 
     async function rodar() {
-      await emitir({ tipo: 'inicioPartida', placar: est.placar.slice(), n });
+      await emitir({ tipo: 'inicioPartida', placar: est.placar.slice(), n, regras: vr.id });
       while (!est.fim && !est.parado) {
         await jogarMao();
         if (est.parado) return null;

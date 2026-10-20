@@ -228,9 +228,10 @@
     }
     const jogoT = P.UITrucoMesa._jogo();
     if (!jogoT || !jogoT.notas.length) throw new Error('truco: o coach não avaliou nenhuma decisão');
+    // a conta do coach: no PC fica no painel ao lado da mesa (como no poker); no celular abre numa janela
     clicar($('.tr-coach'));
-    await ate(() => $('.modal .tr-coach-modal'), 3000, 'coach do truco');
-    clicar($('.modal .fechar'));
+    await ate(() => $('.modal .tr-coach-modal') || $('.tr-painel:not(.recolhido) .tr-coach-modal'), 3000, 'coach do truco');
+    if ($('.modal .tr-coach-modal')) clicar($('.modal .fechar'));
     clicar($('.tr-barra button[title="Menu"]'));
     await ate(() => $('.modal .menu-mesa'), 3000, 'menu do truco');
     clicar(botaoComTexto('Sair da partida', '.modal'));

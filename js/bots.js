@@ -27,54 +27,57 @@
   // desconfia: o quanto acha que o all-in dos outros é largo (blefe)
   // adapta: 0 = não ajusta o jogo aos outros; 1 = ajusta rápido como um profissional
   // adaptaShove: rapidez para perceber quem vai all-in com qualquer mão (todos percebem)
+  // alvoBlefe: parte de blefes nas apostas depois do flop, em relação à de equilíbrio (1 = equilíbrio:
+  //   quem paga não ganha nada pagando nem largando; 2 = o dobro de blefes; 0,3 = quase só valor)
+  // slowplay: chance de só passar/pagar com mão muito forte (para não ficar previsível)
   var PERFIS = {
     station: {
       nome: 'Calling station', sigla: 'CS', cor: '#d9a441',
       descricao: 'Paga demais e raramente aumenta. Contra ele: aposte valor maior e quase nunca blefe.',
       abre: 0.8, paga: 2.2, tresBet: 0.4, limpa: 0.7, blefe: 0.06, cbet: 0.35, agressao: 0.35,
-      margemCall: -0.12, valorMin: 0.72, tamanhos: [0.5, 0.6],
+      margemCall: -0.12, valorMin: 0.72, tamanhos: [0.5, 0.6], alvoBlefe: 0.35, slowplay: 0.25,
       margemShove: -0.1, desconfia: 2.5, adapta: 0, adaptaShove: 0.8
     },
     nit: {
       nome: 'Nit', sigla: 'NIT', cor: '#7aa2c7',
       descricao: 'Joga poucas mãos e só aposta forte com mão forte. Contra ele: roube blinds e respeite a agressão.',
       abre: 0.65, paga: 0.7, tresBet: 0.5, limpa: 0.05, blefe: 0.05, cbet: 0.55, agressao: 0.6,
-      margemCall: 0.08, valorMin: 0.68, tamanhos: [0.5, 0.66],
+      margemCall: 0.08, valorMin: 0.68, tamanhos: [0.5, 0.66], alvoBlefe: 0.5, slowplay: 0.1,
       margemShove: 0.05, desconfia: 1, adapta: 0.35, adaptaShove: 0.8
     },
     tag: {
       nome: 'TAG', sigla: 'TAG', cor: '#4fbf8b',
       descricao: 'Tight-agressivo: ranges sólidos, aposta e aumenta com propósito.',
       abre: 1, paga: 1, tresBet: 1, limpa: 0, blefe: 0.25, cbet: 0.65, agressao: 1,
-      margemCall: 0, valorMin: 0.62, tamanhos: [0.33, 0.5, 0.66],
+      margemCall: 0, valorMin: 0.62, tamanhos: [0.33, 0.5, 0.66], alvoBlefe: 1.1, slowplay: 0.12,
       margemShove: 0, desconfia: 1, adapta: 0.6, adaptaShove: 0.9
     },
     lag: {
       nome: 'LAG', sigla: 'LAG', cor: '#e07a5f',
       descricao: 'Loose-agressivo: muitas mãos, muita pressão, blefes frequentes.',
       abre: 1.35, paga: 1.25, tresBet: 1.6, limpa: 0, blefe: 0.4, cbet: 0.75, agressao: 1.4,
-      margemCall: -0.03, valorMin: 0.58, tamanhos: [0.33, 0.66, 1],
+      margemCall: -0.03, valorMin: 0.58, tamanhos: [0.33, 0.66, 1], alvoBlefe: 1.5, slowplay: 0.12,
       margemShove: -0.02, desconfia: 1.3, adapta: 0.6, adaptaShove: 0.9
     },
     maniaco: {
       nome: 'Maníaco', sigla: 'MAN', cor: '#e5484d',
       descricao: 'Aumenta quase tudo e blefa sem parar. Contra ele: pague mais leve e deixe ele blefar.',
       abre: 2.2, paga: 1.5, tresBet: 3, limpa: 0.05, blefe: 0.65, cbet: 0.9, agressao: 2.2,
-      margemCall: -0.06, valorMin: 0.5, tamanhos: [0.75, 1, 1.5],
+      margemCall: -0.06, valorMin: 0.5, tamanhos: [0.75, 1, 1.5], alvoBlefe: 2.2, slowplay: 0.05,
       margemShove: -0.07, desconfia: 2, adapta: 0, adaptaShove: 0.8
     },
     reg: {
       nome: 'Regular', sigla: 'REG', cor: '#5ec8e5',
       descricao: 'Jogador mediano e consistente: ranges corretos e presta atenção no seu jogo, mas faz as contas de cabeça e erra mais que um profissional.',
       abre: 1, paga: 1.05, tresBet: 1.05, limpa: 0, blefe: 0.27, cbet: 0.65, agressao: 1.05,
-      margemCall: 0.01, valorMin: 0.62, tamanhos: [0.33, 0.5, 0.75],
+      margemCall: 0.01, valorMin: 0.62, tamanhos: [0.33, 0.5, 0.75], alvoBlefe: 1.1, slowplay: 0.15,
       margemShove: 0.01, desconfia: 1, adapta: 0.7, adaptaShove: 1, mediano: true
     },
     pro: {
       nome: 'Profissional', sigla: 'PRO', cor: '#b794f4',
       descricao: 'Joga como profissional: ranges de equilíbrio, contas de EV e ICM, e lê o seu jogo. Se você empurra all-in demais, ele paga mais leve; se paga tudo, ele para de blefar.',
       abre: 1.05, paga: 1, tresBet: 1.15, limpa: 0, blefe: 0.3, cbet: 0.62, agressao: 1.15,
-      margemCall: 0, valorMin: 0.6, tamanhos: [0.33, 0.5, 0.75],
+      margemCall: 0, valorMin: 0.6, tamanhos: [0.33, 0.5, 0.75], alvoBlefe: 1.2, slowplay: 0.18,
       margemShove: 0, desconfia: 1, adapta: 1, adaptaShove: 1, pro: true
     }
   };
@@ -621,12 +624,51 @@
   }
 
   // ---------------------------------------------------------- pós-flop
-  function tamanhoValor(tex, prof, alto) {
-    if (alto) return RNG.escolher(tex.tipo === 'seco' ? [0.33, 0.5, 0.75] : [0.66, 0.75, 1, 1.25]);
-    var base = tex.tipo === 'seco' ? 0.4 : tex.tipo === 'molhado' ? 0.75 : 0.55;
-    if (prof === PERFIS.maniaco) base *= 1.4;
-    if (prof === PERFIS.station) base = 0.5;
-    return base;
+  /**
+   * Memória de cada bot na partida (guardada junto do caderno de leitura, por
+   * assento): quantas apostas de valor fez e quantas chances de blefe teve em
+   * cada rua. Com ela a parte de blefes das apostas fica perto do alvo do
+   * perfil, venha a carta que vier — não dá para "ler" que aposta é sempre mão.
+   */
+  var MEMORIAS = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+  var MEM_SOLTA = {};
+  function memoriaDe(ctx, assento) {
+    var base = MEM_SOLTA;
+    if (MEMORIAS && ctx.leitura && typeof ctx.leitura === 'object') {
+      base = MEMORIAS.get(ctx.leitura);
+      if (!base) { base = {}; MEMORIAS.set(ctx.leitura, base); }
+    }
+    var k = assento + ':' + ctx.perfil;
+    if (!base[k]) base[k] = { flop: [0, 0], turn: [0, 0], river: [0, 0], raise: [0, 0] };
+    return base[k];
+  }
+
+  /**
+   * Tamanho da aposta (fração do pote). Escolhido ANTES de olhar a força da
+   * mão: valor e blefe saem do mesmo sorteio, então o tamanho não entrega nada.
+   * Os comuns usam um tamanho só; profissional e regular variam.
+   */
+  function tamanhoAposta(tex, rua, prof, alto) {
+    if (prof === PERFIS.station) return 0.5;
+    var op;
+    if (rua === 'flop') op = tex.tipo === 'seco' ? [0.33, 0.33, 0.5] : tex.tipo === 'molhado' ? [0.5, 0.66, 0.75] : [0.33, 0.5, 0.66];
+    else if (rua === 'turn') op = tex.tipo === 'molhado' ? [0.66, 0.75, 1] : [0.5, 0.66, 0.75];
+    else op = [0.5, 0.75, 1, 1.25];
+    var t = alto ? RNG.escolher(op) : op[1];
+    if (prof === PERFIS.maniaco) t *= 1.35;
+    if (prof === PERFIS.nit) t = Math.min(t, 0.66);
+    return t;
+  }
+
+  /**
+   * Parte das apostas que deve ser blefe. No river, com aposta S (fração do
+   * pote), o equilíbrio é S/(1+2S): meio pote → 25%, pote → 33%. No flop e no
+   * turn cabe mais (os blefes ainda podem melhorar: semiblefes).
+   */
+  function alvoDeBlefe(S, rua, prof) {
+    var base = S / (1 + 2 * S);
+    var mult = rua === 'flop' ? 1.5 : rua === 'turn' ? 1.25 : 1;
+    return limitar(base * mult * (prof.alvoBlefe || 1), 0, 0.7);
   }
 
   function posflop(vista, eu, prof, ctx, v) {
@@ -643,17 +685,24 @@
         var perfilOp = leituras[i] ? fatoresDe(leituras[i].e) : 'desconhecido';
         return { combos: An.rangeEstimado(vista, o.assento, perfilOp, conhecidas).combos };
       });
-      eq = P.Equity.monteCarloSincrono({ jogadores: [cartas].concat(ranges), board: board, iteracoes: prof.pro ? 600 : prof.mediano ? 450 : 350 }).equity[0];
+      eq = P.Equity.monteCarloSincrono({ jogadores: [cartas].concat(ranges), board: board, iteracoes: prof.pro ? 700 : prof.mediano ? 500 : 350 }).equity[0];
     } catch (e) {
       eq = Math.pow(An.forcaAtual(cartas, board).hs, nOp);
     }
+    var rua = vista.rua;
     var outs = board.length < 5 ? An.outs(cartas, board).efetivos : 0;
     var tex = An.textura(board);
     var pote = vista.pote;
-    var alto = prof.pro || prof.mediano;      // tamanhos variados conforme o board
+    var alto = prof.pro || prof.mediano || prof === PERFIS.tag || prof === PERFIS.lag;
     var estilo = ctx.estilo || 1;
-    var raisesPre = vista.eventos.filter(function (e) { return e.tipo === 'acao' && e.rua === 'preflop' && (e.acao === 'raise' || e.acao === 'bet'); });
+    var mem = memoriaDe(ctx, eu.assento);
+    var acoesAntes = vista.eventos.filter(function (e) { return e.tipo === 'acao'; });
+    var raisesPre = acoesAntes.filter(function (e) { return e.rua === 'preflop' && (e.acao === 'raise' || e.acao === 'bet'); });
     var agressorPre = raisesPre.length && raisesPre[raisesPre.length - 1].assento === eu.assento;
+    // quem apostou por último na rua anterior (para seguir apostando: "barril")
+    var ruaAnterior = rua === 'turn' ? 'flop' : rua === 'river' ? 'turn' : 'preflop';
+    var agrAnt = acoesAntes.filter(function (e) { return e.rua === ruaAnterior && (e.acao === 'raise' || e.acao === 'bet'); });
+    var tenhoIniciativa = agrAnt.length ? agrAnt[agrAnt.length - 1].assento === eu.assento : false;
 
     // leitura: quanto os oponentes desistem diante de aposta (blefe só funciona contra quem desiste)
     var desiste = P.Leitura.PADRAO.desisteAposta[0], nLidos = 0, somaDes = 0;
@@ -662,7 +711,7 @@
     var fatorBlefe = nLidos ? limitar(Math.pow(desiste / 0.45, 1.3), 0.15, 1.8) : 1;
     var ajusteValor = nLidos ? (desiste < 0.33 ? -0.06 : desiste > 0.6 ? 0.03 : 0) : 0;
 
-    function aposta(frac) { return { tipo: 'bet', ate: Math.max(bb, pote * frac) }; }
+    function aposta(frac) { return { tipo: 'bet', ate: Math.max(bb, Math.round(pote * frac)) }; }
     function aumento() {
       var alvo = vista.apostaAtual * (2.6 + RNG.real() * 0.6) + (pote - vista.apostaAtual) * 0.15;
       if (alvo >= (eu.fichas + eu.apostaRua) * 0.45) return 'allin';
@@ -670,28 +719,49 @@
     }
 
     if (v.podeCheck) {
+      var S = tamanhoAposta(tex, rua, prof, alto);
+      var m = mem[rua];
       var valorMin = prof.valorMin + 0.04 * (nOp - 1) + ajusteValor;
       if (eq >= valorMin) {
-        if (eq > 0.85 && tex.tipo === 'seco' && RNG.chance(0.2)) return 'check';     // slowplay ocasional
-        return aposta(tamanhoValor(tex, prof, alto));
+        // mão muito forte: às vezes só passa (slowplay), menos no river e em board perigoso
+        if (eq > 0.85 && rua !== 'river' && tex.tipo !== 'molhado' && RNG.chance(prof.slowplay || 0)) return 'check';
+        m[0]++;
+        return aposta(S);
       }
-      if (vista.rua === 'flop' && agressorPre && nOp <= 2 &&
-        RNG.chance(prof.cbet * (tex.tipo === 'seco' ? 1.1 : tex.tipo === 'molhado' ? 0.75 : 0.9) * (nLidos ? limitar(desiste / 0.45, 0.5, 1.4) : 1))) {
-        return aposta(tex.tipo === 'seco' ? 0.33 : 0.5);
-      }
-      if (outs >= 8 && RNG.chance(0.3 * prof.agressao)) return aposta(0.6);
-      if (nOp === 1 && RNG.chance(prof.blefe * estilo * fatorBlefe * (vista.rua === 'river' ? 0.4 : 0.3))) {
-        return aposta(alto ? RNG.escolher([0.5, 0.75, 1.2]) : 0.6);
-      }
+      // blefe na medida: candidato pesa mais com draw (pode melhorar) e com a iniciativa;
+      // mão média (que ganha no showdown) prefere passar
+      var cand;
+      if (rua === 'river') cand = eq < 0.25 ? 1 : eq < 0.4 ? 0.3 : 0.08;
+      else cand = outs >= 8 ? 1.7 : outs >= 4 ? 1.2 : eq < 0.35 ? 1 : 0.4;
+      if (rua === 'flop' && agressorPre) cand *= 1.3 * (prof.cbet / 0.62);
+      else if (tenhoIniciativa) cand *= 1.2;
+      if (nOp > 1) cand *= nOp === 2 ? 0.35 : 0.1;
+      m[1] += cand;
+      var alvo = alvoDeBlefe(S, rua, prof) * limitar(fatorBlefe * estilo, 0.2, 1.8);
+      alvo = Math.min(alvo, 0.75);
+      var b = alvo / (1 - alvo) * (m[0] + 2) / (m[1] + 5) * cand;
+      if (RNG.chance(Math.min(0.8, b))) return aposta(S);
       return 'check';
     }
 
     var paraPagar = v.valorCall;
     var potOdds = paraPagar / (pote + paraPagar);
-    if (eq >= Math.max(0.7, prof.valorMin + 0.14 + ajusteValor) && RNG.chance(Math.min(0.85, 0.35 * prof.agressao + 0.2))) return aumento();
-    if (outs >= 9 && vista.rua !== 'river' && RNG.chance(0.15 * prof.agressao)) return aumento();
-    if (nOp === 1 && RNG.chance(prof.blefe * fatorBlefe * 0.08)) return aumento();
-    var implicitas = vista.rua !== 'river' ? Math.min(0.07, outs * 0.006) : 0;
+    var mr = mem.raise;
+    // valor: aumenta (às vezes só paga, para não ficar previsível)
+    if (eq >= Math.max(0.7, prof.valorMin + 0.14 + ajusteValor)) {
+      if (!RNG.chance(prof.slowplay || 0) && RNG.chance(Math.min(0.9, 0.35 * prof.agressao + 0.35))) { mr[0]++; return aumento(); }
+    }
+    // semiblefe / blefe em aumento (check-raise incluso), na medida e só contra um
+    if (nOp === 1 && !contraAllin && v.podeApostar) {
+      var candR = rua !== 'river' ? (outs >= 8 ? 1.6 : outs >= 4 ? 0.8 : eq < 0.3 ? 0.35 : 0) : (eq < 0.2 ? 0.45 : 0);
+      if (candR > 0) {
+        mr[1] += candR;
+        var alvoR = limitar(0.28 * (prof.alvoBlefe || 1) * fatorBlefe * (rua === 'river' ? 0.6 : 1), 0, 0.6);
+        var br = alvoR / (1 - alvoR) * (mr[0] + 1) / (mr[1] + 4) * candR;
+        if (RNG.chance(Math.min(0.5, br))) return aumento();
+      }
+    }
+    var implicitas = rua !== 'river' ? Math.min(0.07, outs * 0.006) : 0;
     var precisa = potOdds + prof.margemCall + 0.03 * (nOp - 1);
     if (eq + implicitas >= precisa) return 'call';
     if (prof === PERFIS.station && paraPagar <= pote * 0.8 && An.classificarMao(cartas, board).nivel !== 'nada') return 'call';

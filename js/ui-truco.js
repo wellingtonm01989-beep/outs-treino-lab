@@ -16,7 +16,7 @@
   const A = P.Armazenamento;
 
   // ------------------------------------------------------------ dados
-  const CHAVE_CFG = 'truco.config', CHAVE_EST = 'truco.estat', CHAVE_SALVA = 'truco.partida', CHAVE_TORNEIO = 'truco.torneio';
+  const CHAVE_CFG = 'truco.config', CHAVE_EST = 'truco.estat', CHAVE_SALVA = 'truco.partida', CHAVE_TORNEIO = 'truco.torneio', CHAVE_LEITURA = 'truco.leitura';
   const PADRAO_EST = () => ({ partidas: 0, vitorias: 0, maos: 0, notas: { otima: 0, boa: 0, imprecisa: 0, erro: 0, blefe: 0 }, quizMelhor: 0, quizFeitos: 0,
     torneios: { jogados: 0, titulos: 0, finais: 0 } });
   const PADRAO_CFG = { jogadores: 4, coach: 'sempre', regras: 'paulista', esconderManilha: false, aba: 'partida', participantes: 8, melhorDe: 1 };
@@ -37,6 +37,10 @@
     torneio() { const t = A.ler(CHAVE_TORNEIO, null); return t && t.rodadas && t.participantes ? t : null; },
     salvarTorneio(t) { A.gravar(CHAVE_TORNEIO, t); },
     descartarTorneio() { A.remover(CHAVE_TORNEIO); },
+    /** O que os bots já sabem do seu jeito de pedir truco e de responder (de partidas anteriores). */
+    leituraVoce() { const c = A.ler(CHAVE_LEITURA, null); return c && typeof c === 'object' && c.truco ? c : null; },
+    salvarLeituraVoce(c) { A.gravar(CHAVE_LEITURA, c); },
+    esquecerLeituraVoce() { A.remover(CHAVE_LEITURA); },
     /** % de decisões boas (ótimas + boas + blefes) entre as avaliadas. */
     acerto(e) {
       const n = e.notas, tot = n.otima + n.boa + n.imprecisa + n.erro + n.blefe;
@@ -188,6 +192,15 @@
           el('div', {}, el('b', { text: p.nome }), el('span', { text: p.descricao }))));
       });
       box.appendChild(el('div', { class: 'campo' }, el('span', { text: 'Adversários sorteados a cada partida' }), perfis));
+      // memória dos bots: eles aprendem o seu jeito de jogar e lembram de uma partida para outra
+      const lembra = Dados.leituraVoce();
+      box.appendChild(el('p', { class: 'tr-memoria' },
+        el('span', { text: lembra
+          ? 'Os bots lembram do seu jeito de jogar das partidas anteriores: se você blefa muito, eles aceitam mais; se corre fácil, eles pedem mais. '
+          : 'Os bots aprendem o seu jeito de jogar durante a partida e lembram dele nas próximas. ' }),
+        lembra ? el('button', { class: 'link', text: 'Fazer eles esquecerem', onclick: async () => {
+          if (await P.UI.confirmar('Apagar a memória dos bots?', 'Eles voltam a jogar contra você como se fosse a primeira vez.', 'Apagar', 'Cancelar')) { Dados.esquecerLeituraVoce(); render(); }
+        } }) : null));
       box.appendChild(el('button', { class: 'btn btn-ouro btn-sentar', text: salva && !salva.cfg.torneio ? 'Começar outra partida' : 'Começar partida', onclick: async () => {
         if (salva && !(await P.UI.confirmar('Começar outra?', salva.cfg.torneio ? 'O jogo do torneio que estava em andamento recomeça do 0 a 0 quando você voltar a ele.' : 'A partida em andamento será descartada.', 'Começar', 'Cancelar'))) return;
         Dados.descartar();

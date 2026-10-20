@@ -41,15 +41,23 @@
   function pausar(p) { pausas = Math.max(0, pausas + (p ? 1 : -1)); }
 
   // ======================================================== montar a mesa
+  /**
+   * A mesa tem as mesmas peças da mesa do poker: barra de cima, palco escuro
+   * com a mesa oval (borda de madeira e feltro), placas dos jogadores em volta,
+   * as suas cartas sobre a borda da mesa, a barra de ações embaixo e, no PC,
+   * o painel do coach à direita. No celular a barra de cima some (o ☰ do
+   * canto abre o menu) e o coach abre por cima, tocando na faixa dele.
+   */
   function montar() {
     const raiz = $('#tela-truco');
     raiz.innerHTML = '';
     raiz.classList.add('tela-mesa');
+    raiz.dataset.tema = P.Config.get('tema') || 'verde';
     const g = jogo.ui = {};
     const n = jogo.n;
     g.raiz = el('div', { class: 'tr-jogo', 'data-tema': P.Config.get('tema') || 'verde', 'data-n': n });
 
-    // barra de cima
+    // placar, valor da mão e rodadas: num quadro no canto da mesa (sempre à vista, também no celular)
     g.nos = el('b', { text: '0' }); g.eles = el('b', { text: '0' });
     g.ladoNos = el('span', { class: 'lado nos' }, el('span', { class: 'rot', text: n === 4 ? 'Nós' : 'Você' }), g.nos);
     g.ladoEles = el('span', { class: 'lado eles' }, g.eles, el('span', { class: 'rot', text: 'Eles' }));
@@ -58,18 +66,30 @@
     g.valeBox = el('div', { class: 'tr-vale', title: 'Quanto vale a mão' }, g.valeRot, g.vale);
     g.rodadas = el('div', { class: 'tr-rodadas', title: 'Rodadas desta mão' }, el('i'), el('i'), el('i'));
     g.tipoMao = el('span', { class: 'tipo-mao oculto' });
-    // regras da mesa e, no torneio, a fase e o jogo (no celular estreito ficam escondidos; aparecem no aviso do começo)
-    g.chipInfo = el('span', { class: 'tr-chip-info', text: (jogo.torneio && jogo.torneio.curto ? jogo.torneio.curto + ' · ' : '') + jogo.vr.nome });
-    g.btnCoach = el('button', { class: 'btn', title: 'Ver a conta do coach', html: '💡<span class="rot"> Coach</span>', onclick: abrirCoach });
-    g.barra = el('div', { class: 'tr-barra' },
-      el('div', { class: 'tr-placar' }, g.ladoNos, el('span', { text: '×' }), g.ladoEles),
-      g.valeBox, g.rodadas, g.tipoMao, g.chipInfo, el('span', { class: 'espaco' }),
-      g.btnCoach,
-      el('button', { class: 'btn', title: 'Menu', html: '&#9776;<span class="rot"> Menu</span>', onclick: abrirMenu }));
+    g.hud = el('div', { class: 'tr-hud' },
+      el('div', { class: 'tr-placar' }, g.ladoNos, el('span', { class: 'x', text: '×' }), g.ladoEles),
+      el('div', { class: 'tr-hud-linha' }, g.valeBox, g.rodadas, g.tipoMao));
 
-    // palco
-    g.feltro = el('div', { class: 'tr-feltro' });
-    g.palco = el('div', { class: 'tr-palco' }, g.feltro);
+    // barra de cima (como a do poker)
+    const detalhe = (jogo.torneio && jogo.torneio.curto ? jogo.torneio.curto + ' · ' : '') + jogo.vr.nome + ' · ' + (n === 4 ? 'dupla (4 jogadores)' : '1 contra 1');
+    g.chipInfo = el('span', { class: 'detalhe tr-chip-info', text: detalhe });
+    g.btnCoach = el('button', { class: 'btn', text: 'Coach', title: 'Mostrar/recolher o coach', onclick: () => alternarPainel() });
+    g.barra = el('div', { class: 'mesa-barra tr-barra' },
+      el('span', { class: 'rotulo', text: 'Truco' }), g.chipInfo, el('span', { class: 'espaco' }),
+      el('button', { class: 'btn so-largo', text: 'Como jogar', onclick: () => abrirRegras() }),
+      el('button', { class: 'btn so-largo', text: 'Treino de cartas', onclick: () => abrirQuiz() }),
+      g.btnCoach,
+      el('button', { class: 'btn btn-icone btn-som so-largo', title: 'Som ligado/desligado', html: $('#btn-som') ? $('#btn-som').innerHTML : '', onclick: () => { const b = $('#btn-som'); if (b) b.click(); } }),
+      el('button', { class: 'btn', title: 'Menu', html: '&#9776;<span class="rot-menu"> Menu</span>', onclick: abrirMenu }),
+      el('button', { class: 'btn so-largo', text: 'Sair para o lobby', onclick: sair }));
+
+    // palco com a mesa oval
+    g.oval = el('div', { class: 'mesa-oval' },
+      el('div', { class: 'borda' }),
+      el('div', { class: 'feltro' }, el('div', { class: 'mesa-logo', html: '<b>TRUCO</b><span>Treino Lab</span>' })));
+    g.palco = el('div', { class: 'mesa-palco tr-palco' }, g.oval, g.hud,
+      el('button', { class: 'btn-barra so-celular tr-btn-menu', title: 'Menu', html: '&#9776;', onclick: abrirMenu }));
+    g.feltro = g.oval;
     g.lugares = []; g.montes = [];
     for (let j = 0; j < n; j++) {
       const info = jogo.jogadores[j];
@@ -83,41 +103,59 @@
         const pf = IA.PERFIS[info.perfil];
         linha2.appendChild(el('span', { class: 'tag-perfil', style: { '--cor-perfil': pf.cor }, title: `${pf.nome}: ${pf.descricao}`, text: pf.sigla }));
       }
-      linha2.appendChild(el('span', { class: 'equipe', text: j === 0 ? 'você' : j === 2 ? 'parceiro' : 'eles' }));
-      lugar.raiz = el('div', { class: `tr-lugar ${eq}`, 'data-pos': pos },
-        lugar.balao,
-        el('div', { class: 'avatar', html: P.UI.avatarSVG(info.avatar, j === 0) }),
-        el('div', { class: 'placa' }, el('span', { class: 'nome', text: info.nome }), linha2),
-        j === 0 ? null : lugar.costas);
+      linha2.appendChild(el('span', { class: 'equipe', text: j === 0 ? (n === 4 ? 'nós' : 'você') : j === 2 ? 'parceiro' : 'eles' }));
+      lugar.raiz = el('div', { class: `tr-lugar ${eq}` + (j === 0 ? ' heroi' : ''), 'data-pos': pos },
+        j === 0 ? null : lugar.costas,
+        el('div', { class: 'corpo' },
+          el('div', { class: 'avatar', html: P.UI.avatarSVG(info.avatar, j === 0) }),
+          el('div', { class: 'info' }, el('span', { class: 'nome', text: info.nome }), linha2)),
+        lugar.balao);
       g.lugares.push(lugar);
       g.palco.appendChild(lugar.raiz);
       const monte = el('div', { class: 'tr-monte', 'data-pos': pos });
       g.montes.push(monte);
       g.palco.appendChild(monte);
     }
+    g.dealer = el('div', { class: 'botao-dealer tr-dealer oculto', text: 'D' });
     g.viraSlot = el('div', { class: 'vira-slot' });
     g.rotuloVira = el('div', { class: 'rotulo-vira' });
     g.centro = el('div', { class: 'tr-centro' }, g.viraSlot, g.rotuloVira);
     g.splash = el('div', { class: 'tr-splash' });
-    g.palco.append(g.centro, g.splash);
+    // a sua mão fica sobre a borda da mesa, em cima da sua placa (como as cartas no poker)
+    g.mao = el('div', { class: 'tr-mao' });
+    g.palco.append(g.dealer, g.centro, g.mao, g.splash);
 
-    // coach, mão, ações
+    // barra de ações (como a do poker): à esquerda o que está acontecendo e o coach; à direita os botões
     g.coachTxt = el('div', { class: 'txt', html: '<span class="calc">O coach comenta cada decisão sua.</span>' });
     g.coachNota = el('span');
     g.btnDica = el('button', { class: 'btn oculto', text: 'Dica', onclick: e => { e.stopPropagation(); mostrarDica(); } });
-    g.coach = el('div', { class: 'tr-coach', onclick: abrirCoach }, el('span', { class: 'ic', text: '💡' }), g.coachNota, g.coachTxt, g.btnDica);
-    g.mao = el('div', { class: 'tr-mao' });
+    g.coach = el('div', { class: 'tr-coach', title: 'Ver a conta do coach', onclick: () => abrirCoach() }, el('span', { class: 'ic', text: '💡' }), g.coachNota, g.coachTxt, g.btnDica);
     // os três botões mudam de papel (truco/cobrir/dica na sua vez; aumentar/correr/aceitar quando pedem para você):
     // o clique fica só no .onclick, trocado em acoesEspera e nas respostas
     g.btnTruco = el('button', { class: 'btn-acao btn-truco', html: 'Truco!' });
     g.btnCobrir = el('button', { class: 'btn-acao btn-cobrir', html: 'Cobrir<small>carta virada</small>' });
     g.btnTerceiro = el('button', { class: 'btn-acao btn-tr-dica', html: 'Dica' });
     g.status = el('div', { class: 'tr-status' });
-    g.acoes = el('div', { class: 'tr-acoes' }, g.btnTruco, g.btnCobrir, g.btnTerceiro, g.status);
-    g.raiz.append(g.barra, g.palco, g.coach, g.mao, g.acoes);
+    g.acoes = el('div', { class: 'barra-acoes tr-acoes' },
+      el('div', { class: 'acoes-esquerda' }, g.status, g.coach),
+      el('div', { class: 'acoes-botoes' }, g.btnTruco, g.btnCobrir, g.btnTerceiro));
+
+    // painel do coach (PC), igual ao do poker
+    g.painelCorpo = el('div', { class: 'coach-corpo' });
+    g.painelModos = el('div', { class: 'coach-modos' });
+    [['sempre', 'Sempre'], ['pedido', 'Sob pedido'], ['desligado', 'Desligado']].forEach(([id, txt]) =>
+      g.painelModos.appendChild(el('button', { 'data-modo': id, text: txt, onclick: () => mudarModoCoach(id) })));
+    g.painel = el('aside', { class: 'painel-coach tr-painel' + (P.Config.get('coachAberto') !== false && jogo.opcoes.coach !== 'desligado' ? '' : ' recolhido') },
+      el('div', { class: 'coach-cab' }, el('h2', { html: '<i>💡</i> Coach' }),
+        el('button', { class: 'btn btn-icone', title: 'Recolher painel', html: '&rsaquo;', onclick: () => alternarPainel(false) })),
+      g.painelModos, g.painelCorpo);
+
+    g.coluna = el('div', { class: 'mesa-coluna' }, g.barra, g.palco, g.acoes);
+    g.raiz.append(g.coluna, g.painel);
     raiz.appendChild(g.raiz);
     aplicarModoCoach();
     acoesEspera('');
+    atualizarPainel();
 
     if (jogo.observador) jogo.observador.disconnect();
     jogo.observador = new ResizeObserver(() => layout());
@@ -125,100 +163,163 @@
     layout();
   }
 
+  async function abrirRegras() {
+    if (!jogo) return;
+    pausar(true);
+    try { await P.UI.modal({ titulo: 'Como jogar', largo: true, conteudo: P.UITruco.regrasNo ? P.UITruco.regrasNo(jogo.vr.id) : '' }); } finally { pausar(false); }
+  }
+  async function abrirQuiz() { pausar(true); try { await P.UITruco.abrirQuiz(); } finally { pausar(false); } }
+
+  /** O painel do coach só existe no PC; no celular, a faixa do coach abre a conta numa janela. */
+  const painelVisivel = () => !!(jogo && jogo.ui && jogo.ui.painel && !jogo.ui.painel.classList.contains('recolhido') && getComputedStyle(jogo.ui.painel).display !== 'none');
+  function alternarPainel(abrir) {
+    const g = jogo && jogo.ui;
+    if (!g) return;
+    if (getComputedStyle(g.painel).display === 'none') { abrirCoach(); return; }   // celular
+    const aberto = abrir !== undefined ? abrir : g.painel.classList.contains('recolhido');
+    if (aberto && jogo.opcoes.coach === 'desligado') mudarModoCoach('sempre');
+    g.painel.classList.toggle('recolhido', !aberto);
+    P.Config.set('coachAberto', aberto);
+    atualizarPainel();
+  }
+  function mudarModoCoach(id) {
+    if (!jogo) return;
+    jogo.opcoes.coach = id;
+    const c = D.config(); c.coach = id; D.salvarConfig(c);
+    aplicarModoCoach();
+    if (jogo.pendente) { if (jogo.pendente.tipo === 'vez') prepararVez(jogo.pendente.vista); mostrarConselho(); }
+    atualizarPainel();
+  }
+
   // ============================================================== geometria
   /**
-   * Posições na mesa conforme o espaço: os lugares nas bordas, as cartas
-   * jogadas de cada um em cruz no meio, a vira num canto. Tudo em px.
+   * Posições na mesa conforme o espaço (em px). De cima para baixo, no meio:
+   * o lugar de cima, as cartas jogadas em cruz em volta da vira, as suas
+   * cartas e a sua placa. A mesa oval passa pelos lugares, como no poker.
    */
   function layout() {
     if (!jogo || !jogo.ui) return;
     const g = jogo.ui, n = jogo.n;
-    const Wtotal = g.palco.clientWidth, H = g.palco.clientHeight;
-    if (!Wtotal || !H) return;
-    // no PC a mesa não estica a tela inteira: largura útil proporcional à altura
-    const W = Math.min(Wtotal, Math.max(H * 2.1, 360), 1100);
-    const x0 = (Wtotal - W) / 2;
-    g.feltro.style.left = (x0 + 8) + 'px';
-    g.feltro.style.right = (x0 + 8) + 'px';
-    const pad = 16;
-    const deitado = W > H * 1.25;
-    let cartaL = limitar(Math.min(W * (deitado ? 0.12 : n === 4 ? 0.16 : 0.19), H * (deitado ? 0.2 : 0.15)), 30, 76);
-    let avatarL, costasL, lugarL, lugarH, lugarHVoce, gap;
-    for (let volta = 0; volta < 4; volta++) {
-      avatarL = limitar(Math.min(cartaL * 0.78, H * 0.09), 26, 46);
-      costasL = limitar(cartaL * 0.36, 12, 22);
-      lugarL = limitar(avatarL * 2.3, 74, 112);
-      lugarH = avatarL + 30 + costasL * 1.4;        // avatar + placa + cartas viradas
-      lugarHVoce = avatarL * 0.8 + 26;              // o seu lugar é menor (suas cartas ficam embaixo da mesa)
-      gap = limitar(cartaL * 0.14, 4, 10);
-      // as cartas de cima e de baixo (uma sobre a outra) precisam caber entre os lugares
-      const cabe = (H - 2 * pad - lugarH - lugarHVoce - 3 * gap - 8) / 2.8;
-      if (cartaL <= cabe + 0.5) break;
-      cartaL = Math.max(26, cabe);
+    const W = g.palco.clientWidth, H = g.palco.clientHeight;
+    if (!W || !H) return;
+    const compacto = W < 640 || H < 400;
+    const vertical = H > W * 1.05;
+    g.palco.classList.toggle('compacto', compacto);
+    const pad = compacto ? 6 : 12;
+    // lugares
+    let assentoL, avatarL, seatH, heroL, heroH;
+    if (compacto) {
+      const base = Math.min(W, H * 1.25);
+      assentoL = limitar(base * 0.21, 64, 86);
+      avatarL = limitar(assentoL * 0.5, 28, 42);
+      seatH = avatarL + 29;
+      heroL = limitar(W * 0.36, 110, 150);
+      heroH = limitar(avatarL + 8, 38, 50);
+    } else {
+      avatarL = limitar(H * 0.065, 34, 46);
+      assentoL = limitar(W * 0.16, 124, 164);
+      seatH = avatarL + 12;
+      heroL = assentoL; heroH = seatH;
+    }
+    const costasL = limitar(avatarL * (compacto ? 0.5 : 0.55), 14, 24);
+    const sobraCostas = costasL * 1.4 * 0.62;          // as cartas viradas passam um pouco acima da placa de cima
+    // suas cartas
+    const larguraUtil = W - 2 * pad;
+    let maoL = compacto ? (vertical ? limitar(W * 0.19, 54, 84) : limitar(H * 0.15, 38, 60)) : limitar(Math.min(W * 0.075, H * 0.14), 54, 96);
+    const comParceiro = !!(jogo.mostrarParceiro && g.mao.querySelector('.parceiro'));
+    if (comParceiro) maoL = Math.min(maoL, (larguraUtil - 40) / 6.6);
+    // de cima para baixo
+    const yCima = pad + sobraCostas + seatH / 2 + (compacto ? 0 : 4);
+    const yHeroi = H - pad - heroH / 2;
+    let maoH = maoL * 1.4;
+    const maoBase = yHeroi - heroH / 2 + Math.min(10, heroH * 0.2);   // as cartas encostam na sua placa
+    // cartas jogadas: espaço entre o lugar de cima e as suas cartas
+    let cartaL = compacto ? limitar(Math.min(W * (vertical ? 0.15 : 0.08), H * 0.14), 28, 58) : limitar(Math.min(W * 0.065, H * 0.11), 36, 72);
+    const gap = compacto ? 4 : 8;
+    for (let volta = 0; volta < 6; volta++) {
+      const livre = (maoBase - maoH) - (yCima + seatH / 2) - 2 * gap;
+      const vira = n === 4 ? cartaL * 0.78 * 1.4 + 16 : 0;          // na dupla a vira fica no meio da cruz
+      const precisa = 2 * cartaL * 1.4 + vira + 5 * gap;
+      if (precisa <= livre + 0.5) break;
+      if (cartaL > 26) cartaL = Math.max(26, cartaL * Math.max(0.75, livre / precisa));
+      else { maoL = Math.max(34, maoL * 0.9); maoH = maoL * 1.4; }
     }
     const cartaH = cartaL * 1.4;
+    const viraL = cartaL * (n === 4 ? 0.78 : 0.82);
     const cx = W / 2;
-    const larguraMonte = cartaL * (1 + 2 * 0.38);    // três cartas sobrepostas
-    const ocupado = [];                              // retângulos já usados (para achar lugar para a vira)
-    const ret = (x, y, w, h) => ({ l: x - w / 2, r: x + w / 2, t: y - h / 2, b: y + h / 2 });
-    const set = (elem, x, y) => { elem.style.left = (x0 + x) + 'px'; elem.style.top = y + 'px'; };
+    const topoLivre = yCima + seatH / 2 + gap, baseLivre = maoBase - maoH - gap;
+    const cyMeio = (topoLivre + baseLivre) / 2;
+    // mesa oval: passa pelo lugar de cima e pela sua placa; nas laterais, pelos lugares do lado
+    const oTopo = yCima - (compacto ? seatH * 0.15 : 0), oBase = yHeroi + (compacto ? 0 : 2);
+    const oh = oBase - oTopo;
+    let ow = n === 4 ? W - 2 * pad - assentoL * (compacto ? 0.9 : 1) : W - 2 * pad - 24;
+    ow = Math.min(ow, oh * 2.15);
+    const cyOval = oTopo + oh / 2;
+    Object.assign(g.oval.style, { left: (cx - ow / 2) + 'px', top: oTopo + 'px', width: ow + 'px', height: oh + 'px', borderRadius: oh > ow ? (ow / 2) + 'px' : '' });
+    g.palco.style.setProperty('--borda-l', limitar(Math.min(ow, oh) * (compacto ? 0.035 : 0.026), 8, 20) + 'px');
+
+    const set = (elem, x, y) => { elem.style.left = x + 'px'; elem.style.top = y + 'px'; };
     const lug = p => g.lugares.find(l => l.pos === p);
     const monte = p => g.montes[g.lugares.findIndex(l => l.pos === p)];
-
-    const yCima = pad + lugarH / 2;
-    const yBaixo = H - pad - lugarHVoce / 2;
-    lug('baixo').raiz.style.setProperty('--avatar-l', avatarL * 0.8 + 'px');
-    set(lug('baixo').raiz, cx, yBaixo);
+    set(lug('baixo').raiz, cx, yHeroi);
     set(lug('cima').raiz, cx, yCima);
-    ocupado.push(ret(cx, yBaixo, lugarL, lugarHVoce), ret(cx, yCima, lugarL, lugarH));
-    const topoLivre = yCima + lugarH / 2, baseLivre = yBaixo - lugarHVoce / 2;
-    const cyMeio = (topoLivre + baseLivre) / 2;
-    // cartas jogadas em cruz no meio: em cima e embaixo (parceiro e você, ou o adversário e você)
-    const yMonteCima = Math.max(topoLivre + 4 + cartaH / 2, cyMeio - cartaH / 2 - gap);
-    const yMonteBaixo = Math.min(baseLivre - 4 - cartaH / 2, cyMeio + cartaH / 2 + gap);
+    // a cruz das cartas jogadas, com a vira no meio (dupla) ou ao lado (1 contra 1)
+    const larguraMonte = cartaL * (1 + 2 * 0.38);
+    const meioV = n === 4 ? (viraL * 1.4 + 16) / 2 + gap : gap / 2;
+    const yMonteCima = cyMeio - meioV - cartaH / 2, yMonteBaixo = cyMeio + meioV + cartaH / 2;
     set(monte('cima'), cx, yMonteCima);
     set(monte('baixo'), cx, yMonteBaixo);
-    ocupado.push(ret(cx, yMonteCima, larguraMonte, cartaH), ret(cx, yMonteBaixo, larguraMonte, cartaH));
-    const yMeio = (yMonteCima + yMonteBaixo) / 2;
     if (n === 4) {
-      // laterais: o monte encosta no meio; o lugar fica na borda, na altura do monte se couber, senão mais acima
-      const xBordaMonte = cx - larguraMonte / 2 - gap * 2;          // borda de dentro do monte da esquerda
-      const cabeLado = xBordaMonte - larguraMonte - gap >= pad + lugarL;
-      const ySobe = Math.max(pad + lugarH / 2, yMeio - cartaH / 2 - gap - lugarH / 2);
-      const yLado = cabeLado ? yMeio : ySobe;
-      set(lug('esquerda').raiz, pad + lugarL / 2, yLado);
-      set(lug('direita').raiz, W - pad - lugarL / 2, yLado);
-      set(monte('esquerda'), xBordaMonte, yMeio);
-      set(monte('direita'), W - xBordaMonte, yMeio);
-      ocupado.push(ret(pad + lugarL / 2, yLado, lugarL, lugarH), ret(W - pad - lugarL / 2, yLado, lugarL, lugarH),
-        ret(xBordaMonte - larguraMonte / 2, yMeio, larguraMonte, cartaH), ret(W - xBordaMonte + larguraMonte / 2, yMeio, larguraMonte, cartaH));
-      // o sinal do parceiro fica à direita do lugar dele
-      ocupado.push({ l: cx + lugarL / 2, r: cx + lugarL / 2 + 130, t: yCima - 24, b: yCima + 8 });
+      const xLado = Math.min(ow / 2, W / 2 - pad - assentoL / 2);
+      const yLado = compacto && vertical ? cyOval : cyMeio;
+      set(lug('esquerda').raiz, cx - xLado, yLado);
+      set(lug('direita').raiz, cx + xLado, yLado);
+      const dxMonte = Math.max(viraL / 2, 34) + gap * 2;
+      set(monte('esquerda'), cx - dxMonte, cyMeio);
+      set(monte('direita'), cx + dxMonte, cyMeio);
+      set(g.centro, cx, cyMeio);
+      g.centro.classList.add('no-meio');
+    } else {
+      // 1 contra 1: a vira à esquerda do meio
+      const xVira = cx - larguraMonte / 2 - gap * 3 - Math.max(viraL, 64) / 2;
+      set(g.centro, Math.max(pad + ow * 0.12 + viraL / 2, xVira), cyMeio);
+      g.centro.classList.remove('no-meio');
     }
-    // vira: no primeiro canto livre (e menor, se precisar)
-    const cruza = (a, b) => a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b;
-    let viraL = cartaL * 0.82, pos = null;
-    for (const f of [0.82, 0.7, 0.58, 0.48]) {
-      viraL = cartaL * f;
-      const bw = viraL + 8 + 74, bh = Math.max(viraL * 1.4, 34);
-      const cantos = [[pad + bw / 2, pad + bh / 2], [pad + bw / 2, H - pad - bh / 2], [W - pad - bw / 2, H - pad - bh / 2], [W - pad - bw / 2, pad + bh / 2]];
-      pos = cantos.find(([x, y]) => !ocupado.some(o => cruza(o, ret(x, y, bw + 6, bh + 6))));
-      if (pos) break;
-    }
-    if (!pos) { const bh = Math.max(viraL * 1.4, 34); pos = [pad + (viraL + 82) / 2, H - pad - bh / 2]; }
-    set(g.centro, pos[0], pos[1]);
     g.centro.style.setProperty('--vira-l', viraL + 'px');
+    // suas cartas, em cima da sua placa
+    set(g.mao, cx, maoBase);
+    // o nome da mesa no feltro: entre as cartas jogadas e a sua mão, se couber
+    const logo = g.oval.querySelector('.mesa-logo');
+    const vaoLogo = (maoBase - maoH) - (yMonteBaixo + cartaH / 2);
+    logo.style.display = vaoLogo > 34 ? '' : 'none';
+    logo.style.top = ((yMonteBaixo + cartaH / 2 + maoBase - maoH) / 2 - oTopo) + 'px';
+    // botão de quem dá: ao lado da placa
+    jogo.geo = { W, H, x0: 0, cartaL, yMeio: cyMeio, cx, assentoL, heroL, seatH, heroH, avatarL, compacto };
+    posicionarDador();
     g.palco.style.setProperty('--carta-l', cartaL + 'px');
     g.palco.style.setProperty('--avatar-l', avatarL + 'px');
-    g.palco.style.setProperty('--lugar-l', lugarL + 'px');
+    g.palco.style.setProperty('--assento-l', assentoL + 'px');
+    g.palco.style.setProperty('--heroi-l', heroL + 'px');
     g.palco.style.setProperty('--costas-l', costasL + 'px');
-    jogo.geo = { W, H, x0, cartaL, yMeio, cx };
-    if (g.sinal) posicionarSinal();
-    // tamanho das suas cartas
-    const larguraMao = g.mao.clientWidth || W;
-    const deitadoTela = window.innerHeight < 500 && window.innerWidth >= 560;
-    const maoL = deitadoTela ? limitar(Math.min(larguraMao / 3.9, window.innerHeight * 0.17), 44, 80) : limitar(Math.min(larguraMao / 3.7, window.innerHeight * 0.12), 50, 92);
+    g.palco.style.setProperty('--mao-l', maoL + 'px');
     g.raiz.style.setProperty('--mao-l', maoL + 'px');
+    if (g.sinal) posicionarSinal();
+  }
+
+  /** O "D" de quem dá as cartas, ao lado da placa dele. */
+  function posicionarDador() {
+    const g = jogo && jogo.ui, geo = jogo && jogo.geo;
+    if (!g || !geo) return;
+    const j = jogo.dadorAtual;
+    if (j === undefined || j === null || !g.lugares[j]) { g.dealer.classList.add('oculto'); return; }
+    const l = g.lugares[j].raiz;
+    const x = parseFloat(l.style.left), y = parseFloat(l.style.top);
+    const larg = j === 0 ? geo.heroL : (geo.compacto ? geo.avatarL : geo.assentoL);
+    // à esquerda da placa (à direita do parceiro fica o sinal dele); o lugar da esquerda leva o D do lado de dentro
+    const lado = g.lugares[j].pos === 'esquerda' ? 1 : -1;
+    g.dealer.style.left = (x + lado * (larg / 2 + 12)) + 'px';
+    g.dealer.style.top = (y + (geo.compacto && j !== 0 ? geo.avatarL * 0.1 : 0)) + 'px';
+    g.dealer.classList.remove('oculto');
   }
 
   function posicionarSinal() {
@@ -228,7 +329,7 @@
     const x = parseFloat(l.raiz.style.left), y = parseFloat(l.raiz.style.top);
     const w = l.raiz.offsetWidth || 90, bw = g.sinal.offsetWidth || 110;
     // à direita do parceiro; sem passar da borda da mesa
-    const limite = jogo.geo.x0 + jogo.geo.W - 10 - bw;
+    const limite = jogo.geo.W - 10 - bw;
     g.sinal.style.left = Math.min(limite, x + w / 2 + 6) + 'px';
     g.sinal.style.top = (y - 8) + 'px';
   }
@@ -257,7 +358,9 @@
     jogo.ui.lugares.forEach((l, k) => l.raiz.classList.toggle('vez', k === j));
   }
   function marcarDador(j) {
+    jogo.dadorAtual = j;
     jogo.ui.lugares.forEach((l, k) => l.raiz.classList.toggle('dador', k === j));
+    posicionarDador();
   }
   function balao(j, texto, classe, ms) {
     const b = jogo.ui.lugares[j].balao;
@@ -324,12 +427,9 @@
     g.mao.classList.toggle('jogavel', !!(jogo.pendente && jogo.pendente.tipo === 'vez'));
     g.mao.classList.toggle('trocando', !!troca);
     g.mao.classList.toggle('cobrindo', !!jogo.cobrir);
-    // com as cartas do parceiro do lado, as suas diminuem para caber tudo na largura
+    // com as cartas do parceiro do lado, as suas diminuem para caber tudo na largura (o layout refaz as contas)
     const comParceiro = !!(dele && jogo.mostrarParceiro);
-    if (comParceiro) {
-      const base = parseFloat(getComputedStyle(g.raiz).getPropertyValue('--mao-l')) || 80;
-      g.mao.style.setProperty('--mao-l', Math.min(base, (g.mao.clientWidth - 44) / 5.75) + 'px');
-    } else g.mao.style.removeProperty('--mao-l');
+    if (comParceiro !== !!g.maoComParceiro) { g.maoComParceiro = comParceiro; layout(); }
   }
 
   /** Troca na mão de 11 (paranaense): toque numa carta sua e numa do parceiro. */
@@ -373,10 +473,13 @@
     g.viraSlot.innerHTML = '';
     if (vira === null || vira === undefined) { g.rotuloVira.innerHTML = ''; return; }
     const d = P.UI.carta(vira, { fechada: !semAnimar });
-    g.viraSlot.appendChild(d);
+    // o baralho atravessado embaixo da vira
+    const baralho = P.UI.carta(null, { fechada: true });
+    baralho.classList.add('tr-baralho');
+    g.viraSlot.append(baralho, d);
     if (!semAnimar) setTimeout(() => P.UI.revelar(d, vira), 60);
     // treino "esconder a manilha": só a vira; a manilha você descobre
-    g.rotuloVira.innerHTML = jogo.opcoes.esconderManilha ? 'vira<br><span class="sem-manilha">manilha?</span>' : `vira<br>manilha<br><b>${R.ROTULO_RANK[R.manilhaDe(vira)]}</b>`;
+    g.rotuloVira.innerHTML = jogo.opcoes.esconderManilha ? 'manilha <b class="sem-manilha">?</b>' : `manilha <b>${R.ROTULO_RANK[R.manilhaDe(vira)]}</b>`;
   }
 
   function cartaNoMonte(j, carta, coberta) {
@@ -400,7 +503,7 @@
   function aplicarModoCoach() {
     const g = jogo.ui, modo = jogo.opcoes.coach;
     g.coach.classList.toggle('oculto-coach', modo === 'desligado');
-    g.btnCoach.classList.toggle('oculto', modo === 'desligado');
+    g.painelModos.querySelectorAll('button').forEach(b => b.classList.toggle('ativo', b.dataset.modo === modo));
   }
   function coachTexto(html) { if (jogo) jogo.ui.coachTxt.innerHTML = html; }
   function coachNota(av) {
@@ -421,12 +524,13 @@
     } else if (modo === 'pedido') {
       coachTexto('<span class="calc">Quer ajuda? Toque em <b>Dica</b>.</span>');
     }
+    atualizarPainel();
   }
   function mostrarDica() {
     if (!jogo || !jogo.conselho) return;
     jogo.dicaVista = true;
     mostrarConselho();
-    abrirCoach();
+    if (!painelVisivel()) abrirCoach();
   }
   function marcarSugestoes() {
     const g = jogo.ui, c = jogo.conselho;
@@ -443,13 +547,25 @@
     }
   }
 
-  async function abrirCoach() {
-    if (!jogo) return;
-    const c = jogo.conselho, ultima = jogo.ultimaNota;
+  /**
+   * A conta do coach (o mesmo conteúdo no painel do PC e na janela do celular).
+   * paraVer: no modo "sob pedido", abrir a conta conta como pedir a dica.
+   */
+  function conteudoCoach(paraVer) {
+    const c = jogo.conselho, ultima = jogo.ultimaNota, modo = jogo.opcoes.coach;
     const corpo = el('div', { class: 'tr-coach-modal' });
-    if (c && (jogo.opcoes.coach === 'sempre' || jogo.dicaVista || jogo.opcoes.coach === 'pedido')) {
-      if (jogo.opcoes.coach === 'pedido') { jogo.dicaVista = true; mostrarConselho(); }
-      corpo.appendChild(el('ul', {}, c.linhas.map(l => el('li', { html: l }))));
+    if (modo === 'desligado') {
+      corpo.appendChild(el('div', { class: 'coach-vazio', html: '<b>Coach desligado</b>Sem dicas durante o jogo. As suas decisões continuam sendo avaliadas, e o resumo aparece no fim da partida.' }));
+      return corpo;
+    }
+    if (ultima && (!c || !(modo === 'sempre' || jogo.dicaVista))) {
+      corpo.appendChild(el('div', { class: 'bloco tr-ultima' }, el('h4', { text: 'Sua última decisão' }),
+        el('p', { html: `<span class="feedback-nota nota-${ultima.nota}">${ultima.rotulo}</span> ${ultima.texto}` })));
+    }
+    if (c && (modo === 'sempre' || jogo.dicaVista || (modo === 'pedido' && paraVer))) {
+      if (modo === 'pedido' && paraVer && !jogo.dicaVista) { jogo.dicaVista = true; mostrarConselho(); }
+      corpo.appendChild(el('div', { class: 'bloco recomendacao' }, el('h4', { text: 'Recomendação' }),
+        el('ul', {}, c.linhas.map(l => el('li', { html: l })))));
       if (c.tipo === 'vez' && c.analise && c.analise.cartas.length > 1) {
         const barras = el('div', { class: 'tr-barras-cartas' });
         c.analise.cartas.forEach(x => barras.appendChild(el('div', { class: 'tr-barra-carta' },
@@ -465,13 +581,30 @@
           el('div', { class: 'txt', text: 'sua chance ' + CO.pct(c.p) }));
         corpo.appendChild(el('div', { class: 'bloco' }, el('h4', { text: 'Sua chance × o mínimo para aceitar' }), med));
       }
-      if (c.analise) corpo.appendChild(el('div', { class: 'rodape-calc', text: `Conta feita simulando ${c.analise.amostras} jeitos de as cartas que você não vê estarem distribuídas, com todos jogando bem até o fim da mão.` }));
-    } else if (ultima) {
-      corpo.appendChild(el('p', { html: `<span class="feedback-nota nota-${ultima.nota}">${ultima.rotulo}</span> ${ultima.texto}` }));
-      if (ultima.linhas) corpo.appendChild(el('ul', {}, ultima.linhas.map(l => el('li', { html: l }))));
-    } else {
-      corpo.appendChild(el('p', { text: 'Na sua vez o coach mostra a chance de ganhar a mão com cada carta, se vale pedir truco e, quando pedirem para você, se vale aceitar ou correr.' }));
+      if (c.analise) corpo.appendChild(el('div', { class: 'rodape-calc', text: `Conta feita simulando ${c.analise.amostras} jeitos de as cartas que você não vê estarem distribuídas, com todos jogando bem até o fim da mão. Os bots também aprendem o seu jeito de jogar.` }));
+    } else if (c && modo === 'pedido') {
+      corpo.appendChild(el('div', { class: 'coach-vazio', html: '<b>Coach sob pedido</b>Quer ajuda nesta decisão? Toque em <b>Dica</b>.' }));
+    } else if (!ultima) {
+      corpo.appendChild(el('div', { class: 'coach-vazio', html: '<b>Aguardando a sua vez</b>Na sua vez o coach mostra a chance de ganhar a mão com cada carta, se vale pedir truco e, quando pedirem para você, se vale aceitar ou correr.' }));
     }
+    return corpo;
+  }
+
+  /** Painel do PC: redesenha com a conta de agora (se estiver aberto). */
+  function atualizarPainel() {
+    const g = jogo && jogo.ui;
+    if (!g || !g.painelCorpo) return;
+    g.btnCoach.classList.toggle('ativo', painelVisivel());
+    if (!painelVisivel()) return;
+    g.painelCorpo.innerHTML = '';
+    g.painelCorpo.appendChild(conteudoCoach(false));
+  }
+
+  async function abrirCoach() {
+    if (!jogo) return;
+    if (painelVisivel()) { conteudoCoach(true); atualizarPainel(); return; }
+    if (jogo.ui.painel && getComputedStyle(jogo.ui.painel).display !== 'none') { alternarPainel(true); return; }   // PC com o painel recolhido: abre o painel
+    const corpo = conteudoCoach(true);
     pausar(true);
     try { await P.UI.modal({ titulo: 'Coach', conteudo: corpo }); } finally { pausar(false); }
   }
@@ -580,6 +713,7 @@
     jogo.ui.btnDica.classList.add('oculto');
     marcarSugestoes();
     acoesEspera('');
+    atualizarPainel();
     pend.resolve(valor);
   }
 
@@ -590,8 +724,16 @@
     calcularConselho(fn).then(c => { if (!jogo || jogo.pendente !== pend) return; jogo.conselho = c; renderMao(); mostrarConselho(); });
   }
 
-  /** O coach sabe o estilo de cada bot (aparece na mesa) e usa isso para ler os pedidos de truco. */
-  function opcoesCoach() { return { amostras: jogo.opcoes.amostras, perfis: jogo.jogadores.map(x => x.perfil || null), esconderManilha: !!jogo.opcoes.esconderManilha }; }
+  /**
+   * O coach sabe o estilo de cada bot (aparece na mesa) e, como os bots, vai
+   * aprendendo na partida como cada um pede e responde (o leitor) — é isso
+   * que ele usa para ler os pedidos de truco.
+   */
+  function opcoesCoach() {
+    const perfis = jogo.jogadores.map(x => x.perfil || null);
+    const modelos = perfis.map((pf, j) => (j === 0 ? null : jogo.leitor.modelo(j, IA.MODELOS[pf || 'geral'] || IA.MODELOS.geral)));
+    return { amostras: jogo.opcoes.amostras, perfis, modelos, esconderManilha: !!jogo.opcoes.esconderManilha };
+  }
 
   /** Calcula o conselho do coach sem travar o desenho da tela. */
   function calcularConselho(fn) {
@@ -716,7 +858,8 @@
   }
 
   function agenteBot(j, perfil) {
-    const b = IA.criarBot(perfil, jogo.jogadores.map(x => x.perfil || null));
+    // os bots lembram do seu jeito de jogar das partidas anteriores (você é o lugar 0)
+    const b = IA.criarBot(perfil, jogo.jogadores.map(x => x.perfil || null), jogo.memoriaVoce ? { memoria: { 0: jogo.memoriaVoce } } : null);
     const pensar = base => esperar(base * fv() * (0.75 + P.RNG.real() * 0.5));
     const token = jogo.token;
     const vivo = () => jogo && jogo.token === token;
@@ -734,6 +877,11 @@
     if (!jogo) return;
     const token = jogo.token;
     jogo.agentes.forEach((a, j) => { if (a.observar) a.observar(ev, j % 2); });
+    jogo.leitor.observar(ev);
+    // fim de mão: guarda o que se aprendeu de você (memória de antes + esta partida)
+    if (ev.tipo === 'fimMao' && !jogo.opcoes.semSalvar && !jogo.opcoes.autoHeroi) {
+      try { D.salvarLeituraVoce(IA.juntarLeituras(jogo.memoriaVoce, jogo.leitor.exportar(0), 150)); } catch (e) { /* a leitura nunca derruba a mesa */ }
+    }
     const g = jogo.ui;
     const nome = j => (j === 0 ? 'Você' : jogo.jogadores[j].nome);
     switch (ev.tipo) {
@@ -931,7 +1079,8 @@
     jogo = {
       n, jogadores, token: ++contador, notas: salva ? (salva.notas || []) : [], placar: [0, 0],
       opcoes: Object.assign({ coach: cfgT.coach, amostras: 400, esconderManilha: !!cfgT.esconderManilha }, opcoes),
-      pendente: null, conselho: null, vr: R.variante(regras), torneio
+      pendente: null, conselho: null, vr: R.variante(regras), torneio, leitor: IA.criarLeitor(),
+      memoriaVoce: D.leituraVoce()
     };
     jogo.agentes = [agenteHumano()];
     for (let j = 1; j < n; j++) jogo.agentes.push(agenteBot(j, jogadores[j].perfil));
@@ -1065,23 +1214,13 @@
       P.UI.aviso(jogo.opcoes.esconderManilha ? 'Manilha escondida: descubra pela vira.' : 'A manilha volta a aparecer na mesa.', 'aviso-ouro');
       return;
     }
-    if (escolha === 'regras') {
-      pausar(true);
-      try { await P.UI.modal({ titulo: 'Como jogar', largo: true, conteudo: P.UITruco.regrasNo ? P.UITruco.regrasNo(jogo.vr.id) : '' }); } finally { pausar(false); }
-      return;
-    }
-    if (escolha === 'quiz') { pausar(true); try { await P.UITruco.abrirQuiz(); } finally { pausar(false); } return; }
+    if (escolha === 'regras') return abrirRegras();
+    if (escolha === 'quiz') return abrirQuiz();
     const modo = modos.find(m => m[0] === escolha);
-    if (modo) {
-      jogo.opcoes.coach = modo[0];
-      const c = D.config(); c.coach = modo[0]; D.salvarConfig(c);
-      aplicarModoCoach();
-      if (jogo.pendente) { if (jogo.pendente.tipo === 'vez') prepararVez(jogo.pendente.vista); mostrarConselho(); }
-      layout();
-    }
+    if (modo) { mudarModoCoach(modo[0]); layout(); }
   }
 
-  P.Config.aoMudar((k, v) => { if (k === 'tema' && jogo && jogo.ui) jogo.ui.raiz.dataset.tema = v; });
+  P.Config.aoMudar((k, v) => { if (k === 'tema' && jogo && jogo.ui) { jogo.ui.raiz.dataset.tema = v; $('#tela-truco').dataset.tema = v; } });
 
   P.UITrucoMesa = { iniciar, encerrar, emJogo: () => !!jogo, pausar, _jogo: () => jogo };
 })(window.Poker = window.Poker || {});

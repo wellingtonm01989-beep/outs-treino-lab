@@ -382,6 +382,60 @@
     return `ganhou ${v} de ${N}`;
   });
 
+  // ------------------------------------------- leitura dos bots e memória
+  /** Jogador de teste: pede truco na primeira chance que tiver (com qualquer mão) e aceita tudo. */
+  function trucaTudo() {
+    return { bot: true,
+      decidir(v) { if (v.cegas) return { tipo: 'carta', indice: 0 }; if (v.podeTrucar && v.nivel === 0) return { tipo: 'truco' }; return { tipo: 'carta', indice: 0 }; },
+      responder() { return 'aceitar'; },
+      onze() { return 'jogar'; } };
+  }
+
+  T(GC, 'Leitor: quem pede truco com qualquer mão passa a ser lido como blefador', async a => {
+    const bot = IA.criarBot('esperto', ['esperto', null], { amostras: 60 });
+    for (let i = 0; i < 3; i++) {
+      const ag = [bot, trucaTudo()];
+      await M.criar({ n: 2 }, ag, { evento: ev => bot.observar(ev, 0) }).rodar();
+    }
+    const visto = bot.leitor.modelo(1, IA.MODELOS.geral);
+    a.maior(bot.leitor.vistas(1), 10, 'decisões observadas');
+    a.maior(visto.truco.p, IA.MODELOS.geral.truco.p + 0.15, 'pede truco perdendo bem mais que o normal');
+    a.maior(visto.aceite.p, IA.MODELOS.geral.aceite.p + 0.15, 'aceita perdendo bem mais que o normal');
+    return `pede perdendo: ${pct(IA.MODELOS.geral.truco.p)} (padrão) → ${pct(visto.truco.p)} · aceita perdendo: ${pct(IA.MODELOS.geral.aceite.p)} → ${pct(visto.aceite.p)}`;
+  });
+
+  T(GC, 'Memória entre partidas: soma o que já se sabia e o jeito recente pesa mais', a => {
+    const L = IA.criarLeitor();
+    const antiga = { truco: { g: [10, 20], p: [2, 20] }, alto: { g: [0, 0], p: [0, 0] }, aceite: { g: [5, 5], p: [1, 10] }, aumento: { g: [0, 0], p: [0, 0] } };
+    L.somar(1, antiga);
+    a.igualJSON(L.exportar(1), antiga, 'somar e exportar');
+    const junta = IA.juntarLeituras(antiga, { truco: { g: [0, 0], p: [30, 30] } }, 40);
+    a.igual(junta.truco.p[1], 40, 'encolhe para o limite');
+    a.proximo(junta.truco.p[0] / junta.truco.p[1], 32 / 50, 1e-9, 'proporção mantida');
+    a.igualJSON(junta.aceite, antiga.aceite, 'o que não mudou fica igual');
+    // o bot começa a partida já sabendo
+    const bot = IA.criarBot('esperto', ['esperto', null], { memoria: { 1: antiga } });
+    a.igual(bot.leitor.vistas(1), 55, 'decisões lembradas');
+    return 'lembra 55 decisões; 50 pedidos perdendo viram 40 no limite (32/50 = 64% mantido)';
+  });
+
+  T(GC, 'Contra quem aceita tudo o bot quase não blefa (e continua pedindo com mão boa)', async a => {
+    let memoria = null, blefes = 0, valor = 0, oport = 0;
+    for (let i = 0; i < 4; i++) {
+      const bot = IA.criarBot('trucador', ['trucador', null], { amostras: 80, memoria: memoria ? { 1: memoria } : null });
+      const esp = { bot: true, observar: bot.observar, responder: bot.responder, onze: bot.onze,
+        decidir(v) { const d = bot.decidir(v); if (v.podeTrucar && !v.cegas && v.nivel === 0 && i >= 2) { oport++; if (d.tipo === 'truco') { if (d.p < 0.4) blefes++; else valor++; } } return d; } };
+      const outro = trucaTudo();
+      outro.decidir = v => (v.cegas ? { tipo: 'carta', indice: 0 } : { tipo: 'carta', indice: 0 });   // não pede, só aceita
+      const ag = [esp, outro];
+      await M.criar({ n: 2 }, ag, { evento: ev => bot.observar(ev, 0) }).rodar();
+      memoria = IA.juntarLeituras(null, bot.leitor.exportar(1), 150);
+    }
+    a.maior(valor, 0, 'pede com mão boa');
+    a.verdadeiro(blefes <= Math.max(1, valor * 0.15), `blefes demais contra quem aceita tudo: ${blefes} (valor ${valor})`);
+    return `nas partidas 3 e 4: ${valor} pedidos com mão boa, ${blefes} blefes, em ${oport} chances`;
+  });
+
   // ========================================================= paranaense
   const GP = 'Truco: regras do paranaense';
   const PR = { regras: 'paranaense' };

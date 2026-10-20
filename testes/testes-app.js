@@ -272,6 +272,41 @@
     return Object.keys(cont).map(k => `${k} ${cont[k]}`).join(' · ');
   });
 
+  T(G, 'Blefe na medida: no river o Profissional também aposta sem nada, com os mesmos tamanhos da aposta de valor', a => {
+    // heads-up Pro x TAG; registra as apostas do Pro no river quando ninguém apostou antes dele
+    const lei = P.Leitura.criar();
+    const tam = { ar: {}, valor: {} };
+    let ar = 0, arApostou = 0, forte = 0, forteApostou = 0;
+    for (let k = 0; k < 2500; k++) {
+      const jogadores = [0, 1].map(s => ({ assento: s, id: 'j' + s, nome: 'J' + s, fichas: 4000 }));
+      const m = P.Motor.novaMao({ jogadores, botao: k % 2, sb: 10, bb: 20, lugares: 2 });
+      let guarda = 0;
+      while (!m.terminada()) {
+        const s = m.vez(), v = m.vista(s);
+        const perfil = s === 0 ? 'pro' : 'tag';
+        const d = P.Bots.decidir(v, s, { perfil, modo: 'cash', leitura: lei });
+        if (s === 0 && v.rua === 'river' && v.acoes.podeCheck) {
+          const eu = v.jogadores.find(j => j.assento === 0);
+          const nivel = P.Analise.classificarMao(eu.cartas, v.board).nivel;
+          const aposta = typeof d.acao === 'object' && d.acao.tipo === 'bet';
+          const frac = aposta ? Math.round(d.acao.ate / v.pote * 4) / 4 : null;
+          if (nivel === 'nada') { ar++; if (aposta) { arApostou++; tam.ar[frac] = 1; } }
+          else if (nivel === 'monstro' || nivel === 'forte') { forte++; if (aposta) { forteApostou++; tam.valor[frac] = 1; } }
+        }
+        m.agir(s, d.acao);
+        if (++guarda > 300) throw new Error('mão não terminou');
+      }
+      lei.registrar(m.vista(null));
+    }
+    a.maior(ar, 30, 'rivers sem nada para avaliar');
+    a.maior(arApostou / ar, 0.03, 'blefa no river sem nada');
+    a.maior(0.6, arApostou / ar, 'mas não sempre');
+    a.maior(forteApostou / Math.max(1, forte), 0.5, 'aposta valor com mão forte');
+    const tamAr = Object.keys(tam.ar), tamValor = Object.keys(tam.valor);
+    a.verdadeiro(tamAr.length >= 1 && tamValor.length >= 3 && tamAr.every(t => tamValor.indexOf(t) >= 0), `os tamanhos do blefe (${tamAr}) também aparecem no valor (${tamValor})`);
+    return `sem nada: aposta ${pct(arApostou / ar)} (${arApostou}/${ar}) · mão forte: ${pct(forteApostou / Math.max(1, forte))} · tamanhos (× pote) no blefe ${tamAr.join(', ')}; no valor ${tamValor.join(', ')}`;
+  });
+
   // ------------------------------------------- leitura e bots profissionais
   /** Mão com cartas escolhidas para alguns assentos (o resto do baralho em ordem). */
   function maoMontada(n, botao, sb, bb, fichas, cartasPorAssento) {

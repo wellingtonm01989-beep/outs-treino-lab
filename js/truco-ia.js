@@ -38,9 +38,9 @@
    */
   const MODELOS = {
     geral: { truco: { g: 0.58, p: 0.17 }, alto: { g: 0.35, p: 0.05 }, aceite: { g: 0.7, p: 0.27 }, aumento: { g: 0.29, p: 0.03 } },
-    cauteloso: { truco: { g: 0.49, p: 0.067 }, alto: { g: 0.25, p: 0.023 }, aceite: { g: 0.6, p: 0.17 }, aumento: { g: 0.15, p: 0.004 } },
-    esperto: { truco: { g: 0.56, p: 0.167 }, alto: { g: 0.33, p: 0.031 }, aceite: { g: 0.69, p: 0.24 }, aumento: { g: 0.28, p: 0.016 } },
-    trucador: { truco: { g: 0.7, p: 0.277 }, alto: { g: 0.47, p: 0.096 }, aceite: { g: 0.86, p: 0.42 }, aumento: { g: 0.43, p: 0.035 } }
+    cauteloso: { truco: { g: 0.52, p: 0.115 }, alto: { g: 0.54, p: 0.16 }, aceite: { g: 0.55, p: 0.13 }, aumento: { g: 0.15, p: 0.011 } },
+    esperto: { truco: { g: 0.53, p: 0.15 }, alto: { g: 0.56, p: 0.15 }, aceite: { g: 0.67, p: 0.145 }, aumento: { g: 0.21, p: 0.011 } },
+    trucador: { truco: { g: 0.65, p: 0.2 }, alto: { g: 0.47, p: 0.17 }, aceite: { g: 0.67, p: 0.215 }, aumento: { g: 0.3, p: 0.025 } }
   };
   /** Chance de a decisão acontecer dado o resultado da mão com as cartas abertas (1 ganha, 0 empata, -1 perde). */
   const chanceDado = (t, val) => (val === 1 ? t.g : val === -1 ? t.p : (t.g + t.p) / 2);
@@ -166,11 +166,12 @@
    * perfis[j]: o estilo de quem está no lugar j, se for conhecido (o estilo dos
    * bots aparece na mesa); senão, o modelo geral.
    */
-  function pesoSorteio(maos, prep, vista, perfis) {
+  function pesoSorteio(maos, prep, vista, perfis, modelos) {
     const ped = prep.pedidos;
     if (!ped || !ped.length) return 1;
     const conhecido = j => j === vista.eu || (prep.parceiroFixo && j === vista.parceiro);
-    const modelo = j => MODELOS[(perfis && perfis[j]) || 'geral'] || MODELOS.geral;
+    // modelos[j]: o que se aprendeu desse lugar nesta partida; senão, o padrão do estilo dele
+    const modelo = j => (modelos && modelos[j]) || MODELOS[(perfis && perfis[j]) || 'geral'] || MODELOS.geral;
     const solver = solverDe(prep.n);
     let w = 1;
     for (let i = 0; i < ped.length; i++) {
@@ -311,6 +312,7 @@
    * Chance de a equipe de "vista.eu" ganhar a mão a partir de agora.
    * Se for a vez de vista.eu jogar (e ele vê as cartas), também a chance com
    * cada carta da mão. opts: { amostras, perfis (estilo de cada lugar, se conhecido),
+   * modelos (o que o leitor aprendeu de cada lugar nesta partida),
    * leitura (0 a 1: quanto acreditar nos pedidos de truco; o coach usa 1, os bots menos) }.
    * Devolve { pGanhar, pPerder, pNinguem, p (= ganhar + metade dos empates),
    *           cartas: [{ carta, valor, pGanhar, pPerder, pNinguem, p }] (melhor primeiro),
@@ -337,7 +339,7 @@
     let somaW = 0, somaW2 = 0;
     for (let s = 0; s < N; s++) {
       const maos = sortear(prep, vista);
-      const w0 = pesoSorteio(maos, prep, vista, opts.perfis);
+      const w0 = pesoSorteio(maos, prep, vista, opts.perfis, opts.modelos);
       const w = opts.leitura !== undefined && opts.leitura !== 1 ? Math.pow(w0, opts.leitura) : w0;
       if (w <= 0) continue;
       somaW += w; somaW2 += w * w;
@@ -368,7 +370,7 @@
       // a chance "geral" é a da melhor carta (a mesma régua da lista)
       Object.assign(out, { pGanhar: out.cartas[0].pGanhar, pPerder: out.cartas[0].pPerder, pNinguem: out.cartas[0].pNinguem, p: out.cartas[0].p });
     }
-    if (registros && registros.length) out.truco = contaDoTruco(vista, registros, out.cartas[0].valor, opts.perfis);
+    if (registros && registros.length) out.truco = contaDoTruco(vista, registros, out.cartas[0].valor, opts.perfis, opts.modelos);
     return out;
   }
 
@@ -380,11 +382,11 @@
    * Compara com não pedir (jogar a mão valendo o que vale).
    * Devolve { correm, pAceito (chance de ganhar quando aceitam), ganho (pontos por mão), vale, novo }.
    */
-  function contaDoTruco(vista, registros, valorCarta, perfis) {
+  function contaDoTruco(vista, registros, valorCarta, perfis, modelosAprendidos) {
     const valores = vista.valores || R.VALORES;
     const V = valores[vista.nivel], V2 = valores[vista.nivel + 1];
     const modelos = [];
-    for (let j = 0; j < vista.n; j++) if (j % 2 !== vista.equipe) modelos.push(MODELOS[(perfis && perfis[j]) || 'geral'] || MODELOS.geral);
+    for (let j = 0; j < vista.n; j++) if (j % 2 !== vista.equipe) modelos.push((modelosAprendidos && modelosAprendidos[j]) || MODELOS[(perfis && perfis[j]) || 'geral'] || MODELOS.geral);
     let sW = 0, corre = 0, aceitoW = 0, ganhaAceito = 0, dif = 0;
     registros.forEach(({ w, res }) => {
       const val = res.get(valorCarta);
@@ -430,69 +432,234 @@
     };
   }
 
+  // ---------------------------------------------------------------- leitor
+  /**
+   * Leitor: aprende, durante a partida, como cada lugar pede truco e responde.
+   * Só usa o que é público: as jogadas, os pedidos, as respostas e, no fim de
+   * cada mão, as cartas de todo mundo (que o app mostra a todos). Com elas,
+   * avalia cada decisão de cada jogador com as cartas abertas — naquela hora
+   * ele estava ganhando a mão ou perdendo? — e conta:
+   *   truco / alto: quando podia pedir na própria vez, pediu?
+   *   aceite / aumento: quando pediram para ele, aceitou? aumentou?
+   * modelo(j) devolve as chances (ganhando, g; perdendo, p) misturadas com o
+   * padrão do estilo (priori), que pesa como algumas mãos já vistas.
+   */
+  const TABELAS = ['truco', 'alto', 'aceite', 'aumento'];
+
+  /**
+   * Junta duas leituras de um jogador (a guardada e a desta partida) e, se
+   * passar de "limite" decisões por tabela, encolhe as antigas: o jeito
+   * recente de jogar pesa mais. Devolve uma nova.
+   */
+  function juntarLeituras(a, b, limite) {
+    const L = limite || 120, out = {};
+    TABELAS.forEach(t => {
+      out[t] = {};
+      ['g', 'p'].forEach(l => {
+        const x = (a && a[t] && a[t][l]) || [0, 0], y = (b && b[t] && b[t][l]) || [0, 0];
+        let fez = (+x[0] || 0) + (+y[0] || 0), tot = (+x[1] || 0) + (+y[1] || 0);
+        if (tot > L) { fez = fez * L / tot; tot = L; }
+        out[t][l] = [Math.round(fez * 100) / 100, Math.round(tot * 100) / 100];
+      });
+    });
+    return out;
+  }
+
+  function criarLeitor(peso) {
+    const PESO = peso || 12;                      // a priori vale como 12 decisões observadas
+    let n = 2, vr = R.variante('paulista');
+    let contas = [];
+    let mao = null;
+    const vazio = () => { const c = {}; TABELAS.forEach(t => { c[t] = { g: [0, 0], p: [0, 0] }; }); return c; };
+    const garantir = () => { while (contas.length < n) contas.push(vazio()); };
+    const solver = () => solverDe(n);
+
+    function observar(ev) {
+      if (ev.tipo === 'inicioPartida') { n = ev.n === 4 ? 4 : 2; if (ev.regras) vr = R.variante(ev.regras); garantir(); return; }
+      if (ev.tipo === 'inicioMao') {
+        if (ev.n) n = ev.n; if (ev.regras) vr = R.variante(ev.regras); garantir();
+        mao = { vira: ev.vira, tipo: ev.tipoMao, placar: ev.placar.slice(), jogadas: [], resultados: [], nivel: 0, ultimoAumento: null, pedido: null, oport: null, decisoes: [] };
+        return;
+      }
+      if (!mao || mao.tipo !== 'normal') return;
+      const snapshot = () => ({ nJog: mao.jogadas.length, resultados: mao.resultados.slice(), rodada: mao.resultados.length });
+      if (ev.tipo === 'vez') {
+        const eq = ev.j % 2;
+        const pode = !mao.pedido && mao.ultimoAumento !== eq && R.podePedirNivel(vr, mao.nivel + 1, mao.placar[eq]);
+        mao.oport = pode ? Object.assign({ j: ev.j, vez: ev.j, tabela: mao.nivel + 1 === 1 ? 'truco' : 'alto', fez: false }, snapshot()) : null;
+        if (mao.oport) mao.decisoes.push(mao.oport);
+      } else if (ev.tipo === 'pedido') {
+        if (mao.oport && mao.oport.j === ev.j && !mao.pedido) mao.oport.fez = true;
+        mao.oport = null;
+        mao.pedido = { j: ev.j, equipe: ev.equipe, nivel: ev.nivel };
+      } else if (ev.tipo === 'resposta') {
+        const ped = mao.pedido;
+        const vez = ped ? ped.j : ev.j;
+        const snap = snapshot();
+        mao.decisoes.push(Object.assign({ j: ev.j, vez, tabela: 'aceite', fez: ev.resposta !== 'correr' }, snap));
+        if (R.podePedirNivel(vr, ev.nivel + 1, mao.placar[ev.equipe])) mao.decisoes.push(Object.assign({ j: ev.j, vez, tabela: 'aumento', fez: ev.resposta === 'aumentar' }, snap));
+        if (ev.resposta !== 'correr') { mao.nivel = ev.nivel; mao.ultimoAumento = ped ? ped.equipe : 1 - ev.equipe; }
+        mao.pedido = null;
+      } else if (ev.tipo === 'jogada') {
+        mao.jogadas.push({ j: ev.j, carta: ev.carta, coberta: ev.coberta, rodada: ev.rodada });
+        mao.oport = null;
+      } else if (ev.tipo === 'fimRodada') {
+        mao.resultados.push(ev.vencedor);
+      } else if (ev.tipo === 'fimMao') {
+        avaliar(ev);
+        mao = null;
+      }
+    }
+
+    /** Fim da mão: cada decisão, com as cartas abertas — ganhando (g) ou perdendo (p)? */
+    function avaliar(ev) {
+      if (!ev.iniciais) return;
+      const vira = ev.vira;
+      for (const d of mao.decisoes) {
+        const maos = ev.iniciais.map(h => h.slice());
+        for (let k = 0; k < d.nJog; k++) { const x = mao.jogadas[k]; const h = maos[x.j]; const i = h.indexOf(x.carta); if (i >= 0) h.splice(i, 1); }
+        const atuais = mao.jogadas.slice(0, d.nJog).filter(x => x.rodada === d.rodada).map(x => ({ j: x.j, v: x.coberta ? R.VALOR_COBERTA : R.valor(x.carta, vira) }));
+        let val;
+        try { val = solver().resolver(maos.map(h => h.map(c => R.valor(c, vira))), atuais, d.resultados, d.vez, d.j % 2, false).valor; }
+        catch (e) { continue; }
+        if (val === 0) continue;
+        const c = contas[d.j] && contas[d.j][d.tabela];
+        if (!c) continue;
+        const lado = val === 1 ? c.g : c.p;
+        lado[1]++; if (d.fez) lado[0]++;
+      }
+    }
+
+    /** O que se sabe do lugar j, misturado com a priori (o padrão do estilo dele). */
+    function modelo(j, priori) {
+      const base = priori || MODELOS.geral;
+      const c = contas[j];
+      const out = {};
+      TABELAS.forEach(t => {
+        const b = base[t], x = c ? c[t] : null;
+        out[t] = {
+          g: x ? (b.g * PESO + x.g[0]) / (PESO + x.g[1]) : b.g,
+          p: x ? (b.p * PESO + x.p[0]) / (PESO + x.p[1]) : b.p
+        };
+      });
+      return out;
+    }
+    /** Quantas decisões já vistas de j (para saber se a leitura já vale). */
+    const vistas = j => (contas[j] ? TABELAS.reduce((s, t) => s + contas[j][t].g[1] + contas[j][t].p[1], 0) : 0);
+    /** O que foi visto do lugar j (cópia), para guardar entre partidas. */
+    function exportar(j) { return contas[j] ? JSON.parse(JSON.stringify(contas[j])) : vazio(); }
+    /** Soma ao lugar j o que já se sabia dele (de partidas anteriores). */
+    function somar(j, c) {
+      if (!c || typeof c !== 'object') return;
+      while (contas.length <= j) contas.push(vazio());
+      TABELAS.forEach(t => {
+        if (!c[t]) return;
+        ['g', 'p'].forEach(l => {
+          const x = c[t][l];
+          if (Array.isArray(x) && x.length === 2 && x[1] >= x[0] && x[0] >= 0) { contas[j][t][l][0] += +x[0] || 0; contas[j][t][l][1] += +x[1] || 0; }
+        });
+      });
+    }
+    return { observar, modelo, vistas, exportar, somar, _contas: () => contas };
+  }
+
   // ------------------------------------------------------------------ bots
+  /**
+   * Os três estilos jogam com a mesma cabeça — simulação das cartas que não
+   * veem, leitura aprendida de cada adversário, conta do pedido e da resposta —
+   * e mudam no tempero:
+   *   alvoBlefe: que parte dos pedidos é blefe (o equilíbrio do truco é 1/3:
+   *     assim aceitar ou correr dá no mesmo para quem não sabe se é blefe);
+   *   segura: chance de não pedir com mão muito forte (esperar o outro pedir);
+   *   margem: quanto a mais (+) ou a menos (−) de chance exige para aceitar.
+   * Nenhum deles erra carta de propósito; entre cartas que dão o mesmo
+   * resultado, a escolha é sorteada (para não virar padrão que dá para ler).
+   */
   const PERFIS = {
     cauteloso: {
       nome: 'Cauteloso', sigla: 'CAU', cor: '#4c9aff',
-      descricao: 'Só pede truco com mão boa e corre fácil. Quando ele truca, acredite.',
-      amostras: 140, trucoValor: 0.74, espera: 0.15, blefe: 0.03, margemAceitar: 0.07, aumentar: 0.87, margemOnze: 0.04, erro: 0.04, leitura: 0.6
+      descricao: 'Pede menos e escolhe bem quando pedir; corre do que não vale. Blefa pouco, mas blefa.',
+      amostras: 300, valorMin: 0.66, alvoBlefe: 0.24, segura: 0.15, margemAceitar: 0.03, aumentar: 0.82, margemOnze: 0.02, leitura: 1
     },
     esperto: {
       nome: 'Esperto', sigla: 'ESP', cor: '#2fbf71',
-      descricao: 'Faz as contas, blefa na hora certa e repara se você corre muito.',
-      amostras: 220, trucoValor: 0.64, espera: 0.3, blefe: 0.1, margemAceitar: 0, aumentar: 0.8, margemOnze: 0, erro: 0, adapta: true, leitura: 0.6
+      descricao: 'Joga no equilíbrio: pede com mão e blefa na medida, segura mão forte às vezes e aprende como você joga.',
+      amostras: 360, valorMin: 0.6, alvoBlefe: 0.33, segura: 0.3, margemAceitar: 0, aumentar: 0.78, margemOnze: 0, leitura: 1
     },
     trucador: {
       nome: 'Trucador', sigla: 'TRU', cor: '#e8711a',
-      descricao: 'Pede truco toda hora, blefa muito e aceita quase tudo.',
-      amostras: 140, trucoValor: 0.56, espera: 0.05, blefe: 0.24, margemAceitar: -0.06, aumentar: 0.7, margemOnze: -0.04, erro: 0.06, leitura: 0.35
+      descricao: 'Pressiona: pede truco muito, blefa bastante e aumenta. Também lê o seu jogo.',
+      amostras: 300, valorMin: 0.56, alvoBlefe: 0.42, segura: 0.08, margemAceitar: -0.03, aumentar: 0.72, margemOnze: -0.02, leitura: 1
     }
   };
   const LISTA_PERFIS = Object.keys(PERFIS);
 
+  /** Parte de blefes que deixa o outro lado indiferente ao pedido do nível "nivel" (truco 1/3, seis 1/4...). */
+  function blefeEquilibrio(valores, nivel) {
+    const v = valores[nivel - 1], novo = valores[nivel];
+    return (novo - v) / (2 * novo);
+  }
+
   /**
-   * Um bot de truco. Ele só decide com a vista do lugar dele.
-   * memoria: o que ele observou do adversário (para o Esperto se adaptar).
+   * Um bot de truco. Ele só decide com a vista do lugar dele e o que observa
+   * da mesa (leitor). perfisMesa: o estilo de cada lugar (a priori da leitura).
    */
   function criarBot(perfil, perfisMesa, ajustes) {
     const cfg = PERFIS[perfil] || PERFIS.esperto;
-    // os bots leem os pedidos de truco com menos certeza que o coach (como gente: desconfiam, mas pagam para ver)
-    // ajustes.amostras: menos simulações (partidas de torneio que ninguém está vendo)
-    const op = { amostras: (ajustes && ajustes.amostras) || cfg.amostras, perfis: perfisMesa || null, leitura: cfg.leitura };
-    const memoria = { pedidosNossos: 0, correramDeNos: 0 };
+    const leitor = criarLeitor(cfg.pesoPriori);
+    // ajustes.memoria: { lugar: leitura guardada } — o que os bots já sabem de você de outras partidas
+    if (ajustes && ajustes.memoria) Object.keys(ajustes.memoria).forEach(j => leitor.somar(+j, ajustes.memoria[j]));
+    const memoria = { pedidosNossos: 0, correramDeNos: 0, valor: 0, oportBlefe: 0 };
     let ultima = null;   // última análise (para os testes e o diagnóstico)
 
-    /** Chance de blefar agora: mais na 2ª/3ª rodada depois de ganhar a 1ª, menos com o adversário que paga tudo. */
-    function chanceBlefe(vista, p) {
-      let b = cfg.blefe;
-      if (p > 0.45) return 0;
-      if (vista.rodada > 0 && vista.resultados[0] === vista.equipe) b *= 1.6;
-      if (vista.rodada === 0 && vista.jogadas[0].length === 0) b *= 0.6;
-      if (cfg.adapta && memoria.pedidosNossos >= 3) {
-        const taxa = memoria.correramDeNos / memoria.pedidosNossos;   // quanto o adversário corre
-        b *= 0.4 + taxa * 1.8;
+    /** Opções da análise: o que o leitor já aprendeu de cada lugar, sobre a priori do estilo. */
+    function opcoes(vista) {
+      const modelos = [];
+      for (let j = 0; j < vista.n; j++) {
+        if (j === vista.eu) { modelos.push(null); continue; }
+        const priori = MODELOS[(perfisMesa && perfisMesa[j]) || 'geral'] || MODELOS.geral;
+        modelos.push(leitor.modelo(j, priori));
       }
-      if (p < 0.12) b *= 0.5;                       // sem nenhuma chance, blefar só às vezes
-      return Math.min(0.35, b);
+      return { amostras: (ajustes && ajustes.amostras) || cfg.amostras, perfis: perfisMesa || null, modelos: cfg.semLeitor ? null : modelos, leitura: cfg.leitura };
+    }
+
+    /** Escolha entre cartas que dão (quase) o mesmo resultado: sorteada. */
+    function escolherCarta(cartas) {
+      const nota = x => x.pGanhar - x.pPerder;
+      const melhor = nota(cartas[0]);
+      const iguais = cartas.filter(x => melhor - nota(x) <= 0.012);
+      return iguais.length > 1 ? RNG.escolher(iguais) : cartas[0];
     }
 
     function decidir(vista) {
       if (vista.cegas) return { tipo: 'carta', indice: RNG.inteiroAbaixo(vista.cartas.length) };
+      const op = opcoes(vista);
       const a = ultima = analisar(vista, op);
       const p = a.p;
-      if (vista.podeTrucar) {
+      if (vista.podeTrucar && a.truco) {
+        const nivel = vista.nivel + 1, t = a.truco;
+        const valores = vista.valores || R.VALORES;
         let pede = false;
-        const nivel = vista.nivel + 1;      // 1 = truco; seis, nove e doze só com mão muito boa (e sem blefe)
-        const exige = nivel === 1 ? cfg.trucoValor : Math.min(0.97, cfg.aumentar + 0.05 * (nivel - 2));
-        if (p >= exige) {
-          // mão muito forte no começo: às vezes espera para deixar o outro trucar
-          const esperar = vista.rodada === 0 && p >= 0.85 && RNG.chance(cfg.espera);
-          pede = !esperar;
-        } else if (nivel === 1 && RNG.chance(chanceBlefe(vista, p))) pede = true;
+        const exige = nivel === 1 ? cfg.valorMin : Math.min(0.95, cfg.aumentar + 0.04 * (nivel - 2));
+        if (p >= exige || (p >= 0.5 && t.ganho > 0.08)) {
+          // mão forte: pede — às vezes segura para o outro pedir (ou para pedir mais adiante)
+          const daParaEsperar = vista.rodada < 2 && vista.cartas.length > 1 && p >= 0.82;
+          pede = !(daParaEsperar && RNG.chance(cfg.segura));
+          if (pede) memoria.valor++;
+        } else if (p < 0.5) {
+          // blefe na medida: a parte de blefes dos pedidos fica perto do alvo do estilo
+          memoria.oportBlefe++;
+          const alvo = Math.min(0.6, cfg.alvoBlefe * blefeEquilibrio(valores, nivel) / blefeEquilibrio(R.VALORES, 1));
+          let b = (alvo / (1 - alvo)) * (memoria.valor + 2) / (memoria.oportBlefe + 4);
+          b *= 0.55 + p * 1.8;                                    // prefere blefar com alguma chance (semiblefe)
+          b *= Math.max(0, Math.min(1.6, 1 + 1.5 * t.ganho));     // e só quando a conta do pedido não é ruim (contra quem aceita tudo, some)
+          if (nivel > 1) b *= 0.5;                                // seis, nove, doze: blefe bem mais raro
+          if (p < 0.08) b *= 0.5;
+          pede = RNG.chance(Math.min(0.55, b));
+        }
         if (pede) return { tipo: 'truco', p };
       }
-      let escolha = a.cartas[0];
-      if (cfg.erro && a.cartas.length > 1 && RNG.chance(cfg.erro)) escolha = RNG.escolher(a.cartas.slice(1));
+      const escolha = escolherCarta(a.cartas);
       // cobrir uma carta quando isso não muda o resultado (esconde o que tinha)
       let coberta = false;
       if (escolha.coberta) {
@@ -503,19 +670,24 @@
     }
 
     function responder(vista, nivel) {
-      const a = ultima = analisar(vista, op);
+      const a = ultima = analisar(vista, opcoes(vista));
       const p = a.p;
       const valores = vista.valores || R.VALORES;
       const min = R.minimoParaAceitar(valores[nivel - 1], valores[nivel], vista.nos, vista.eles);
-      // aumentar fica mais exigente a cada nível (nove e doze são raros)
-      const exige = Math.min(0.97, cfg.aumentar + 0.05 * Math.max(0, nivel - 1));
       const podeAumentar = vista.podeAumentar !== undefined ? vista.podeAumentar : nivel < 4;
-      if (podeAumentar && (p >= exige || (nivel === 1 && p < 0.35 && p >= min && RNG.chance(cfg.blefe * 0.3)))) return { resposta: 'aumentar', p };
+      if (podeAumentar) {
+        const exige = Math.min(0.95, cfg.aumentar + 0.04 * Math.max(0, nivel - 1));
+        // mão forte: aumenta (às vezes só aceita, para não entregar a força)
+        if (p >= exige && !RNG.chance(cfg.segura * 0.6)) return { resposta: 'aumentar', p };
+        // de vez em quando, aumento de blefe (raro, e só com alguma chance)
+        if (p >= 0.18 && p < 0.42 && RNG.chance(cfg.alvoBlefe * 0.12)) return { resposta: 'aumentar', p };
+      }
       if (p >= min + cfg.margemAceitar) return { resposta: 'aceitar', p };
       return { resposta: 'correr', p };
     }
 
     function onze(vista) {
+      const op = opcoes(vista);
       // paranaense: antes de decidir, a dupla arruma as 6 cartas do melhor jeito
       const t = vista.trocaPermitida ? melhorTroca(vista, op) : null;
       const p = t ? t.p : (ultima = analisar(vista, op)).p;
@@ -525,15 +697,16 @@
       return { resposta, p, troca: resposta === 'jogar' && t && t.mudaram ? t.troca : undefined };
     }
 
-    /** Eventos da mesa (para o Esperto aprender se o adversário corre muito). */
+    /** Eventos da mesa: o leitor aprende; a memória conta quanto correm dos nossos pedidos. */
     function observar(ev, minhaEquipe) {
+      leitor.observar(ev);
       if (ev.tipo === 'resposta' && ev.equipe !== minhaEquipe) {
         memoria.pedidosNossos++;
         if (ev.resposta === 'correr') memoria.correramDeNos++;
       }
     }
 
-    return { bot: true, perfil, decidir, responder, onze, observar, memoria, ultimaAnalise: () => ultima };
+    return { bot: true, perfil, decidir, responder, onze, observar, memoria, leitor, ultimaAnalise: () => ultima };
   }
 
   // nomes dos bots do truco (fictícios)
@@ -542,6 +715,6 @@
 
   T.IA = {
     PERFIS, LISTA_PERFIS, NOMES, MODELOS,
-    forcaMao, chanceDado, prepararAmostragem, melhorTroca, sortear, pesoSorteio, analisar, criarBot, criarSolver
+    forcaMao, chanceDado, prepararAmostragem, melhorTroca, criarLeitor, juntarLeituras, blefeEquilibrio, sortear, pesoSorteio, analisar, criarBot, criarSolver
   };
 })(window.Poker = window.Poker || {});
