@@ -9,6 +9,7 @@
      &autoheroi=1&maos=N                o herói joga sozinho N mãos
      ?tela=treino|estatisticas|...      abre direto uma tela
      ?truco=demo&jogadores=2|4          abre direto uma partida de truco
+     ?uno=demo&jogadores=2..6           abre direto uma partida de Última! (&auto=1: você joga sozinho)
        &regras=paranaense               nas regras do Paraná (padrão: paulista)
        &esconder=1                      com a manilha escondida
        &auto=1                          você joga sozinho seguindo o coach
@@ -18,7 +19,7 @@
 
   const { $, $$ } = P.UI;
   const F = P.Formato;
-  const TELAS = ['lobby', 'mesa', 'amigos', 'truco', 'treino', 'estatisticas', 'historico', 'auditoria'];
+  const TELAS = ['lobby', 'mesa', 'amigos', 'truco', 'uno', 'treino', 'estatisticas', 'historico', 'auditoria'];
   let telaAtual = 'lobby';
 
   const ICONE_SOM = on => on
@@ -37,6 +38,7 @@
     if (TELAS.indexOf(tela) < 0) tela = 'lobby';
     if (telaAtual === 'mesa' && tela !== 'mesa' && P.UIMesa.emJogo()) P.UIMesa.encerrar(true);
     if (telaAtual === 'truco' && tela !== 'truco' && P.UITrucoMesa.emJogo()) P.UITrucoMesa.encerrar();
+    if (telaAtual === 'uno' && tela !== 'uno' && P.UIUnoMesa.emJogo()) P.UIUnoMesa.encerrar();
     telaAtual = tela;
     TELAS.forEach(t => $('#tela-' + t).classList.toggle('oculto', t !== tela));
     $('#app').classList.toggle('em-jogo', tela === 'mesa');
@@ -47,6 +49,7 @@
     if (tela === 'lobby') P.UILobby.render();
     else if (tela === 'amigos') P.UIAmigos.render();
     else if (tela === 'truco') P.UITruco.render();
+    else if (tela === 'uno') P.UIUno.render();
     else if (tela === 'treino') P.UIPaineis.renderTreino(raiz);
     else if (tela === 'estatisticas') P.UIPaineis.renderEstatisticas(raiz);
     else if (tela === 'historico') P.UIPaineis.renderHistorico(raiz);
@@ -163,6 +166,15 @@
       if (parametro('auto')) Object.assign(op, { autoHeroi: true, velocidade: 0.05, amostras: 120 });
       if (parametro('coach')) op.coach = parametro('coach');
       P.UITrucoMesa.iniciar(op);
+      return;
+    }
+    // Última! direto (testes): ?uno=demo&jogadores=4&auto=1
+    if (parametro('uno')) {
+      irPara('uno');
+      const op = { n: +parametro('jogadores') || 4, semSalvar: true };
+      if (parametro('auto')) Object.assign(op, { autoHeroi: true, velocidade: 0.05, amostras: 40, amostrasBots: 20 });
+      if (parametro('coach')) op.coach = parametro('coach');
+      P.UIUnoMesa.iniciar(op);
       return;
     }
     const demo = parametro('demo');
