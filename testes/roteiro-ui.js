@@ -297,6 +297,48 @@
     if (P.Truco.Dados.torneio() || P.Truco.Dados.salva()) throw new Error('torneio abandonado ficou salvo');
     if (P.Truco.Dados.estat().torneios.jogados !== 1) throw new Error('torneio abandonado não contou como jogado');
     passo('torneio ok');
+
+    // 10) Última!: lobby, uma partida curta (jogue cartas que servem, compre quando não houver), coach, sair
+    P.Config.set('velocidade', 'turbo');
+    P.App.irPara('uno');
+    await ate(() => $('.uno .truco-novo'), 3000, 'lobby do Última!');
+    clicar(botaoComTexto('3', '.uno .truco-novo'));
+    P.UIUnoMesa.iniciar({ n: 3, semSalvar: true, amostras: 40, amostrasBots: 10, velocidade: 0.05 });
+    let jogadasU = 0;
+    const t0U = Date.now();
+    while (jogadasU < 4 && Date.now() - t0U < 60000) {
+      await dormir(150);
+      if ($('.un-fim .btn-ouro')) { clicar($('.un-fim .btn-ouro')); continue; }
+      if (!$('.un-cores.oculto') && $('.un-cores .un-cor')) { clicar($('.un-cores .un-cor')); jogadasU++; continue; }
+      const carta = $('.un-mao.jogavel .un-carta-mao.pode');
+      const b = $('.un-acoes .btn-acao:not(:disabled)[class*="btn-aceitar"], .un-acoes .btn-acao:not(:disabled).btn-correr');
+      if (carta) { clicar(carta); if (!$('.un-cores') || $('.un-cores').classList.contains('oculto')) jogadasU++; }
+      else if (b && P.UIUnoMesa._jogo() && P.UIUnoMesa._jogo().pendente) { clicar(b); jogadasU++; }
+    }
+    if (jogadasU < 4) throw new Error('Última!: não consegui jogar');
+    clicar($('.un-acoes .tr-coach'));
+    await ate(() => $('.modal .tr-coach-modal') || $('.tr-painel:not(.recolhido) .tr-coach-modal'), 3000, 'coach do Última!');
+    if ($('.modal .tr-coach-modal')) clicar($('.modal .fechar'));
+    P.UIUnoMesa.encerrar();
+    passo('última ok (' + jogadasU + ' jogadas)');
+
+    // 11) Xadrez: lobby, e2-e4 por toque, resposta do bot, desfazer, sair
+    P.App.irPara('xadrez');
+    await ate(() => $('.xadrez .truco-novo'), 3000, 'lobby do xadrez');
+    clicar(botaoComTexto('Casual', '.xadrez .truco-novo'));
+    P.UIXadrezMesa.iniciar({ semSalvar: true, cor: 'brancas', nivel: 1, tempoCoach: 300 });
+    await ate(() => $('.xz-tabuleiro .xz-casa[data-casa="20"] .xz-peca'), 5000, 'tabuleiro');
+    const tocar = s => { const c = $(`.xz-casa[data-casa="${s}"]`), r = c.getBoundingClientRect(); c.parentNode.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, pointerId: 1 })); c.parentNode.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, pointerId: 1 })); };
+    tocar(20); await dormir(80); tocar(52);                      // e2 → e4
+    await ate(() => P.UIXadrezMesa._jogo().lances.length >= 2, 15000, 'resposta do bot');
+    tocar(6); await dormir(80); tocar(37);                       // Cg1 → f3
+    await ate(() => P.UIXadrezMesa._jogo().lances.length >= 4, 15000, 'segunda resposta');
+    await ate(() => !$('.xz-acoes .btn-cobrir').disabled, 5000, 'desfazer liberado');
+    clicar($('.xz-acoes .btn-cobrir'));
+    await ate(() => P.UIXadrezMesa._jogo().lances.length === 2, 3000, 'desfeito');
+    const lancesX = P.UIXadrezMesa._jogo().sans.join(' ');
+    P.UIXadrezMesa.encerrar();
+    passo('xadrez ok (' + lancesX + ')');
   }
 
   // dentro do simulador de celular (testes/celular.html) o resultado vai também para a página de fora

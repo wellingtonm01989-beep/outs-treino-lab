@@ -80,6 +80,7 @@
 /* ================================================== celular (os dois jeitos) */
 @media (max-width: 640px), (max-height: 500px) {
   .so-largo { display: none !important; }
+  .nav .nav-extra { display: none; }                /* no celular: estatísticas, histórico e auditoria ficam no "Mais" */
   .app { padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
   .app .topo { height: 48px; padding: 0 10px; gap: 8px; }
   .app .marca svg { width: 28px; height: 28px; }

@@ -33,9 +33,26 @@ Na aba **Truco**: 1 contra 1 ou em dupla (você e um parceiro bot contra dois), 
 - **Esconder a manilha** (treino): a mesa não diz qual é a manilha; você descobre pela vira e confere no resumo do fim da mão.
 
 - **Coach para quem está aprendendo**: na sua vez, a chance de ganhar a mão com cada carta (simulando as cartas que você não vê), qual jogar e se vale pedir truco — com a conta do blefe. Quando pedem truco para você, a chance mínima para aceitar (correr custa 1, aceitar arrisca 3 → 33%; no seis 25%), corrigida pelo placar perto do fim. Nota em cada decisão e resumo no fim da partida.
-- **Bots** Cauteloso, Esperto e Trucador, sorteados a cada partida. Eles só enxergam as próprias cartas e o que está na mesa; o Esperto repara se você corre muito e blefa mais.
+- **Bots** Cauteloso, Esperto e Trucador, sorteados a cada partida. Eles só enxergam as próprias cartas e o que está na mesa, mas aprendem o seu jeito de jogar (quanto você blefa, quanto corre) e **lembram de uma partida para outra** — dá para apagar essa memória no lobby. Blefam na medida (pedido de truco não quer dizer zap) e às vezes seguram mão forte.
+- **Mesa** no mesmo visual da mesa do poker, com o painel do coach ao lado no PC.
 - **Como jogar** com as cartas na tela e **treino de cartas** (qual é a manilha, qual carta ganha).
 - A partida fica salva no começo de cada mão: se o app fechar, ela volta.
+
+## Última! (cartas coloridas)
+
+Na aba **Última!**: o jogo das cartas coloridas (no estilo do Uno), de 2 a 6 jogadores contra bots. Combine a cor, o número ou o símbolo da carta da mesa; Pular, Inverter, +2, coringa e coringa +4 (com desafio). Ao ficar com uma carta, aperte **Última!** — se um bot esquecer, aperte **Pegou!**. Partida de uma mão, até 200 ou até 500 pontos.
+
+- **Regras da casa** opcionais: acumular +2 e +4, comprar até poder jogar e jogar sem o desafio do +4.
+- **Bots** Estrategista, Atacante e Paciente, em três níveis. No Mestre eles leem o que cada um tem pelo que compra e pelas cores que escolhe, simulam cada jogada até o fim da mão e aprendem quanto você blefa no +4 e quanto desafia.
+- **Coach**: a chance de ganhar a mão com cada jogada, a melhor e por quê (quem está perto de sair, que cor o próximo não tem, quando guardar o coringa, quando vale desafiar), e a nota de cada jogada.
+
+## Xadrez
+
+Na aba **Xadrez**: contra bots de 5 níveis (do Iniciante, que olha um lance à frente, ao Mestre, que calcula vários lances por alguns segundos). Todas as regras: roque, en passant, promoção, xeque-mate, afogamento, repetição, 50 lances e material insuficiente; notação em português (R, D, T, B, C).
+
+- **Coach**: seta com o melhor lance, barra de avaliação, o que está ameaçado, peças soltas, ideias de abertura e a nota de cada lance seu (de "melhor lance" a "erro grave", com o que o adversário faz depois).
+- **Treino**: desfazer lances, jogar sem relógio ou com relógio (10 min, 5+3, 3+2), virar o tabuleiro. Mova tocando na peça e na casa, ou arrastando.
+- O bot pensa em segundo plano (a tela não trava) e varia as aberturas.
 
 ## Testes
 

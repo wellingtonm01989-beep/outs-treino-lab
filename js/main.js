@@ -10,6 +10,7 @@
      ?tela=treino|estatisticas|...      abre direto uma tela
      ?truco=demo&jogadores=2|4          abre direto uma partida de truco
      ?uno=demo&jogadores=2..6           abre direto uma partida de Última! (&auto=1: você joga sozinho)
+     ?xadrez=demo&nivel=1..5&cor=pretas abre direto uma partida de xadrez (&auto=1: você joga sozinho)
        &regras=paranaense               nas regras do Paraná (padrão: paulista)
        &esconder=1                      com a manilha escondida
        &auto=1                          você joga sozinho seguindo o coach
@@ -19,7 +20,7 @@
 
   const { $, $$ } = P.UI;
   const F = P.Formato;
-  const TELAS = ['lobby', 'mesa', 'amigos', 'truco', 'uno', 'treino', 'estatisticas', 'historico', 'auditoria'];
+  const TELAS = ['lobby', 'mesa', 'amigos', 'truco', 'uno', 'xadrez', 'treino', 'estatisticas', 'historico', 'auditoria'];
   let telaAtual = 'lobby';
 
   const ICONE_SOM = on => on
@@ -39,10 +40,12 @@
     if (telaAtual === 'mesa' && tela !== 'mesa' && P.UIMesa.emJogo()) P.UIMesa.encerrar(true);
     if (telaAtual === 'truco' && tela !== 'truco' && P.UITrucoMesa.emJogo()) P.UITrucoMesa.encerrar();
     if (telaAtual === 'uno' && tela !== 'uno' && P.UIUnoMesa.emJogo()) P.UIUnoMesa.encerrar();
+    if (telaAtual === 'xadrez' && tela !== 'xadrez' && P.UIXadrezMesa.emJogo()) P.UIXadrezMesa.encerrar();
     telaAtual = tela;
     TELAS.forEach(t => $('#tela-' + t).classList.toggle('oculto', t !== tela));
     $('#app').classList.toggle('em-jogo', tela === 'mesa');
-    $$('#nav button').forEach(b => b.classList.toggle('ativo', b.dataset.tela === tela));
+    $$('#nav button[data-tela]').forEach(b => b.classList.toggle('ativo', b.dataset.tela === tela));
+    $('#nav-mais').classList.toggle('ativo', ['estatisticas', 'historico', 'auditoria'].indexOf(tela) >= 0);
     $('#nav').classList.toggle('oculto', tela === 'mesa');
     atualizarSaldo();
     const raiz = $('#tela-' + tela);
@@ -50,6 +53,7 @@
     else if (tela === 'amigos') P.UIAmigos.render();
     else if (tela === 'truco') P.UITruco.render();
     else if (tela === 'uno') P.UIUno.render();
+    else if (tela === 'xadrez') P.UIXadrez.render();
     else if (tela === 'treino') P.UIPaineis.renderTreino(raiz);
     else if (tela === 'estatisticas') P.UIPaineis.renderEstatisticas(raiz);
     else if (tela === 'historico') P.UIPaineis.renderHistorico(raiz);
@@ -131,7 +135,14 @@
     $('#logo-topo').innerHTML = P.UI.LOGO_SVG;
     aplicarPreferencias();
     atualizarSaldo();
-    $$('#nav button').forEach(b => b.addEventListener('click', () => irPara(b.dataset.tela)));
+    $$('#nav button[data-tela]').forEach(b => b.addEventListener('click', () => irPara(b.dataset.tela)));
+    // celular: estatísticas, histórico e auditoria ficam no "Mais"
+    $('#nav-mais').addEventListener('click', async () => {
+      const itens = [['estatisticas', 'Estatísticas'], ['historico', 'Histórico'], ['auditoria', 'Auditoria']];
+      const escolha = await P.UI.modal({ titulo: 'Mais', conteudo: P.UI.el('div', { class: 'menu-mesa' }),
+        aoAbrir: (corpo, fechar) => itens.forEach(([id, txt]) => corpo.firstChild.appendChild(P.UI.el('button', { class: 'btn', text: txt, onclick: () => fechar(id) }))) });
+      if (escolha) irPara(escolha);
+    });
     $('#marca').addEventListener('click', e => { e.preventDefault(); if (telaAtual !== 'mesa') irPara('lobby'); });
     $('#btn-som').addEventListener('click', () => { P.Config.set('som', !P.Config.get('som')); if (P.Config.get('som')) P.Som.ficha(); });
     $('#btn-cola').addEventListener('click', () => P.UIPaineis.abrirCola());
@@ -175,6 +186,15 @@
       if (parametro('auto')) Object.assign(op, { autoHeroi: true, velocidade: 0.05, amostras: 40, amostrasBots: 20 });
       if (parametro('coach')) op.coach = parametro('coach');
       P.UIUnoMesa.iniciar(op);
+      return;
+    }
+    // xadrez direto (testes): ?xadrez=demo&nivel=2&auto=1
+    if (parametro('xadrez')) {
+      irPara('xadrez');
+      const op = { semSalvar: true, nivel: +parametro('nivel') || 3, cor: parametro('cor') || 'brancas' };
+      if (parametro('auto')) Object.assign(op, { autoHeroi: true, tempoCoach: 300 });
+      if (parametro('coach')) op.coach = parametro('coach');
+      P.UIXadrezMesa.iniciar(op);
       return;
     }
     const demo = parametro('demo');

@@ -72,7 +72,7 @@
     if (salva) {
       const pl = salva.estado.placar;
       box.appendChild(el('div', { class: 'truco-continuar' },
-        el('div', { html: `<b>Partida em andamento</b> · ${salva.cfg.n} jogadores · você <b>${pl[0]}</b> pontos (mão ${salva.estado.maoNumero})` }),
+        el('div', { html: `<b>Partida em andamento</b> · ${salva.cfg.n} jogadores · você <b>${pl[0]}</b> pontos (mão ${salva.estado.maoNumero + 1})` }),
         el('div', { class: 'linha' },
           el('button', { class: 'btn btn-ouro', text: 'Continuar', onclick: () => P.UIUnoMesa.iniciar({ retomar: salva }) }),
           el('button', { class: 'btn', text: 'Descartar', onclick: async () => {

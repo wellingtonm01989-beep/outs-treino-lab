@@ -61,6 +61,7 @@
 <link rel="stylesheet" href="css/amigos.css">
 <link rel="stylesheet" href="css/truco.css">
 <link rel="stylesheet" href="css/uno.css">
+<link rel="stylesheet" href="css/xadrez.css">
 <link rel="stylesheet" href="css/celular.css">
 </head>
 <body>
@@ -75,10 +76,12 @@
       <button data-tela="amigos"><i class="icone-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8"/><path d="M18.5 14.4c1.8.8 3 2.8 3 5.6"/></svg></i><span><span class="so-largo">Mesa com amigos</span><span class="so-celular">Amigos</span></span></button>
       <button data-tela="truco"><i class="icone-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="5" width="11" height="15" rx="2" transform="rotate(-10 8.5 12.5)"/><rect x="10" y="4" width="11" height="15" rx="2" transform="rotate(8 15.5 11.5)"/></svg></i><span>Truco</span></button>
       <button data-tela="uno"><i class="icone-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="4" width="11" height="16" rx="2.5" transform="rotate(-12 9.5 12)"/><rect x="10" y="4" width="11" height="16" rx="2.5"/><path d="M15.5 8.5v4M15.5 15.6v.1" stroke-linecap="round"/></svg></i><span>Última!</span></button>
+      <button data-tela="xadrez"><i class="icone-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M7 21h10M8.5 18h7l-.8-5H9.3z"/><path d="M9.6 13 8.2 9.6c-.4-1 .1-2 1-2.4l3.1-1.4 1.1-2.3 1 2 c2 1.1 3 3.3 2.6 5.6l-.4 1.9"/></svg></i><span>Xadrez</span></button>
       <button data-tela="treino"><i class="icone-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></i><span>Treino<span class="so-largo"> relâmpago</span></span></button>
-      <button data-tela="estatisticas"><i class="icone-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 20V11M11 20V5M17 20v-6M3 20h18"/></svg></i><span>Estatísticas</span></button>
-      <button data-tela="historico"><i class="icone-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></i><span>Histórico</span></button>
-      <button data-tela="auditoria"><i class="icone-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="m9 12 2 2 4-4"/></svg></i><span>Auditoria</span></button>
+      <button data-tela="estatisticas" class="nav-extra"><i class="icone-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 20V11M11 20V5M17 20v-6M3 20h18"/></svg></i><span>Estatísticas</span></button>
+      <button data-tela="historico" class="nav-extra"><i class="icone-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></i><span>Histórico</span></button>
+      <button data-tela="auditoria" class="nav-extra"><i class="icone-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="m9 12 2 2 4-4"/></svg></i><span>Auditoria</span></button>
+      <button class="so-celular nav-mais" id="nav-mais" title="Estatísticas, histórico e auditoria"><i class="icone-nav"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></i><span>Mais</span></button>
     </nav>
     <span class="espaco"></span>
     <button class="btn" id="btn-cola" title="Cola de consulta rápida">Cola</button>
@@ -94,6 +97,7 @@
     <section class="tela oculto" id="tela-amigos"></section>
     <section class="tela oculto" id="tela-truco"></section>
     <section class="tela oculto" id="tela-uno"></section>
+    <section class="tela oculto" id="tela-xadrez"></section>
     <section class="tela oculto" id="tela-treino"></section>
     <section class="tela oculto" id="tela-estatisticas"></section>
     <section class="tela oculto" id="tela-historico"></section>
@@ -150,6 +154,11 @@
 <script src="js/uno-coach.js"></script>
 <script src="js/ui-uno.js"></script>
 <script src="js/ui-uno-mesa.js"></script>
+<script src="js/xadrez-motor.js"></script>
+<script src="js/xadrez-ia.js"></script>
+<script src="js/xadrez-coach.js"></script>
+<script src="js/ui-xadrez.js"></script>
+<script src="js/ui-xadrez-mesa.js"></script>
 <script src="js/ui-paineis.js"></script>
 <script src="js/main.js"></script>
 </body>

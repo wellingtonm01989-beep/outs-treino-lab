@@ -1,0 +1,148 @@
+/* ==========================================================================
+   OUTS · Treino Lab — xadrez.css
+   Tabuleiro (moldura de madeira como a borda das mesas, casas no tom do
+   feltro escolhido), peças, destaques (último lance, xeque, lances
+   possíveis), seta e barra de avaliação do coach, placas dos jogadores com
+   relógio, escolha da promoção e a entrada da aba.
+   ========================================================================== */
+
+/* peças */
+.xz-peca-svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.xz-peca-svg.br .b { fill: #f6f1e3; stroke: #24262b; stroke-width: 1.5; stroke-linejoin: round; }
+.xz-peca-svg.br .l { fill: none; stroke: #24262b; stroke-width: 1.3; stroke-linecap: round; }
+.xz-peca-svg.br .o { fill: #24262b; }
+.xz-peca-svg.pr .b { fill: #2a2d33; stroke: #0b0c0e; stroke-width: 1.5; stroke-linejoin: round; }
+.xz-peca-svg.pr .l { fill: none; stroke: #d9d6cc; stroke-width: 1.3; stroke-linecap: round; }
+.xz-peca-svg.pr .o { fill: #d9d6cc; }
+
+/* ================================================================== mesa */
+.xz-jogo[data-tema=verde] { --xz-clara: #eeeed2; --xz-escura: #769656; }
+.xz-jogo[data-tema=azul] { --xz-clara: #e6edf3; --xz-escura: #5b85b0; }
+.xz-jogo[data-tema=vermelho] { --xz-clara: #f2e4d8; --xz-escura: #b0635e; }
+.xz-jogo[data-tema=preto] { --xz-clara: #d9d9d9; --xz-escura: #6e747c; }
+.xz-jogo { --xz-l: 480px; --xz-placa-h: 52px; }
+.xz-palco { display: grid; place-items: center; }
+.xz-area { display: grid; justify-items: center; gap: 8px; }
+.xz-area.lado { grid-template-columns: auto auto; grid-template-rows: auto 1fr auto; align-items: start; column-gap: 14px; }
+.xz-area.lado .xz-placa.bot { grid-column: 1; grid-row: 1; align-self: start; }
+.xz-area.lado .xz-placa.eu { grid-column: 1; grid-row: 3; align-self: end; }
+.xz-area.lado .xz-tab-caixa { grid-column: 2; grid-row: 1 / 4; }
+.xz-area.lado .xz-placa { width: var(--xz-placa-l, 240px); }
+
+/* placas dos jogadores */
+.xz-placa {
+  width: calc(var(--xz-l) + 22px); height: var(--xz-placa-h); display: flex; align-items: center; gap: 10px; padding: 4px 10px 4px 4px;
+  border-radius: 999px; background: linear-gradient(180deg, rgba(30,38,49,.96), rgba(15,20,27,.96)); border: 1px solid #2f3b4b; box-shadow: 0 6px 14px rgba(0,0,0,.45);
+  transition: border-color 200ms, box-shadow 200ms;
+}
+.xz-placa.vez { border-color: var(--ouro); box-shadow: 0 0 0 2px rgba(216,178,90,.5), 0 0 18px rgba(216,178,90,.3); }
+.xz-placa .avatar { width: calc(var(--xz-placa-h) - 10px); height: calc(var(--xz-placa-h) - 10px); flex: none; border: 2px solid #3a4758; }
+.xz-placa .info { flex: 1; min-width: 0; display: grid; gap: 2px; line-height: 1.2; }
+.xz-placa .nome { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; gap: 6px; align-items: center; }
+.xz-placa .linha2 { display: flex; align-items: center; gap: 6px; min-width: 0; height: 18px; }
+.xz-capturadas { display: flex; align-items: center; min-width: 0; overflow: hidden; }
+.xz-capturadas .xz-peca-svg { width: 16px; height: 16px; flex: none; }
+.xz-capturadas .xz-peca-svg + .xz-peca-svg { margin-left: -6px; }
+.xz-capturadas b { margin-left: 5px; font-size: 11px; color: var(--texto-2); }
+.xz-pensando { font-size: 11px; color: var(--ouro-2); animation: pulsar 1s infinite; }
+.xz-relogio { flex: none; min-width: 64px; text-align: center; padding: 4px 10px; border-radius: 8px; background: #0b1018; border: 1px solid var(--borda-forte); font: 800 17px/1.1 var(--fonte-mono, monospace); font-variant-numeric: tabular-nums; color: var(--texto-2); }
+.xz-relogio.ativo { background: #f4f1e8; color: #111; border-color: #f4f1e8; }
+.xz-relogio.ativo.pouco { background: var(--erro); color: #fff; border-color: var(--erro); }
+
+/* tabuleiro */
+.xz-tab-caixa { display: flex; align-items: stretch; gap: 8px; }
+.xz-moldura {
+  padding: 11px; border-radius: 12px;
+  background: linear-gradient(180deg, #3b2a1d, #20160f 55%, #2d2016);
+  box-shadow: 0 24px 50px rgba(0,0,0,.6), 0 0 0 2px #0d0906, inset 0 2px 1px rgba(255,255,255,.12), inset 0 -3px 6px rgba(0,0,0,.6);
+}
+.xz-tabuleiro {
+  position: relative; width: var(--xz-l); height: var(--xz-l); display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr);
+  border-radius: 3px; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; box-shadow: 0 0 0 1px rgba(0,0,0,.5);
+}
+.xz-casa { position: relative; }
+.xz-casa.clara { background: var(--xz-clara); }
+.xz-casa.escura { background: var(--xz-escura); }
+.xz-casa.ultimo::before { content: ''; position: absolute; inset: 0; background: rgba(255, 214, 72, .42); }
+.xz-casa.sel::before { content: ''; position: absolute; inset: 0; background: rgba(72, 170, 255, .45); }
+.xz-casa.xeque { background-image: radial-gradient(circle, rgba(255,40,40,.95) 0%, rgba(230,20,20,.55) 45%, rgba(200,0,0,0) 72%); }
+.xz-casa.alvo::after { content: ''; position: absolute; left: 50%; top: 50%; width: 28%; height: 28%; transform: translate(-50%, -50%); border-radius: 50%; background: rgba(20, 30, 40, .28); z-index: 3; pointer-events: none; }
+.xz-casa.alvo-capt::after { content: ''; position: absolute; inset: 4%; border-radius: 50%; border: calc(var(--xz-l) / 80) solid rgba(20, 30, 40, .32); z-index: 3; pointer-events: none; }
+.xz-peca { position: absolute; inset: 4%; z-index: 2; cursor: grab; filter: drop-shadow(0 2px 2px rgba(0,0,0,.35)); }
+.xz-coord { position: absolute; z-index: 1; font: 800 calc(var(--xz-l) / 44) var(--fonte); pointer-events: none; }
+.xz-coord.lin { left: 3px; top: 2px; }
+.xz-coord.col { right: 3px; bottom: 1px; }
+.xz-casa.clara .xz-coord { color: var(--xz-escura); }
+.xz-casa.escura .xz-coord { color: var(--xz-clara); }
+.xz-setas { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+.xz-setas svg { width: 100%; height: 100%; }
+.xz-setas line { stroke: rgba(47, 191, 113, .82); }
+.xz-setas polygon { fill: rgba(47, 191, 113, .82); }
+
+/* barra de avaliação */
+.xz-avaliacao { position: relative; width: 14px; border-radius: 4px; background: #2a2d33; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+.xz-avaliacao i { position: absolute; left: 0; right: 0; bottom: 0; background: #f2efe6; transition: height 400ms ease; }
+.xz-avaliacao.pretas-embaixo { background: #f2efe6; }
+.xz-avaliacao.pretas-embaixo i { background: #2a2d33; }
+.xz-avaliacao span { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(-90deg); white-space: nowrap; font: 800 9px var(--fonte); color: #888; mix-blend-mode: difference; }
+.xz-avaliacao.oculta { visibility: hidden; }
+
+/* promoção */
+.xz-promo {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 40; display: grid; gap: 10px; justify-items: center;
+  padding: 14px; border-radius: 14px; background: rgba(12,17,23,.96); border: 1px solid var(--ouro-escuro); box-shadow: 0 20px 50px rgba(0,0,0,.7);
+}
+.xz-promo-tit { font-weight: 800; }
+.xz-promo-linha { display: flex; gap: 8px; }
+.xz-promo-op { width: 64px; height: 64px; padding: 6px; border-radius: 10px; border: 1px solid var(--borda-forte); background: var(--xz-clara, #eeeed2); cursor: pointer; }
+.xz-promo-op:hover { outline: 3px solid var(--ouro); }
+
+/* lista de lances (no painel do coach) */
+.xz-lances { display: grid; grid-template-columns: auto 1fr 1fr; gap: 2px 8px; max-height: 260px; overflow: auto; font-size: 13px; font-variant-numeric: tabular-nums; }
+.xz-lances .num { color: var(--texto-3); }
+.xz-lances .lance { font-weight: 600; }
+.xz-lances .lance.n-otima { color: #4fd88d; }
+.xz-lances .lance.n-imprecisa { color: #f5b54a; }
+.xz-lances .lance.n-erro { color: #ff7b78; }
+.xz-lances .lance.n-grave { color: #fff; background: #8f1d1b; border-radius: 4px; padding: 0 4px; justify-self: start; }
+.nota-grave { background: #8f1d1b; color: #fff; }
+.tr-resultado .xz-notas { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+
+/* celular */
+@media (max-width: 640px), (max-height: 500px) {
+  .xz-jogo .painel-coach { display: none; }
+  .xz-moldura { padding: 6px; border-radius: 8px; }
+  .xz-placa { padding: 3px 8px 3px 3px; gap: 8px; }
+  .xz-placa .nome { font-size: 12px; }
+  .xz-relogio { min-width: 54px; font-size: 15px; padding: 3px 8px; }
+  .xz-avaliacao { width: 10px; }
+  .xz-tab-caixa { gap: 5px; }
+  .xz-acoes .acoes-botoes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+}
+@media (max-height: 500px) and (min-width: 641px) {
+  .xz-acoes .acoes-botoes { grid-template-columns: 1fr 1fr; }
+  .xz-acoes .btn-cobrir { grid-column: 1 / -1; }
+}
+
+/* ================================================================ entrada */
+.xadrez-faixa {
+  background:
+    radial-gradient(420px 200px at 90% 120%, rgba(118,150,86,.25), transparent 70%),
+    radial-gradient(420px 200px at 0% -20%, rgba(216,178,90,.2), transparent 70%),
+    linear-gradient(135deg, #121a24, #0d131a);
+}
+.xadrez-faixa::after { content: '\265E'; }
+.xz-niveis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.xz-nivel { display: grid; justify-items: center; gap: 6px; padding: 10px 4px; border-radius: 10px; border: 1px solid var(--borda-forte); background: var(--superficie-2); color: var(--texto-2); font: 600 12px var(--fonte); cursor: pointer; }
+.xz-nivel b { color: var(--texto); font-size: 12.5px; }
+.xz-nivel.ativo { border-color: var(--ouro); background: rgba(216,178,90,.1); }
+.xz-nivel.ativo b { color: var(--ouro-2); }
+.xz-barras { display: flex; gap: 2px; align-items: flex-end; height: 16px; }
+.xz-barras i { width: 5px; border-radius: 2px; background: var(--ouro); }
+.xz-barras i:nth-child(1) { height: 5px; } .xz-barras i:nth-child(2) { height: 8px; } .xz-barras i:nth-child(3) { height: 11px; } .xz-barras i:nth-child(4) { height: 14px; } .xz-barras i:nth-child(5) { height: 16px; }
+.xz-barras i.vazia { background: var(--borda-forte); }
+.xz-mini { display: inline-block; width: 22px; height: 22px; vertical-align: -6px; margin-right: 2px; background: #eeeed2; border-radius: 4px; padding: 1px; }
+.xz-pecas li { line-height: 1.6; }
+@media (max-width: 640px) { .xz-niveis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* celular deitado: o tabuleiro encosta à esquerda (o botão ☰ fica no canto da direita) */
+.xz-palco.compacto .xz-area.lado { justify-self: start; margin-left: 8px; }
