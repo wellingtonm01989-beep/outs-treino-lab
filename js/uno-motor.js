@@ -6,10 +6,15 @@
    DOM: cada lugar é um "agente" que recebe só a vista dele.
 
    agentes[j] (todos podem ser assíncronos):
-     jogar(vista)            → { tipo: 'carta', carta, cor?, ultima? } | { tipo: 'comprar' } | { tipo: 'desafiar' }
-     depoisDeComprar(vista)  → { tipo: 'carta', carta, cor?, ultima? } | { tipo: 'passar' }   (a carta comprada serve)
+     jogar(vista)            → { tipo: 'carta', carta, cartas?, cor?, ultima? } | { tipo: 'comprar' } | { tipo: 'desafiar' }
+                               (cartas: várias de uma vez, na regra "jogar cartas iguais juntas"; a última fica por cima)
+     depoisDeComprar(vista)  → { tipo: 'carta', carta, cor?, ultima? } | { tipo: 'passar' } | { tipo: 'comprar' }
      escolherCor(vista)      → 0..3   (a primeira carta da pilha é um coringa)
      pegar(vista, j)         → ms (tempo para perceber que j não disse "Última!") ou null
+     manual (opcional)       → true para a pessoa: cada carta comprada é um toque (antesDeComprar) e,
+                               depois de comprar na vez, ela sempre decide (jogar a comprada, passar ou,
+                               na regra "comprar até poder jogar", comprar outra) — nada é automático.
+     antesDeComprar(vista, { faltam, total, motivo }) → resolve quando a pessoa toca em Comprar
    ganchos: { evento(ev) (pode ser assíncrono), salvar(estado), janelaUltima(j, outros, reacoes) → quem pegou | j (disse a tempo) | null }
 
    Eventos: inicioPartida, inicioMao, vez, jogada, efeito, compra, passou,
@@ -82,12 +87,30 @@
       }
       return m.compra.pop();
     }
-    async function comprar(j, qtd, motivo) {
+    /**
+     * j compra qtd cartas. Para a pessoa (agente manual) cada carta espera um toque em Comprar;
+     * jaConfirmadas: quantas já foram "tocadas" (o próprio toque que escolheu comprar vale pela primeira).
+     */
+    async function comprar(j, qtd, motivo, jaConfirmadas) {
       const m = est.mao, cartas = [];
-      for (let k = 0; k < qtd; k++) { const c = await tirar(); if (c === null) break; m.maos[j].push(c); cartas.push(c); }
+      const ag = agentes[j];
+      const porToque = !!(ag.manual && ag.antesDeComprar);
+      const corMesa = m.cor, topoMesa = m.descarte[m.descarte.length - 1];
+      for (let k = 0; k < qtd; k++) {
+        if (porToque && k >= (jaConfirmadas || 0)) {
+          await ag.antesDeComprar(vistaPara(j), { faltam: qtd - k, total: qtd, motivo });
+          if (est.parado) break;
+        }
+        const c = await tirar();
+        if (c === null) break;
+        m.maos[j].push(c); cartas.push(c);
+        if (m.maos[j].length > 1) m.ultima[j] = false;
+        // a pessoa vê cada carta chegar; para os bots, um aviso só
+        if (porToque) await emitir({ tipo: 'compra', j, qtd: 1, motivo, nCartas: m.maos[j].length, cartas: [c], parte: k + 1, total: qtd });
+      }
       if (m.maos[j].length > 1) m.ultima[j] = false;
-      m.historico.push({ j, acao: 'comprou', qtd: cartas.length, motivo, corMesa: m.cor, topoMesa: m.descarte[m.descarte.length - 1] });
-      await emitir({ tipo: 'compra', j, qtd: cartas.length, motivo, nCartas: m.maos[j].length, cartas });   // "cartas": a UI só mostra as suas
+      m.historico.push({ j, acao: 'comprou', qtd: cartas.length, motivo, corMesa, topoMesa });
+      if (!porToque) await emitir({ tipo: 'compra', j, qtd: cartas.length, motivo, nCartas: m.maos[j].length, cartas });   // "cartas": a UI só mostra as suas
       return cartas;
     }
 
@@ -182,7 +205,7 @@
           return null;
         }
         m.pendente = null;
-        await comprar(j, p.qtd, p.tipo === 'mais4' ? 'mais4' : 'mais2');
+        await comprar(j, p.qtd, p.tipo === 'mais4' ? 'mais4' : 'mais2', 1);
         m.vez = prox(j);
         return null;
       }
@@ -191,11 +214,16 @@
       const a = await agentes[j].jogar(v);
       if (est.parado) return null;
       if (a && a.tipo === 'carta') {
+        if (Array.isArray(a.cartas) && a.cartas.length > 1) {
+          if (!R.grupoValido(m.maos[j], a.cartas, v.topo, m.cor, op, null)) throw new Error('Última: cartas inválidas para jogar juntas (lugar ' + j + ')');
+          return jogarVarias(j, a.cartas.slice(), !!a.ultima);
+        }
         if (v.jogaveis.indexOf(a.carta) < 0) throw new Error('Última: carta inválida (lugar ' + j + ': ' + R.nome(a.carta) + ')');
         return jogarCarta(j, a.carta, a.cor, !!a.ultima);
       }
       // comprar (uma, ou até poder jogar na regra da casa)
       const topo = m.descarte[m.descarte.length - 1];
+      if (agentes[j].manual) return comprarNaMao(j, topo);
       let ultimaComprada = null, total = 0;
       for (let guarda = 0; guarda < R.TOTAL; guarda++) {
         const cs = await comprar(j, 1, 'vez');
@@ -215,6 +243,58 @@
       await emitir({ tipo: 'passou', j, comprou: total });
       m.vez = prox(j);
       return null;
+    }
+
+    /**
+     * A pessoa comprou na vez: uma carta por toque e, depois de cada uma, ela decide —
+     * jogar a comprada (se servir), passar ou (na regra "comprar até poder jogar", enquanto a
+     * comprada não serve) comprar outra. Passar sem poder, nessa regra, não vale: espera outro toque.
+     */
+    async function comprarNaMao(j, topo) {
+      const m = est.mao;
+      let confirmadas = 1, total = 0;
+      for (let guarda = 0; guarda < R.TOTAL; guarda++) {
+        const cs = await comprar(j, 1, 'vez', confirmadas);
+        if (est.parado) return null;
+        if (!cs.length) break;               // não há mais o que comprar
+        total++;
+        const comprada = cs[0];
+        const serve = R.jogaveis([comprada], topo, m.cor, op, null).length > 0;
+        m.fase = 'depoisDeComprar'; m.comprada = comprada;
+        const a2 = await agentes[j].depoisDeComprar(vistaPara(j));
+        m.fase = 'jogar'; m.comprada = null;
+        if (est.parado) return null;
+        if (a2 && a2.tipo === 'carta' && a2.carta === comprada && serve) return jogarCarta(j, comprada, a2.cor, !!a2.ultima);
+        const temMais = m.compra.length > 0 || m.descarte.length > 1;
+        if (op.comprarAtePoder && !serve && temMais) { confirmadas = a2 && a2.tipo === 'comprar' ? 1 : 0; continue; }
+        break;
+      }
+      m.historico.push({ j, acao: 'passou' });
+      await emitir({ tipo: 'passou', j, comprou: total });
+      m.vez = prox(j);
+      return null;
+    }
+
+    /** Várias cartas de número iguais de uma vez (a última fica por cima e vale a cor dela). */
+    async function jogarVarias(j, ids, declarou) {
+      const m = est.mao, mao = m.maos[j];
+      for (let i = 0; i < ids.length; i++) {
+        const id = ids[i];
+        mao.splice(mao.indexOf(id), 1);
+        const corAntes = m.cor, topoAntes = m.descarte[m.descarte.length - 1];
+        m.descarte.push(id);
+        m.cor = C[id].cor;
+        m.historico.push({ j, acao: 'jogou', carta: id, cor: m.cor, corAntes, topoAntes, junto: i > 0 });
+        const ultimaCarta = i === ids.length - 1;
+        await emitir({ tipo: 'jogada', j, carta: id, cor: m.cor, corAntes, ultima: ultimaCarta && declarou && mao.length === 1, nCartas: mao.length, parte: i + 1, de: ids.length });
+        if (est.parado) return null;
+      }
+      if (mao.length === 1) {
+        if (declarou) { m.ultima[j] = true; await emitir({ tipo: 'ultima', j }); }
+        else await janelaUltima(j);
+      }
+      m.vez = prox(j);
+      return mao.length === 0 ? j : null;
     }
 
     async function jogarCarta(j, id, corEscolhida, declarou) {

@@ -13,7 +13,7 @@
 
   // ------------------------------------------------------------ dados
   const CHAVE_CFG = 'uno.config', CHAVE_EST = 'uno.estat', CHAVE_SALVA = 'uno.partida', CHAVE_LEITURA = 'uno.leitura';
-  const PADRAO_CFG = { jogadores: 4, nivel: 'mestre', coach: 'sempre', ate: 200, acumular: false, comprarAtePoder: false, desafio: true };
+  const PADRAO_CFG = { jogadores: 4, nivel: 'mestre', coach: 'sempre', ate: 200, acumular: false, comprarAtePoder: false, juntas: false };
   const PADRAO_EST = () => ({ partidas: 0, vitorias: 0, maos: 0, maosGanhas: 0, notas: { otima: 0, boa: 0, imprecisa: 0, erro: 0 } });
   const Dados = {
     config() { return Object.assign({}, PADRAO_CFG, A.ler(CHAVE_CFG, {})); },
@@ -99,9 +99,9 @@
       el('input', { type: 'checkbox', checked: cfg[campo] ? true : null, onchange: e => { cfg[campo] = e.target.checked; Dados.salvarConfig(cfg); } }), el('i'),
       el('span', { html: `<b>${titulo}</b><br><small>${sub}</small>` }));
     box.appendChild(el('div', { class: 'campo uno-casa' }, el('span', { text: 'Regras' }),
-      chave('desafio', 'Desafio do +4 (oficial)', 'O +4 só vale sem carta da cor da mesa; quem recebe pode desafiar. Desligado: o jogo nem deixa jogar o +4 com a cor na mão.'),
       chave('acumular', 'Acumular +2 e +4 (da casa)', 'Quem recebe +2 pode passar adiante com outro +2 (ou +4); o próximo compra tudo.'),
-      chave('comprarAtePoder', 'Comprar até poder jogar (da casa)', 'Sem jogada, compra até sair uma carta que sirva.')));
+      chave('comprarAtePoder', 'Comprar até poder jogar (da casa)', 'Comprou uma que não serve? Compre outra (um toque por carta) até sair uma que sirva.'),
+      chave('juntas', 'Jogar cartas iguais juntas (da casa)', 'Cartas de número iguais (ex.: três 1) vão de uma vez: toque nas que quer jogar e aperte Jogar. A primeira combina com a mesa; a última fica por cima e vale a cor dela.')));
     // coach
     const coach = el('div', { class: 'opcoes-linha' });
     [['sempre', 'Dicas sempre'], ['pedido', 'Sob pedido'], ['desligado', 'Desligado']].forEach(([id, txt]) => coach.appendChild(el('button', { class: 'opcao' + (cfg.coach === id ? ' ativo' : ''), text: txt, onclick: () => { cfg.coach = id; salvar(); } })));
@@ -113,12 +113,6 @@
       perfis.appendChild(el('div', { class: 'tr-perfil' }, el('span', { class: 'tag-perfil', style: { '--cor-perfil': p.cor }, text: p.sigla }), el('div', {}, el('b', { text: p.nome }), el('span', { text: p.descricao }))));
     });
     box.appendChild(el('div', { class: 'campo' }, el('span', { text: 'Adversários sorteados a cada partida' }), perfis));
-    const lembra = Dados.leituraVoce();
-    box.appendChild(el('p', { class: 'tr-memoria' },
-      el('span', { text: lembra ? 'Os bots lembram de você: quanto blefa no +4 e quanto desafia. ' : 'Os bots aprendem quanto você blefa no +4 e quanto desafia, e lembram nas próximas partidas. ' }),
-      lembra ? el('button', { class: 'link', text: 'Fazer eles esquecerem', onclick: async () => {
-        if (await P.UI.confirmar('Apagar a memória dos bots?', 'Eles voltam a jogar contra você como se fosse a primeira vez.', 'Apagar', 'Cancelar')) { Dados.esquecerLeituraVoce(); render(); }
-      } }) : null));
     box.appendChild(el('button', { class: 'btn btn-ouro btn-sentar', text: salva ? 'Começar outra partida' : 'Começar partida', onclick: async () => {
       if (salva && !(await P.UI.confirmar('Começar outra?', 'A partida em andamento será descartada.', 'Começar', 'Cancelar'))) return;
       Dados.descartar();
@@ -145,14 +139,18 @@
       p('Na partida por pontos, ganha quem chegar primeiro ao total combinado (200 ou 500).')));
     box.appendChild(sec('A sua vez', true,
       p(`Jogue uma carta que combine com a de cima da pilha: <b>mesma cor</b> (${mini('verde', '3')} em ${mini('verde', '8')}), <b>mesmo número</b> (${mini('azul', '8')} em ${mini('verde', '8')}) ou <b>mesmo símbolo</b> (${mini('vermelho', '+2')} em ${mini('azul', '+2')}). Os <b>coringas</b> combinam com tudo e você escolhe a cor que vale dali em diante.`),
-      p('Não tem jogada (ou não quer jogar)? <b>Compre</b> uma carta. Se ela servir, pode jogá-la na hora; senão, passa a vez.')));
+      p('Não tem jogada (ou não quer jogar)? <b>Compre</b> uma carta. Se ela servir, pode jogá-la na hora; senão, passe a vez.'),
+      p('A mesa não mostra quais cartas servem: procure você mesmo (o coach ajuda, se você quiser). Cada carta comprada é um toque em <b>Comprar</b> — até nos +2 e +4.')));
     box.appendChild(sec('As cartas especiais', true,
       el('ul', { class: 'tr-lista' },
         el('li', { html: `${mini('amarelo', '⊘')} <b>Pular</b>: o próximo perde a vez.` }),
         el('li', { html: `${mini('verde', '⇄')} <b>Inverter</b>: muda o sentido. Com 2 jogadores, vale como Pular.` }),
         el('li', { html: `${mini('vermelho', '+2')} <b>+2</b>: o próximo compra 2 e perde a vez.` }),
         el('li', { html: `${mini('coringa', '★')} <b>Coringa</b>: escolha a cor.` }),
-        el('li', { html: `${mini('coringa', '+4')} <b>Coringa +4</b>: escolha a cor; o próximo compra 4 e perde a vez. Só vale quando você <b>não tem carta da cor da mesa</b>. Quem recebe pode <b>desafiar</b>: se era blefe, quem jogou compra 4; se não era, quem desafiou compra 6.` }))));
+        el('li', { html: `${mini('coringa', '+4')} <b>Coringa +4</b>: escolha a cor; o próximo compra 4 e perde a vez. Só vale quando você <b>não tem carta da cor da mesa</b> (com a cor na mão, o jogo não deixa).` }))));
+    box.appendChild(sec('Cartas iguais juntas (regra da casa)', false,
+      p(`Com a regra ligada, cartas de <b>número</b> iguais podem ir de uma vez: com ${mini('verde', '1')} na mesa e ${mini('azul', '1')} ${mini('vermelho', '1')} ${mini('amarelo', '1')} na mão, toque nas três e aperte <b>Jogar</b>.`),
+      p('A primeira tem de combinar com a mesa (cor ou número); a <b>última</b> que você tocar fica por cima e vale a cor dela. Cartas de ação e coringas vão uma por vez.')));
     box.appendChild(sec('Última!', true,
       p('Quando for jogar a <b>penúltima</b> carta, aperte <b>Última!</b> antes. Se esquecer e alguém perceber antes do próximo jogar, você compra 2. E se um bot esquecer, aperte <b>Pegou!</b> rápido.')));
     box.appendChild(sec('Dicas do coach', false,

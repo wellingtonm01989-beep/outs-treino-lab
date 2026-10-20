@@ -151,6 +151,24 @@
     return ganhou ? j : null;
   }
 
+  /** Várias cartas de número iguais de uma vez (a última fica por cima). */
+  function jogarVariasS(s, j, ids) {
+    const mao = s.maos[j];
+    ids.forEach(id => { mao.splice(mao.indexOf(id), 1); s.descarte.push(s.topo); s.topo = id; s.cor = C[id].cor; });
+    s.vez = proxS(s, j);
+    return mao.length === 0 ? j : null;
+  }
+  /** Para jogar juntas: id primeiro, as iguais no meio e por último a da cor que mais sobra na mão. */
+  function ordemJuntas(mao, id) {
+    const g = R.iguais(mao, id);
+    if (!g.length) return null;
+    const resto = mao.filter(x => x !== id && g.indexOf(x) < 0);
+    const porCor = [0, 0, 0, 0];
+    resto.forEach(x => { if (!C[x].coringa) porCor[C[x].cor]++; });
+    g.sort((a, b) => porCor[C[a].cor] - porCor[C[b].cor]);
+    return [id].concat(g);
+  }
+
   /** Cor para um coringa: a que mais aparece na mão (o próprio coringa não conta). */
   function melhorCor(mao, sem) {
     const cont = [0, 0, 0, 0];
@@ -201,6 +219,7 @@
       }
       if (v > nota) { nota = v; melhor = id; }
     }
+    if (s.op.juntas && C[melhor].tipo === 'num') { const ids = ordemJuntas(mao, melhor); if (ids) return jogarVariasS(s, j, ids); }
     return jogarS(s, j, melhor, melhorCor(mao, melhor));
   }
 
@@ -230,7 +249,26 @@
       if (c.coringa) cores.forEach(cor => out.push({ tipo: 'carta', carta: id, cor, blefe: c.tipo === 'mais4' && !vista.pendente && R.temCor(vista.mao.filter(x => x !== id), vista.cor) }));
       else out.push({ tipo: 'carta', carta: id });
     });
-    if (vista.fase === 'depoisDeComprar') out.push({ tipo: 'passar' });
+    // regra "jogar cartas iguais juntas": todas as de um número, terminando em cada cor possível
+    if (vista.opcoes && vista.opcoes.juntas && !vista.pendente && vista.fase !== 'depoisDeComprar') {
+      const porNum = {};
+      vista.mao.forEach(id => { const c = C[id]; if (c.tipo === 'num') (porNum[c.num] = porNum[c.num] || []).push(id); });
+      Object.keys(porNum).forEach(k => {
+        const g = porNum[k];
+        if (g.length < 2) return;
+        const primeiras = g.filter(id => vista.jogaveis.indexOf(id) >= 0);
+        if (!primeiras.length) return;
+        const ultimas = new Set();
+        g.forEach(ult => {
+          if (ultimas.has(C[ult].sig)) return;
+          const f = primeiras.find(x => x !== ult);
+          if (f === undefined) return;
+          ultimas.add(C[ult].sig);
+          out.push({ tipo: 'carta', carta: f, cartas: [f].concat(g.filter(x => x !== f && x !== ult), [ult]) });
+        });
+      });
+    }
+    if (vista.fase === 'depoisDeComprar') out.push(vista.opcoes && vista.opcoes.comprarAtePoder && !vista.jogaveis.length ? { tipo: 'comprar' } : { tipo: 'passar' });
     else {
       out.push({ tipo: 'comprar' });
       if (vista.podeDesafiar) out.push({ tipo: 'desafiar' });
@@ -240,6 +278,7 @@
 
   /** Aplica uma jogada minha no estado simulado. Devolve o vencedor se a mão acabou. */
   function aplicar(s, eu, o, desafio) {
+    if (o.tipo === 'carta' && o.cartas && o.cartas.length > 1) return jogarVariasS(s, eu, o.cartas);
     if (o.tipo === 'carta') return jogarS(s, eu, o.carta, o.cor, desafio);
     if (o.tipo === 'passar') { s.vez = proxS(s, eu); return null; }
     if (o.tipo === 'desafiar') {
@@ -257,6 +296,10 @@
   function notaSensata(vista, o) {
     if (o.tipo !== 'carta') return o.tipo === 'desafiar' ? 0 : -6;
     const c = C[o.carta], mao = vista.mao;
+    if (o.cartas && o.cartas.length > 1) {
+      const ult = C[o.cartas[o.cartas.length - 1]];
+      return 2 * o.cartas.length + mao.filter(id => o.cartas.indexOf(id) < 0 && !C[id].coringa && C[id].cor === ult.cor).length * 1.5 + c.num * 0.15;
+    }
     const alvo = R.proximo(vista.eu, vista.sentido, vista.n), nAlvo = vista.nCartas[alvo];
     let v = 0;
     if (c.coringa) {
@@ -415,8 +458,8 @@
    */
   const PERFIS = {
     estrategista: { nome: 'Estrategista', sigla: 'EST', cor: '#b794f4', descricao: 'Faz a conta de cada jogada e lê o que os outros têm pelo que compram e pelas cores que escolhem.', amostras: 70, margem: 0, ataque: 0, guarda: 0, blefe: 1, esquece: 0, reacao: [600, 1300] },
-    atacante: { nome: 'Atacante', sigla: 'ATA', cor: '#e5484d', descricao: 'Também faz a conta, mas na dúvida ataca: +2, Pular e +4 em quem está perto de sair. Blefa mais no +4.', amostras: 55, margem: 0.03, ataque: 1, guarda: 0, blefe: 1.6, esquece: 0.04, reacao: [800, 1700] },
-    paciente: { nome: 'Paciente', sigla: 'PAC', cor: '#4c9aff', descricao: 'Faz a conta e, na dúvida, guarda coringas e cartas de ação para o fim. Quase nunca blefa.', amostras: 55, margem: 0.03, ataque: 0, guarda: 1, blefe: 0.4, esquece: 0.02, reacao: [900, 2000] }
+    atacante: { nome: 'Atacante', sigla: 'ATA', cor: '#e5484d', descricao: 'Também faz a conta, mas na dúvida ataca: +2, Pular e +4 em quem está perto de sair.', amostras: 55, margem: 0.03, ataque: 1, guarda: 0, blefe: 1.6, esquece: 0.04, reacao: [800, 1700] },
+    paciente: { nome: 'Paciente', sigla: 'PAC', cor: '#4c9aff', descricao: 'Faz a conta e, na dúvida, guarda coringas e cartas de ação para o fim.', amostras: 55, margem: 0.03, ataque: 0, guarda: 1, blefe: 0.4, esquece: 0.02, reacao: [900, 2000] }
   };
   const LISTA_PERFIS = Object.keys(PERFIS);
   /** Níveis do lobby: no Mestre todos fazem a conta inteira. */
@@ -455,7 +498,9 @@
         const cartas = ops.filter(o => o.tipo === 'carta' && !o.blefe);
         if (vista.podeDesafiar) return RNG.chance(0.3) ? { tipo: 'desafiar' } : { tipo: 'comprar' };
         if (!cartas.length) return ops.find(o => o.tipo === 'passar') || { tipo: 'comprar' };
-        const id = cartas[RNG.inteiroAbaixo(cartas.length)].carta;
+        const o = cartas[RNG.inteiroAbaixo(cartas.length)];
+        if (o.cartas) return o;
+        const id = o.carta;
         return { tipo: 'carta', carta: id, cor: C[id].coringa ? melhorCor(vista.mao, id) : undefined };
       }
       const av = avaliar(vista, { amostras, modelos: modelos(vista) });
@@ -468,7 +513,7 @@
 
     function comUltima(vista, o) {
       if (o.tipo !== 'carta') return o;
-      const restam = vista.fase === 'depoisDeComprar' ? vista.mao.length : vista.mao.length - 1;
+      const restam = vista.fase === 'depoisDeComprar' ? vista.mao.length : vista.mao.length - (o.cartas ? o.cartas.length : 1);
       return Object.assign({}, o, { ultima: restam === 1 && !RNG.chance(cfg.esquece) });
     }
 
@@ -482,5 +527,5 @@
     };
   }
 
-  U.IA = { PERFIS, LISTA_PERFIS, NIVEIS, NOMES, inferir, naoVistas, sortearMundo, opcoesDe, avaliar, chanceBlefe, politica, ateOFim, estadoDe, clonar, melhorCor, criarLeitor, juntarLeituras, criarBot };
+  U.IA = { PERFIS, LISTA_PERFIS, NIVEIS, NOMES, inferir, naoVistas, sortearMundo, opcoesDe, avaliar, chanceBlefe, politica, ateOFim, estadoDe, clonar, melhorCor, criarLeitor, juntarLeituras, criarBot, ordemJuntas };
 })(window.Poker = window.Poker || {});

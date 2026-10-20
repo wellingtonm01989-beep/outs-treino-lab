@@ -298,29 +298,69 @@
     if (P.Truco.Dados.estat().torneios.jogados !== 1) throw new Error('torneio abandonado não contou como jogado');
     passo('torneio ok');
 
-    // 10) Última!: lobby, uma partida curta (jogue cartas que servem, compre quando não houver), coach, sair
+    // 10) Última!: lobby (liga "cartas iguais juntas"), partida curta sem destaque das cartas: escolhe e aperta Jogar,
+    //     toque numa que não serve é recusado, cada compra é um toque, depois de comprar decide; coach; sair
     P.Config.set('velocidade', 'turbo');
     P.App.irPara('uno');
     await ate(() => $('.uno .truco-novo'), 3000, 'lobby do Última!');
     clicar(botaoComTexto('3', '.uno .truco-novo'));
+    await ate(() => $('.uno .tr-chave'), 3000, 'chaves do lobby');
+    const chaveJ = Array.prototype.slice.call(document.querySelectorAll('.uno .tr-chave')).find(l => /iguais juntas/.test(l.textContent));
+    if (!chaveJ) throw new Error('Última!: sem a chave de cartas iguais juntas');
+    if (!chaveJ.querySelector('input').checked) chaveJ.querySelector('input').click();
+    if (!P.Uno.Dados.config().juntas) throw new Error('Última!: a regra das juntas não ficou salva');
     P.UIUnoMesa.iniciar({ n: 3, semSalvar: true, amostras: 40, amostrasBots: 10, velocidade: 0.05 });
-    let jogadasU = 0;
+    let jogadasU = 0, comprasU = 0, recusouU = false, decidiuU = 0;
+    const cartaU = id => $(`.un-mao .un-carta-mao[data-carta="${id}"]`);
+    const botaoU = papel => $(`.un-acoes .btn-acao[data-papel="${papel}"]:not(:disabled)`);
     const t0U = Date.now();
-    while (jogadasU < 4 && Date.now() - t0U < 60000) {
+    while ((jogadasU < 4 || !recusouU) && Date.now() - t0U < 90000) {
       await dormir(150);
       if ($('.un-fim .btn-ouro')) { clicar($('.un-fim .btn-ouro')); continue; }
-      if (!$('.un-cores.oculto') && $('.un-cores .un-cor')) { clicar($('.un-cores .un-cor')); jogadasU++; continue; }
-      const carta = $('.un-mao.jogavel .un-carta-mao.pode');
-      const b = $('.un-acoes .btn-acao:not(:disabled)[class*="btn-aceitar"], .un-acoes .btn-acao:not(:disabled).btn-correr');
-      if (carta) { clicar(carta); if (!$('.un-cores') || $('.un-cores').classList.contains('oculto')) jogadasU++; }
-      else if (b && P.UIUnoMesa._jogo() && P.UIUnoMesa._jogo().pendente) { clicar(b); jogadasU++; }
+      if ($('.un-cores') && !$('.un-cores').classList.contains('oculto') && $('.un-cores .un-cor')) { clicar($('.un-cores .un-cor')); jogadasU++; continue; }
+      const jg = P.UIUnoMesa._jogo();
+      if (!jg) break;
+      if (jg.compraPendente) { const b = botaoU('compraPendente'); if (b) { clicar(b); comprasU++; } continue; }
+      if (!jg.pendente || $('.tr-coach .calc')) continue;
+      if ($('.un-carta-mao.pode') || $('.un-mao.jogavel')) throw new Error('Última!: a mesa destacou as cartas que servem');
+      const v = jg.pendente.vista;
+      if (v.fase === 'depoisDeComprar') {
+        decidiuU++;
+        if (v.jogaveis.length && cartaU(v.comprada)) { clicar(cartaU(v.comprada)); jogadasU++; }
+        else if (botaoU('comprarOutra') && !v.jogaveis.length) clicar(botaoU('comprarOutra'));
+        else if (botaoU('passar')) clicar(botaoU('passar'));
+        continue;
+      }
+      if (v.fase === 'responder') { const b = botaoU('aceitar'); if (b) clicar(b); continue; }
+      // uma vez: tocar numa carta que não serve e apertar Jogar → recusa sem jogar
+      const ruim = v.mao.find(id => v.jogaveis.indexOf(id) < 0 && P.Uno.Regras.CARTAS[id].tipo !== 'num');
+      if (!recusouU && ruim !== undefined && cartaU(ruim)) {
+        clicar(cartaU(ruim));
+        await ate(() => botaoU('jogar'), 2000, 'botão Jogar');
+        clicar(botaoU('jogar'));
+        await ate(() => $('.tr-aviso-mesa'), 2000, 'aviso de carta que não serve');
+        if (!P.UIUnoMesa._jogo().pendente) throw new Error('Última!: a carta que não serve foi jogada');
+        clicar(cartaU(ruim));                       // tira a escolha
+        recusouU = true;
+        continue;
+      }
+      const boa = v.jogaveis[0];
+      if (boa !== undefined && cartaU(boa)) {
+        clicar(cartaU(boa));
+        P.Uno.Regras.iguais(v.mao, boa).forEach(id => { if (cartaU(id)) clicar(cartaU(id)); });
+        await ate(() => botaoU('jogar'), 2000, 'botão Jogar');
+        clicar(botaoU('jogar'));
+        if ($('.un-cores') && $('.un-cores').classList.contains('oculto')) jogadasU++;
+      } else if (botaoU('comprar')) clicar(botaoU('comprar'));
     }
     if (jogadasU < 4) throw new Error('Última!: não consegui jogar');
+    if (!recusouU) throw new Error('Última!: não testei a recusa');
     clicar($('.un-acoes .tr-coach'));
     await ate(() => $('.modal .tr-coach-modal') || $('.tr-painel:not(.recolhido) .tr-coach-modal'), 3000, 'coach do Última!');
     if ($('.modal .tr-coach-modal')) clicar($('.modal .fechar'));
     P.UIUnoMesa.encerrar();
-    passo('última ok (' + jogadasU + ' jogadas)');
+    const cfgU = P.Uno.Dados.config(); cfgU.juntas = false; P.Uno.Dados.salvarConfig(cfgU);
+    passo(`última ok (${jogadasU} jogadas, ${decidiuU} decisões depois de comprar, ${comprasU} compras por toque)`);
 
     // 11) Xadrez: lobby, e2-e4 por toque, resposta do bot, desfazer, sair
     P.App.irPara('xadrez');

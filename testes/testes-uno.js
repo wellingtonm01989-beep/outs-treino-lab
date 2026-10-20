@@ -2,8 +2,9 @@
    OUTS · Treino Lab — testes/testes-uno.js
    Testes do "Última!" (cartas coloridas): baralho, quando uma carta serve,
    motor com baralho montado (Pular, Inverter, +2, +4 com desafio, Última!
-   esquecido, pontos), regras da casa, leitura das mãos e bots jogando
-   partidas inteiras.
+   esquecido, pontos), regras da casa (acumular, comprar até poder, cartas
+   iguais juntas), compras uma por toque para você, leitura das mãos e bots
+   jogando partidas inteiras.
    ========================================================================== */
 (function (P) {
   'use strict';
@@ -137,12 +138,12 @@
     a.igualJSON(vezes, [0, 2], 'depois do Inverter, a vez volta pelo outro lado');
   });
 
-  T(G, '+4 com desafio: blefe pego (quem jogou compra 4) e +4 limpo (quem desafiou compra 6)', async a => {
+  T(G, '+4 com desafio (só no motor; a mesa joga sem): blefe pego compra 4, desafio errado compra 6', async a => {
     // blefe: 0 tem vermelho e joga +4 em vermelho
     let d = baralho(['W4 r1 g1 g2 g3 g4 g5', 'b1 b2 b3 b4 b5 b6 b7'], 'r9');
     const ag = [roteiro(['W4:g']), roteiro(['desafiar'])];
     let ev = [];
-    let m = M.criar({ n: 2, dador: 1, baralhos: [d], opcoes: { ate: 0 } }, ag, { evento: e => { ev.push(e); if (e.tipo === 'desafio') m.parar(); } });
+    let m = M.criar({ n: 2, dador: 1, baralhos: [d], opcoes: { ate: 0, desafio: true } }, ag, { evento: e => { ev.push(e); if (e.tipo === 'desafio') m.parar(); } });
     ag[1].jogar = v => { ag[1].vistas.push(v); if (v.podeDesafiar) return { tipo: 'desafiar' }; m.parar(); return { tipo: 'comprar' }; };
     await m.rodar();
     let des = ev.find(e => e.tipo === 'desafio');
@@ -153,7 +154,7 @@
     d = baralho(['W4 g1 g2 g3 g4 g5 g6', 'b1 b2 b3 b4 b5 b6 b7'], 'r9');
     const ag2 = [roteiro(['W4:g']), roteiro([])];
     ev = [];
-    m = M.criar({ n: 2, dador: 1, baralhos: [d], opcoes: { ate: 0 } }, ag2, { evento: e => { ev.push(e); } });
+    m = M.criar({ n: 2, dador: 1, baralhos: [d], opcoes: { ate: 0, desafio: true } }, ag2, { evento: e => { ev.push(e); } });
     ag2[1].jogar = v => { if (v.podeDesafiar) return { tipo: 'desafiar' }; m.parar(); return { tipo: 'comprar' }; };
     ag2[0].jogar = v => { if (v.mao.length === 7) return { tipo: 'carta', carta: v.mao.find(x => C[x].tipo === 'mais4'), cor: 2 }; m.parar(); return { tipo: 'comprar' }; };
     await m.rodar();
@@ -207,6 +208,81 @@
     a.igual(R.nome(jog.carta), '4 Vermelho');
   });
 
+  T(G, 'Cartas iguais juntas (regra da casa): só números iguais, a primeira combinando com a mesa', a => {
+    const usadas = new Set();
+    const [g1, b1, r1, a1, b5, rP, bP] = ids('g1 b1 r1 a1 b5 rP bP', usadas);
+    const mao = [b1, r1, a1, b5, rP, bP];
+    const op = R.opcoes({ juntas: true }), sem = R.opcoes();
+    a.verdadeiro(R.grupoValido(mao, [b1, r1, a1], g1, 2, op, null), 'três 1 sobre um 1');
+    a.verdadeiro(!R.grupoValido(mao, [b1, r1, a1], g1, 2, sem, null), 'sem a regra, não');
+    a.verdadeiro(!R.grupoValido(mao, [b1, b5], g1, 2, op, null), 'números diferentes, não');
+    a.verdadeiro(!R.grupoValido(mao, [rP, bP], ids('gP', usadas)[0], 2, op, null), 'ações vão uma por vez');
+    const g7 = ids('g7', usadas)[0];
+    a.verdadeiro(!R.grupoValido(mao, [b1, r1], g7, 2, op, null), 'nenhuma combina com o 7 verde');
+    a.verdadeiro(R.grupoValido(mao, [b1, r1], ids('b9', usadas)[0], 3, op, null), 'a primeira (1 azul) combina pela cor');
+    a.verdadeiro(!R.grupoValido(mao, [r1, b1], ids('b8', usadas)[0], 3, op, null), 'mas a primeira tem de combinar (o 1 vermelho não)');
+    a.igualJSON(R.iguais(mao, b1).sort(), [r1, a1].sort(), 'as iguais ao 1 azul');
+  });
+
+  T(G, 'Jogar juntas: os três 1 vão de uma vez e a última fica por cima', async a => {
+    const d = baralho(['b1 r1 a1 b5 b6 b7 b8', 'g2 g3 g4 g5 g6 g7 g8'], 'g1');
+    const usadasAg = [];
+    const ag0 = {
+      jogar(v) {
+        if (v.mao.length === 7) { const um = v.mao.filter(x => C[x].tipo === 'num' && C[x].num === 1); usadasAg.push(um); return { tipo: 'carta', carta: um.find(x => C[x].cor === 3), cartas: [um.find(x => C[x].cor === 3), um.find(x => C[x].cor === 0), um.find(x => C[x].cor === 1)] }; }
+        m.parar(); return { tipo: 'comprar' };
+      },
+      depoisDeComprar: () => ({ tipo: 'passar' }), escolherCor: () => 0, pegar: () => null
+    };
+    const ag1 = { jogar: () => ({ tipo: 'comprar' }), depoisDeComprar: () => ({ tipo: 'passar' }), escolherCor: () => 0, pegar: () => null };
+    const ev = [];
+    const m = M.criar({ n: 2, dador: 1, baralhos: [d], opcoes: { ate: 0, juntas: true } }, [ag0, ag1], { evento: e => { ev.push(e); if (e.tipo === 'vez' && e.j === 1) m.parar(); } });
+    await m.rodar();
+    const jog = ev.filter(e => e.tipo === 'jogada');
+    a.igual(jog.length, 3, 'três jogadas seguidas');
+    a.igualJSON(jog.map(e => e.parte + '/' + e.de), ['1/3', '2/3', '3/3']);
+    const mo = m._mao();
+    a.igual(C[mo.descarte[mo.descarte.length - 1]].cor, 1, 'o 1 amarelo (o último) ficou por cima');
+    a.igual(mo.cor, 1, 'e a cor da vez é amarelo');
+    a.igual(mo.maos[0].length, 4, 'sobraram 4 cartas');
+    const op = IA.opcoesDe(Object.assign(m.vistaPara(0), { fase: 'jogar' }));
+    a.verdadeiro(Array.isArray(op), 'opções calculadas');
+  });
+
+  T(G, 'Você (manual): cada carta comprada espera um toque, e depois de comprar quem decide é você', async a => {
+    // o 0 (bot) joga +2 em você (lugar 1): duas compras, um toque cada; na sua vez você compra (o toque vale) e passa
+    const d = baralho(['r+2 r1 r2 r3 r4 r5 r6', 'g1 g2 g3 g4 g5 g6 g7'], 'r9', 'b1 b2 b3 b4');
+    const toques = [], depois = [];
+    let vezes0 = 0;
+    const ag0 = { jogar(v) { vezes0++; if (vezes0 === 1) return { tipo: 'carta', carta: v.mao.find(x => C[x].tipo === 'mais2') }; if (vezes0 === 2) return { tipo: 'carta', carta: v.mao.find(x => C[x].num === 1) }; m.parar(); return { tipo: 'comprar' }; },
+      depoisDeComprar: () => ({ tipo: 'passar' }), escolherCor: () => 0, pegar: () => null };
+    const eu = { manual: true, jogar: () => ({ tipo: 'comprar' }), depoisDeComprar(v) { depois.push(v); return { tipo: 'passar' }; },
+      antesDeComprar(v, info) { toques.push(info); return Promise.resolve(); }, escolherCor: () => 0, pegar: () => null };
+    const ev = [];
+    const m = M.criar({ n: 2, dador: 1, baralhos: [d], opcoes: { ate: 0 } }, [ag0, eu], { evento: e => { ev.push(e); } });
+    await m.rodar();
+    a.igualJSON(toques.map(t => t.motivo + ':' + t.faltam + '/' + t.total), ['mais2:2/2', 'mais2:1/2'], 'um toque por carta do +2');
+    a.igual(ev.filter(e => e.tipo === 'compra' && e.j === 1 && e.motivo === 'mais2').length, 2, 'e cada carta chega numa compra');
+    a.igual(depois.length, 1, 'depois de comprar na vez, você decide');
+    a.verdadeiro(depois[0].jogaveis.length === 0, 'mesmo com a comprada sem servir (a mesa não decide por você)');
+    a.verdadeiro(ev.some(e => e.tipo === 'passou' && e.j === 1), 'você passou');
+  });
+
+  T(G, 'Você (manual) na regra de comprar até poder: compra outra a cada toque e para quando serve', async a => {
+    const d = baralho(['g1 g2 g3 g4 g5 g6 g7', 'b3 b4 b5 b6 b7 b8 b0'], 'r9', 'b1 b2 r4');
+    const toques = [], depois = [];
+    const eu = { manual: true, jogar: () => ({ tipo: 'comprar' }),
+      depoisDeComprar(v) { depois.push(v.comprada); if (depois.length === 1) return { tipo: 'passar' }; if (!v.jogaveis.length) return { tipo: 'comprar' }; return { tipo: 'carta', carta: v.comprada }; },
+      antesDeComprar(v, info) { toques.push(info.motivo); return Promise.resolve(); }, escolherCor: () => 0, pegar: () => null };
+    const ag1 = { jogar: () => ({ tipo: 'comprar' }), depoisDeComprar: () => ({ tipo: 'passar' }), escolherCor: () => 0, pegar: () => null };
+    const ev = [];
+    const m = M.criar({ n: 2, dador: 1, baralhos: [d], opcoes: { ate: 0, comprarAtePoder: true } }, [eu, ag1], { evento: e => { ev.push(e); if (e.tipo === 'jogada') m.parar(); } });
+    await m.rodar();
+    a.igualJSON(depois.map(x => R.nome(x)), ['1 Azul', '2 Azul', '4 Vermelho'], 'decidiu depois de cada compra');
+    a.igual(toques.length, 1, 'passar sem poder não vale: a compra seguinte esperou um toque');
+    a.igual(R.nome(ev.find(e => e.tipo === 'jogada').carta), '4 Vermelho');
+  });
+
   T(GB, 'Leitura das mãos: quem comprou com a mesa em azul quase certamente não tem azul', a => {
     const vista = {
       eu: 0, n: 2, mao: ids('r1 r2'), descarte: ids('b5'), nCartas: [2, 6],
@@ -225,7 +301,7 @@
     for (let i = 0; i < 5; i++) {
       const n = 2 + i;
       const ag = Array.from({ length: n }, (_, j) => IA.criarBot(IA.LISTA_PERFIS[(i + j) % 3], { nivel: ['mestre', 'medio', 'facil'][j % 3], amostras: 8 }));
-      const op = { ate: 0, acumular: i % 2 === 1, comprarAtePoder: i === 2, desafio: i !== 3 };
+      const op = { ate: 0, acumular: i % 2 === 1, comprarAtePoder: i === 2, desafio: i !== 3, juntas: i >= 2 };
       const r = await M.criar({ n, opcoes: op }, ag, { evento: ev => ag.forEach(x => x.observar(ev)) }).rodar();
       maos += r.maos;
       a.verdadeiro(r.vencedor >= 0 && r.vencedor < n, 'tem vencedor');

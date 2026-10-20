@@ -4,9 +4,13 @@
    barra de cima, palco com a mesa oval, placas dos jogadores em volta (com
    as cartas viradas e quantas têm), no meio a compra e a pilha com a cor da
    vez e o sentido; a sua mão sobre a borda da mesa (toque numa carta para
-   jogar), a barra de ações (Última!, Comprar/Passar, Desafiar/Pegou!) e o
+   jogar; na regra "cartas iguais juntas", toque para escolher e aperte
+   Jogar), a barra de ações (Última!, Comprar/Passar, Desafiar/Pegou!) e o
    coach (painel no PC, janela no celular). A partida fica salva no começo de
    cada mão: se o app fechar, ela volta pela aba (a mão em andamento é anulada).
+   A mesa não entrega o jogo: as cartas que servem não ficam destacadas (só a
+   dica do coach, se você quiser), cada carta comprada é um toque em Comprar
+   e, depois de comprar, quem decide se joga ou passa é você.
    ========================================================================== */
 (function (P) {
   'use strict';
@@ -63,7 +67,7 @@
 
     // barra de cima
     const op = jogo.op;
-    const detalhe = `${n} jogadores · ${op.ate ? 'até ' + op.ate + ' pontos' : 'uma mão'} · bots ${IA.NIVEIS[jogo.nivel].nome.toLowerCase()}`;
+    const detalhe = `${n} jogadores · ${op.ate ? 'até ' + op.ate + ' pontos' : 'uma mão'}${op.juntas ? ' · iguais juntas' : ''} · bots ${IA.NIVEIS[jogo.nivel].nome.toLowerCase()}`;
     g.detalhe = el('span', { class: 'detalhe', text: detalhe });
     g.btnCoach = el('button', { class: 'btn', text: 'Coach', title: 'Mostrar/recolher o coach', onclick: () => alternarPainel() });
     g.barra = el('div', { class: 'mesa-barra tr-barra un-barra' },
@@ -114,7 +118,11 @@
     g.sentido = el('div', { class: 'un-sentido', html: '<svg viewBox="0 0 100 100"><path d="M50 8a42 42 0 0 1 36 20" /><path d="M92 50a42 42 0 0 1-20 36" /><path d="M50 92a42 42 0 0 1-36-20" /><path d="M8 50a42 42 0 0 1 20-36" /></svg>' });
     g.corTxt = el('div', { class: 'un-cor-vez' });
     g.centro = el('div', { class: 'un-centro' }, g.sentido, g.compraEl, el('div', { class: 'un-pilha-caixa' }, g.anel, g.pilha), g.corTxt);
-    g.compraEl.addEventListener('click', () => { if (jogo && jogo.pendente && !g.btnB.disabled && g.btnB.dataset.papel === 'comprar') acaoComprar(); });
+    g.compraEl.addEventListener('click', () => {
+      if (!jogo) return;
+      if (jogo.compraPendente) { resolverCompra(); return; }
+      if (jogo.pendente && !g.btnB.disabled && ['comprar', 'comprarOutra', 'aceitar'].indexOf(g.btnB.dataset.papel) >= 0) g.btnB.click();
+    });
     g.splash = el('div', { class: 'tr-splash un-splash' });
     g.mao = el('div', { class: 'un-mao' });
     g.cores = el('div', { class: 'un-cores oculto' });
@@ -320,32 +328,40 @@
     g.sentido.classList.toggle('anti', v.sentido < 0);
   }
 
-  /** A sua mão (as cartas que servem ficam em pé; as outras, mais apagadas). */
+  /** Cartas que o coach sugere (assinaturas; várias na jogada de cartas juntas). */
+  function cartasSugeridas() {
+    const c = jogo.conselho;
+    if (!c || !c.melhor || c.melhor.tipo !== 'carta' || !(jogo.opcoes.coach === 'sempre' || jogo.dicaVista)) return [];
+    return (c.melhor.cartas && c.melhor.cartas.length > 1 ? c.melhor.cartas : [c.melhor.carta]).map(id => C[id].sig);
+  }
+
+  /** A sua mão. Nada indica quais cartas servem (só a dica do coach, quando ligada). */
   function renderMao() {
     const g = jogo.ui, v = jogo.motor.vistaPara(0);
     g.mao.innerHTML = '';
     const pend = jogo.pendente;
-    const minhaVez = !!pend;
-    const jog = pend ? pend.vista.jogaveis : [];
-    const sugerida = jogo.conselho && (jogo.opcoes.coach === 'sempre' || jogo.dicaVista) && jogo.conselho.melhor && jogo.conselho.melhor.tipo === 'carta' ? jogo.conselho.melhor.carta : null;
-    const sigSug = sugerida !== null ? C[sugerida].sig : null;
+    const sug = cartasSugeridas();
+    const sel = jogo.selecao || [];
     // ordem: por cor, depois número/ação; coringas no fim
     const mao = v.mao.slice().sort((a, b) => {
       const x = C[a], y = C[b];
       const kx = x.coringa ? 9 : x.cor, ky = y.coringa ? 9 : y.cor;
       return kx - ky || (x.tipo === 'num' ? x.num : 20 + R.TIPOS.indexOf(x.tipo)) - (y.tipo === 'num' ? y.num : 20 + R.TIPOS.indexOf(y.tipo));
     });
-    let jaSug = false;
+    let primeiraSug = true;
     mao.forEach((id, i) => {
-      const pode = minhaVez && jog.indexOf(id) >= 0;
-      const sug = pode && !jaSug && sigSug !== null && C[id].sig === sigSug;
-      if (sug) jaSug = true;
-      const b = el('button', { class: 'un-carta-mao' + (pode ? ' pode' : '') + (sug ? ' sugerida' : '') + (jogo.novas && jogo.novas.indexOf(id) >= 0 ? ' nova' : '') + (pend && pend.vista.comprada === id ? ' comprada' : ''),
-        style: { '--i': i }, 'data-carta': id, title: R.nome(id) }, cartaEl(id));
+      const k = sug.indexOf(C[id].sig);
+      const sugerida = k >= 0;
+      if (sugerida) sug.splice(k, 1);
+      const ordem = sel.indexOf(id);
+      const b = el('button', { class: 'un-carta-mao' + (sugerida ? ' sugerida' + (primeiraSug ? '' : ' sug-extra') : '') + (ordem >= 0 ? ' selecionada' : '') + (jogo.novas && jogo.novas.indexOf(id) >= 0 ? ' nova' : '') + (pend && pend.vista.comprada === id ? ' comprada' : ''),
+        style: { '--i': i }, 'data-carta': id, title: R.nome(id) }, cartaEl(id),
+        ordem >= 0 && sel.length > 1 ? el('span', { class: 'un-ordem', text: String(ordem + 1) }) : null);
+      if (sugerida) primeiraSug = false;
       b.addEventListener('click', () => tocarCarta(id));
       g.mao.appendChild(b);
     });
-    g.mao.classList.toggle('jogavel', minhaVez && jog.length > 0);
+    g.mao.classList.toggle('minha-vez', !!pend);
     jogo.novas = null;
     layout();
   }
@@ -366,7 +382,7 @@
     if (!jogo || !jogo.conselho) return;
     const modo = jogo.opcoes.coach;
     jogo.ui.btnDica.classList.toggle('oculto', modo !== 'pedido' || jogo.dicaVista);
-    if (modo === 'sempre' || jogo.dicaVista) { coachNota(null); coachTexto(jogo.conselho.resumo); marcarSugestoes(); }
+    if (modo === 'sempre' || jogo.dicaVista) { coachNota(null); coachTexto(jogo.conselho.resumo); marcarSugestoes(); renderMao(); }
     else if (modo === 'pedido') coachTexto('<span class="calc">Quer ajuda? Toque em <b>Dica</b>.</span>');
     atualizarPainel();
   }
@@ -382,21 +398,8 @@
     [g.btnA, g.btnB, g.btnC].forEach(b => b.classList.remove('sugerido'));
     if (!c || !(jogo.opcoes.coach === 'sempre' || jogo.dicaVista)) return;
     const t = c.melhor.tipo;
-    if (t === 'comprar' || t === 'passar') g.btnB.classList.add('sugerido');
-    else if (t === 'desafiar') g.btnC.classList.add('sugerido');
-    if (t === 'carta') renderMaoSemLayout();
-  }
-  function renderMaoSemLayout() {
-    const g = jogo.ui, c = jogo.conselho;
-    if (!c || c.melhor.tipo !== 'carta') return;
-    const sig = C[c.melhor.carta].sig;
-    let feito = false;
-    g.mao.querySelectorAll('.un-carta-mao').forEach(b => {
-      const id = +b.dataset.carta;
-      const s = !feito && b.classList.contains('pode') && C[id].sig === sig;
-      b.classList.toggle('sugerida', s);
-      if (s) feito = true;
-    });
+    const papel = { comprar: ['comprar', 'comprarOutra', 'aceitar'], passar: ['passar'], desafiar: ['desafiar'] }[t] || [];
+    [g.btnB, g.btnC].forEach(b => { if (!b.disabled && papel.indexOf(b.dataset.papel) >= 0) b.classList.add('sugerido'); });
   }
 
   function conteudoCoach(paraVer) {
@@ -498,50 +501,87 @@
   }
 
   // ================================================================ ações
-  /** Os três botões: [Última!] [Comprar/Passar/Comprar N] [Dica/Desafiar]. */
+  /** Os três botões: [Última!] [Comprar/Jogar/Passar/Comprar N] [Dica/Desafiar/Passar]. */
   function acoesEspera(texto) {
     const g = jogo.ui;
-    [g.btnA, g.btnB, g.btnC].forEach(b => { b.disabled = true; b.classList.remove('sugerido', 'ativo', 'pulsa'); b.onclick = null; });
+    [g.btnA, g.btnB, g.btnC].forEach(b => { b.disabled = true; b.classList.remove('sugerido', 'ativo', 'pulsa'); b.onclick = null; b.dataset.papel = ''; });
     g.btnA.className = 'btn-acao un-btn-ultima'; g.btnA.innerHTML = 'Última!<small>antes da penúltima</small>';
-    g.btnB.className = 'btn-acao btn-aceitar'; g.btnB.innerHTML = 'Comprar'; g.btnB.dataset.papel = '';
+    g.btnB.className = 'btn-acao btn-aceitar'; g.btnB.innerHTML = 'Comprar';
     g.btnC.className = 'btn-acao btn-tr-dica'; g.btnC.innerHTML = 'Dica';
     g.status.innerHTML = texto || '';
-    g.mao.classList.remove('jogavel');
+    g.mao.classList.remove('minha-vez');
   }
+  function botao(b, classe, html, papel, fn) {
+    b.disabled = false; b.className = 'btn-acao ' + classe; b.innerHTML = html; b.dataset.papel = papel; b.onclick = fn;
+  }
+  /** Os textos não contam se você tem jogada: quem procura a carta é você. */
   function prepararBotoes(vista) {
-    const g = jogo.ui;
+    const g = jogo.ui, op = jogo.op;
     acoesEspera('');
     const n = vista.mao.length;
-    // Última!: na sua vez, com 2 cartas (ou com 1 depois de comprar e poder jogar... aí já não precisa)
-    if (vista.fase !== 'responder' && n <= 2) {
+    // Última!: com 2 cartas na mão (ou, jogando cartas juntas, a qualquer hora: várias de uma vez podem deixar uma só)
+    if (vista.fase !== 'responder' && (n <= 2 || (op.juntas && vista.fase === 'jogar'))) {
       g.btnA.disabled = false;
       g.btnA.classList.toggle('ativo', !!jogo.ultimaArmada);
       g.btnA.innerHTML = jogo.ultimaArmada ? 'Última!<small>dito ✓</small>' : 'Última!<small>aperte e jogue</small>';
       g.btnA.onclick = () => { jogo.ultimaArmada = !jogo.ultimaArmada; prepararBotoes(vista); };
-      if (!jogo.ultimaArmada && n === 2 && vista.jogaveis.length) g.btnA.classList.add('pulsa');
+      if (!jogo.ultimaArmada && n === 2 && vista.fase === 'jogar') g.btnA.classList.add('pulsa');
     }
     if (vista.fase === 'responder') {
       const p = vista.pendente;
-      g.btnB.disabled = false; g.btnB.className = 'btn-acao btn-correr'; g.btnB.innerHTML = `Comprar ${p.qtd}<small>e passar a vez</small>`; g.btnB.dataset.papel = 'aceitar';
-      g.btnB.onclick = () => acaoComprar();
-      if (vista.podeDesafiar) {
-        g.btnC.disabled = false; g.btnC.className = 'btn-acao un-btn-desafio'; g.btnC.innerHTML = 'Desafiar<small>blefe? ele compra 4</small>';
-        g.btnC.onclick = () => acaoDesafiar();
-      } else ajustarDica();
-      g.status.innerHTML = vista.podeDesafiar ? `<b>+4 em você!</b> Compre 4 ou desafie (se não era blefe, você compra 6)`
-        : `<b>+${p.qtd} em você!</b> ${vista.jogaveis.length ? 'Passe adiante com outro ' + (p.tipo === 'mais2' ? '+2 ou +4' : '+4') + ', ou compre.' : 'Compre as cartas.'}`;
+      botao(g.btnB, 'btn-correr', `Comprar ${p.qtd}<small>uma por toque</small>`, 'aceitar', () => acaoComprar());
+      if (vista.podeDesafiar) botao(g.btnC, 'un-btn-desafio', 'Desafiar<small>blefe? ele compra 4</small>', 'desafiar', () => acaoDesafiar());
+      else ajustarDica();
+      const passar = op.acumular ? ` Ou passe adiante com outro ${p.tipo === 'mais2' ? '+2 ou +4' : '+4'} (toque nele).` : '';
+      g.status.innerHTML = vista.podeDesafiar ? `<b>+4 em você!</b> Compre as 4 ou desafie (se não era blefe, você compra 6).${passar}` : `<b>+${p.qtd} em você!</b> Compre as cartas.${passar}`;
     } else if (vista.fase === 'depoisDeComprar') {
-      g.btnB.disabled = false; g.btnB.className = 'btn-acao btn-aceitar'; g.btnB.innerHTML = 'Passar<small>guardar a carta</small>'; g.btnB.dataset.papel = 'passar';
-      g.btnB.onclick = () => acaoPassar();
-      ajustarDica();
-      g.status.innerHTML = '<b>A carta que você comprou serve:</b> toque nela para jogar, ou passe';
+      const comprada = CO.cartaHtml(vista.comprada);
+      if (op.comprarAtePoder) {
+        botao(g.btnB, 'btn-aceitar', 'Comprar outra<small>até sair uma que sirva</small>', 'comprarOutra', () => acaoComprarOutra());
+        botao(g.btnC, 'btn-correr', 'Passar<small>guardar a carta</small>', 'passar', () => acaoPassar());
+        g.status.innerHTML = `<b>Você comprou ${comprada}</b> Se servir, toque nela para jogar (ou passe); se não, compre outra`;
+      } else {
+        botao(g.btnB, 'btn-aceitar', 'Passar<small>guardar a carta</small>', 'passar', () => acaoPassar());
+        ajustarDica();
+        g.status.innerHTML = `<b>Você comprou ${comprada}</b> Toque nela para jogar, ou passe a vez`;
+      }
     } else {
-      g.btnB.disabled = false; g.btnB.className = 'btn-acao btn-aceitar'; g.btnB.innerHTML = 'Comprar<small>' + (vista.jogaveis.length ? 'mesmo podendo jogar' : 'sem jogada') + '</small>'; g.btnB.dataset.papel = 'comprar';
-      g.btnB.onclick = () => acaoComprar();
+      const sel = jogo.selecao || [];
+      if (op.juntas && sel.length) {
+        botao(g.btnB, 'btn-aceitar', sel.length === 1 ? 'Jogar<small>ou toque nas iguais</small>' : `Jogar ${sel.length}<small>a última por cima</small>`, 'jogar', () => acaoJogarSelecao());
+      } else botao(g.btnB, 'btn-aceitar', 'Comprar<small>uma carta</small>', 'comprar', () => acaoComprar());
       ajustarDica();
-      g.status.innerHTML = vista.jogaveis.length ? '<b>Sua vez:</b> toque numa carta que combine' : '<b>Sua vez:</b> nenhuma carta serve — compre';
+      g.status.innerHTML = op.juntas
+        ? (sel.length ? `<b>${sel.length} ${sel.length === 1 ? 'escolhida' : 'escolhidas'}</b> — toque nas iguais ou aperte Jogar` : '<b>Sua vez:</b> escolha as cartas e aperte Jogar, ou compre')
+        : '<b>Sua vez:</b> toque numa carta para jogar, ou compre';
     }
-    g.mao.classList.toggle('jogavel', vista.jogaveis.length > 0);
+    g.mao.classList.add('minha-vez');
+    marcarSugestoes();
+  }
+  /** A pessoa precisa comprar (+2, +4, desafio, Última! esquecido): um toque por carta. */
+  function pedirCompra(info) {
+    return new Promise(resolve => {
+      jogo.compraPendente = { resolve, info };
+      prepararCompra();
+      if (jogo.opcoes.autoHeroi) setTimeout(resolverCompra, 5);
+    });
+  }
+  function prepararCompra() {
+    const g = jogo.ui, i = jogo.compraPendente.info;
+    acoesEspera('');
+    const feitas = i.total - i.faltam;
+    botao(g.btnB, 'btn-correr', `Comprar<small>${i.total > 1 ? `carta ${feitas + 1} de ${i.total}` : 'uma carta'}</small>`, 'compraPendente', () => resolverCompra());
+    g.btnB.classList.add('pulsa');
+    const motivo = i.motivo === 'mais2' ? '+2 em você' : i.motivo === 'mais4' ? '+4 em você' : i.motivo === 'pegou' ? 'Pegaram você sem dizer Última!'
+      : i.motivo === 'desafio' ? (i.total === 6 ? 'Não era blefe' : 'Pegaram o blefe') : 'Compre';
+    g.status.innerHTML = `<b>${motivo}:</b> toque em Comprar para pegar cada carta (${i.faltam === 1 ? 'falta 1' : 'faltam ' + i.faltam})`;
+  }
+  function resolverCompra() {
+    const cp = jogo && jogo.compraPendente;
+    if (!cp) return;
+    jogo.compraPendente = null;
+    acoesEspera('');
+    cp.resolve();
   }
   function ajustarDica() {
     const g = jogo.ui;
@@ -558,6 +598,7 @@
     jogo.pendente = null;
     jogo.conselho = null;
     jogo.dicaVista = false;
+    jogo.selecao = [];
     jogo.ui.btnDica.classList.add('oculto');
     esconderCores();
     acoesEspera('');
@@ -565,18 +606,83 @@
     atualizarPainel();
     pend.resolve(acao);
   }
+  /** Toque numa carta que não pode ir: avisa (sem castigo) e a vez continua. */
+  function recusar(texto) {
+    if (P.Som) P.Som.erro();
+    aviso(texto, 2200);
+  }
+  function naoServe(id) {
+    if (C[id].tipo === 'mais4' && !jogo.op.desafio) return 'O +4 só vale quando você <b>não tem carta da cor da mesa</b>.';
+    return 'Essa carta não combina com a mesa: precisa ser da <b>mesma cor</b>, do <b>mesmo número</b> ou do <b>mesmo símbolo</b>.';
+  }
   function tocarCarta(id) {
     const pend = jogo && jogo.pendente;
-    if (!pend || pend.vista.jogaveis.indexOf(id) < 0) {
-      if (pend && P.Som) P.Som.erro();
-      return;
+    if (!pend) return;
+    const v = pend.vista;
+    if (v.fase === 'depoisDeComprar') {
+      if (id !== v.comprada) return recusar('Depois de comprar, só dá para jogar <b>a carta que você comprou</b>.');
+      if (v.jogaveis.indexOf(id) < 0) return recusar(naoServe(id));
+      return jogarUma(id);
     }
+    if (v.fase === 'responder') {
+      if (v.jogaveis.indexOf(id) < 0) return recusar(jogo.op.acumular ? `Para passar adiante, só com ${v.pendente.tipo === 'mais2' ? '+2 ou +4' : '+4'}.` : 'Agora é comprar as 4 ou desafiar.');
+      return jogarUma(id);
+    }
+    if (jogo.op.juntas) return escolher(id);
+    if (v.jogaveis.indexOf(id) < 0) return recusar(naoServe(id));
+    jogarUma(id);
+  }
+  function jogarUma(id) {
     const ultima = !!jogo.ultimaArmada;
     if (C[id].coringa) { mostrarCores(id, cor => resolver({ tipo: 'carta', carta: id, cor, ultima })); return; }
     resolver({ tipo: 'carta', carta: id, ultima });
   }
+  /** Cartas juntas: o toque escolhe (ou tira); uma carta de outro número começa outra escolha. */
+  function escolher(id) {
+    const v = jogo.pendente.vista;
+    const sel = jogo.selecao = jogo.selecao || [];
+    const k = sel.indexOf(id);
+    if (k >= 0) sel.splice(k, 1);
+    else if (sel.length && C[sel[0]].tipo === 'num' && C[id].tipo === 'num' && C[id].num === C[sel[0]].num) sel.push(id);
+    else { sel.length = 0; sel.push(id); }
+    prepararBotoes(v);
+    renderMao();
+  }
+  function acaoJogarSelecao() {
+    const pend = jogo && jogo.pendente;
+    if (!pend) return;
+    const v = pend.vista, sel = (jogo.selecao || []).slice();
+    if (!sel.length) return;
+    if (sel.length === 1) {
+      if (v.jogaveis.indexOf(sel[0]) < 0) return recusar(naoServe(sel[0]));
+      return jogarUma(sel[0]);
+    }
+    // a primeira tem de combinar com a mesa: se a primeira escolhida não combina, vai na frente uma que combine
+    // (de preferência sem tirar a última, que é a que fica por cima)
+    if (v.jogaveis.indexOf(sel[0]) < 0) {
+      const f = sel.slice(0, -1).find(x => v.jogaveis.indexOf(x) >= 0);
+      const g = f !== undefined ? f : sel.find(x => v.jogaveis.indexOf(x) >= 0);
+      if (g === undefined) return recusar('Nenhuma dessas combina com a mesa: a primeira precisa ser da <b>mesma cor</b> ou do <b>mesmo número</b> da carta de cima.');
+      sel.splice(sel.indexOf(g), 1);
+      sel.unshift(g);
+    }
+    if (!R.grupoValido(v.mao, sel, v.topo, v.cor, jogo.op, null)) return recusar('Juntas, só cartas de número iguais.');
+    resolver({ tipo: 'carta', carta: sel[0], cartas: sel, ultima: !!jogo.ultimaArmada });
+  }
   function acaoComprar() { if (jogo && jogo.pendente) resolver({ tipo: 'comprar' }); }
-  function acaoPassar() { if (jogo && jogo.pendente && jogo.pendente.vista.fase === 'depoisDeComprar') resolver({ tipo: 'passar' }); }
+  function acaoComprarOutra() {
+    const pend = jogo && jogo.pendente;
+    if (!pend || pend.vista.fase !== 'depoisDeComprar') return;
+    if (pend.vista.jogaveis.length) return recusar('A carta que você comprou serve: na regra de comprar até poder jogar, você para nela — jogue ou passe.');
+    resolver({ tipo: 'comprar' });
+  }
+  function acaoPassar() {
+    const pend = jogo && jogo.pendente;
+    if (!pend || pend.vista.fase !== 'depoisDeComprar') return;
+    const v = pend.vista;
+    if (jogo.op.comprarAtePoder && !v.jogaveis.length && v.compra + v.descarte.length > 1) return recusar('Na regra de comprar até poder jogar, você só para quando sair uma carta que sirva: compre outra.');
+    resolver({ tipo: 'passar' });
+  }
   function acaoDesafiar() { if (jogo && jogo.pendente && jogo.pendente.vista.podeDesafiar) resolver({ tipo: 'desafiar' }); }
 
   /** Escolha da cor do coringa (id null: a primeira carta da pilha foi coringa). */
@@ -598,8 +704,10 @@
   function autoJogar(pend) {
     if (!jogo || jogo.pendente !== pend || !jogo.conselho) return;
     const m = jogo.conselho.melhor;
-    const ultima = (pend.vista.fase === 'depoisDeComprar' ? pend.vista.mao.length : pend.vista.mao.length - 1) === 1;
-    if (m.tipo === 'carta') resolver({ tipo: 'carta', carta: m.carta, cor: m.cor, ultima });
+    const usa = m.cartas && m.cartas.length > 1 ? m.cartas.length : 1;
+    const ultima = (pend.vista.fase === 'depoisDeComprar' ? pend.vista.mao.length : pend.vista.mao.length - usa) === 1;
+    if (m.tipo === 'carta' && usa > 1) resolver({ tipo: 'carta', carta: m.carta, cartas: m.cartas.slice(), ultima });
+    else if (m.tipo === 'carta') resolver({ tipo: 'carta', carta: m.carta, cor: m.cor, ultima });
     else resolver({ tipo: m.tipo === 'passar' ? 'passar' : m.tipo === 'desafiar' ? 'desafiar' : 'comprar' });
   }
 
@@ -609,6 +717,7 @@
       return new Promise(resolve => {
         jogo.pendente = { vista, resolve };
         jogo.conselho = null;
+        jogo.selecao = [];
         if (vista.mao.length > 2) jogo.ultimaArmada = false;
         marcarVez(0);
         prepararBotoes(vista);
@@ -619,8 +728,10 @@
     }
     return {
       bot: false,
+      manual: true,          // cada carta comprada é um toque, e depois de comprar quem decide é você
       jogar: pedir,
       depoisDeComprar: pedir,
+      antesDeComprar(v, info) { return pedirCompra(info); },
       escolherCor() {
         if (jogo.opcoes.autoHeroi) return IA.melhorCor(jogo.motor.vistaPara(0).mao, -1);
         return new Promise(resolve => mostrarCores(null, resolve));
@@ -716,9 +827,11 @@
         atualizarLugares(v);
         if (ev.j === 0) renderMao();
         if (P.Som) P.Som.carta();
+        const final = !ev.de || ev.parte === ev.de;
         if (ev.ultima) { balao(ev.j, 'Última!', 'forte', 1600); splash('ÚLTIMA!', ev.j === 0 ? 'nos' : ''); if (P.Som) P.Som.alerta(); }
         else if (C[ev.carta].coringa) balao(ev.j, R.NOMES_COR[ev.cor] + '!', 'cor-' + R.CORES[ev.cor], 1400);
-        await esperar(380 * fv());
+        else if (ev.de > 1 && final) balao(ev.j, ev.de + ' de uma vez!', 'forte', 1400);
+        await esperar((final ? 380 : 220) * fv());
         break;
       }
       case 'efeito': {
@@ -733,11 +846,12 @@
         const v = vista();
         atualizarLugares(v);
         if (ev.j === 0) { jogo.novas = ev.cartas.slice(); renderMao(); }
-        if (ev.motivo !== 'vez') balao(ev.j, '+' + ev.qtd, 'correu', 1300);
+        if (ev.parte) balao(ev.j, ev.total > 1 ? `${ev.parte}/${ev.total}` : 'Comprou', ev.motivo !== 'vez' ? 'correu' : '', 900);
+        else if (ev.motivo !== 'vez') balao(ev.j, '+' + ev.qtd, 'correu', 1300);
         else balao(ev.j, ev.qtd === 1 ? 'Comprou' : 'Comprou ' + ev.qtd, '', 1000);
         g.lugares[ev.j].raiz.classList.remove('comprou'); void g.lugares[ev.j].raiz.offsetWidth; g.lugares[ev.j].raiz.classList.add('comprou');
         if (P.Som) P.Som.carta();
-        await esperar((ev.motivo === 'vez' ? 300 : 500) * fv());
+        await esperar((ev.parte ? 160 : ev.motivo === 'vez' ? 300 : 500) * fv());
         break;
       }
       case 'passou':
@@ -824,7 +938,8 @@
     const cfgU = D.config();
     const salva = opcoes.retomar || null;
     const n = salva ? salva.cfg.n : Math.max(2, Math.min(6, opcoes.n || cfgU.jogadores));
-    const op = R.opcoes(salva ? salva.cfg.opcoes : { ate: cfgU.ate, acumular: cfgU.acumular, comprarAtePoder: cfgU.comprarAtePoder, desafio: cfgU.desafio });
+    // sem o desafio do +4: ele só sai sem a cor da mesa (vale também para partidas salvas antes da mudança)
+    const op = R.opcoes(Object.assign(salva ? salva.cfg.opcoes : { ate: cfgU.ate, acumular: cfgU.acumular, comprarAtePoder: cfgU.comprarAtePoder, juntas: cfgU.juntas }, { desafio: false }));
     const nivel = salva ? salva.cfg.nivel || 'mestre' : opcoes.nivel || cfgU.nivel;
     let jogadores;
     if (salva) jogadores = salva.cfg.jogadores;
@@ -913,6 +1028,7 @@
     if (j.motor) j.motor.parar();
     if (j.observador) j.observador.disconnect();
     if (j.pendente) j.pendente.resolve({ tipo: 'comprar' });
+    if (j.compraPendente) j.compraPendente.resolve();
     const s = D.salva();
     if (s && s.emJogo) { s.emJogo = false; D.salvar(s); }
     $('#app').classList.remove('em-jogo');

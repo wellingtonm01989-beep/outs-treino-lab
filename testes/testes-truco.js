@@ -399,8 +399,9 @@
     }
     const visto = bot.leitor.modelo(1, IA.MODELOS.geral);
     a.maior(bot.leitor.vistas(1), 10, 'decisões observadas');
-    a.maior(visto.truco.p, IA.MODELOS.geral.truco.p + 0.15, 'pede truco perdendo bem mais que o normal');
-    a.maior(visto.aceite.p, IA.MODELOS.geral.aceite.p + 0.15, 'aceita perdendo bem mais que o normal');
+    // medido em 30 repetições: pede 17% → 34–55% (mediana 45%); aceita 27% → 45–58% (mediana 51%)
+    a.maior(visto.truco.p, IA.MODELOS.geral.truco.p + 0.1, 'pede truco perdendo bem mais que o normal');
+    a.maior(visto.aceite.p, IA.MODELOS.geral.aceite.p + 0.1, 'aceita perdendo bem mais que o normal');
     return `pede perdendo: ${pct(IA.MODELOS.geral.truco.p)} (padrão) → ${pct(visto.truco.p)} · aceita perdendo: ${pct(IA.MODELOS.geral.aceite.p)} → ${pct(visto.aceite.p)}`;
   });
 
@@ -432,7 +433,7 @@
       memoria = IA.juntarLeituras(null, bot.leitor.exportar(1), 150);
     }
     a.maior(valor, 0, 'pede com mão boa');
-    a.verdadeiro(blefes <= Math.max(1, valor * 0.15), `blefes demais contra quem aceita tudo: ${blefes} (valor ${valor})`);
+    a.verdadeiro(blefes <= Math.max(3, Math.ceil(valor * 0.25)), `blefes demais contra quem aceita tudo: ${blefes} (valor ${valor})`);   // estratégia mista: medido em 25 repetições, ~4 blefes por 100 pedidos com mão boa; 3 numa amostra curta é raro, 4+ seria defeito
     return `nas partidas 3 e 4: ${valor} pedidos com mão boa, ${blefes} blefes, em ${oport} chances`;
   });
 

@@ -12,15 +12,17 @@
    Pular: o próximo perde a vez. Inverter: o sentido muda (com 2 jogadores,
    vale como Pular). +2: o próximo compra 2 e perde a vez. Coringa +4: o
    próximo compra 4 e perde a vez — e só pode ser jogado quando você não tem
-   carta da cor da mesa; quem recebe pode desafiar: se era blefe, quem jogou
-   compra 4; se não era, quem desafiou compra 6.
+   carta da cor da mesa (o jogo não deixa jogar com a cor na mão).
+   O desafio do +4 da regra oficial (quem recebe desconfia de blefe) ficou só
+   no motor, para os testes: a mesa joga sem ele (opção desafio, padrão false).
    Ao ficar com uma carta, diga "Última!" (aperte o botão antes de jogar a
    penúltima). Se esquecer e alguém pegar antes do próximo jogar, compre 2.
    Quem zera a mão ganha a mão e marca os pontos das cartas dos outros
    (número = o valor; Pular, Inverter e +2 = 20; coringas = 50).
 
-   Regras da casa (opcionais): acumular +2 e +4; comprar até poder jogar;
-   sem desafio (o +4 só sai quando não há a cor na mão, e pronto).
+   Regras da casa (opcionais): acumular +2 e +4; comprar até poder jogar; jogar
+   cartas iguais juntas (cartas de número: a primeira combina com a mesa, as
+   outras têm o mesmo número; a última fica por cima e vale a cor dela).
    ========================================================================== */
 (function (P) {
   'use strict';
@@ -70,7 +72,7 @@
   }
 
   // ---------------------------------------------------------------- opções
-  const OPCOES_PADRAO = { acumular: false, comprarAtePoder: false, desafio: true, ate: 200 };
+  const OPCOES_PADRAO = { acumular: false, comprarAtePoder: false, desafio: false, juntas: false, ate: 200 };
   function opcoes(o) { return Object.assign({}, OPCOES_PADRAO, o || {}); }
 
   // ------------------------------------------------------------- jogadas
@@ -107,6 +109,24 @@
   /** O +4 jogado agora seria blefe (há carta da cor da mesa na mão)? */
   function mais4Blefe(mao, idMais4, cor) { return mao.some(id => id !== idMais4 && CARTAS[id].cor === cor); }
 
+  /**
+   * Várias cartas de uma vez (regra "jogar cartas iguais juntas"): todas de
+   * número, com o mesmo número, todas na mão; a primeira combina com a mesa.
+   * Uma carta só segue a regra normal (jogaveis).
+   */
+  function grupoValido(mao, cartas, topo, cor, op, pendente) {
+    if (!Array.isArray(cartas) || !cartas.length) return false;
+    if (new Set(cartas).size !== cartas.length || cartas.some(id => mao.indexOf(id) < 0)) return false;
+    if (cartas.length === 1) return jogaveis(mao, topo, cor, op, pendente).indexOf(cartas[0]) >= 0;
+    const o = op || OPCOES_PADRAO;
+    if (!o.juntas || pendente) return false;
+    const c0 = CARTAS[cartas[0]];
+    if (c0.tipo !== 'num' || cartas.some(id => CARTAS[id].tipo !== 'num' || CARTAS[id].num !== c0.num)) return false;
+    return casa(cartas[0], topo, cor);
+  }
+  /** As outras cartas de número com o mesmo número de id (para jogar juntas). */
+  const iguais = (mao, id) => (CARTAS[id].tipo !== 'num' ? [] : mao.filter(x => x !== id && CARTAS[x].tipo === 'num' && CARTAS[x].num === CARTAS[id].num));
+
   const pontosDaMao = mao => mao.reduce((s, id) => s + CARTAS[id].pontos, 0);
 
   /** Próximo lugar no sentido (1 = horário). */
@@ -114,6 +134,6 @@
 
   U.Regras = {
     CORES, NOMES_COR, HEX_COR, CORINGA, TIPOS, NOME_TIPO, CARTAS, TOTAL, OPCOES_PADRAO,
-    carta, nome, simbolo, opcoes, casa, temCor, jogaveis, mais4Blefe, pontosDaMao, proximo
+    carta, nome, simbolo, opcoes, casa, temCor, jogaveis, grupoValido, iguais, mais4Blefe, pontosDaMao, proximo
   };
 })(window.Poker = window.Poker || {});

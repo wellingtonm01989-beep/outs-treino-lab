@@ -40,11 +40,12 @@ Na aba **Truco**: 1 contra 1 ou em dupla (você e um parceiro bot contra dois), 
 
 ## Última! (cartas coloridas)
 
-Na aba **Última!**: o jogo das cartas coloridas (no estilo do Uno), de 2 a 6 jogadores contra bots. Combine a cor, o número ou o símbolo da carta da mesa; Pular, Inverter, +2, coringa e coringa +4 (com desafio). Ao ficar com uma carta, aperte **Última!** — se um bot esquecer, aperte **Pegou!**. Partida de uma mão, até 200 ou até 500 pontos.
+Na aba **Última!**: o jogo das cartas coloridas (no estilo do Uno), de 2 a 6 jogadores contra bots. Combine a cor, o número ou o símbolo da carta da mesa; Pular, Inverter, +2, coringa e coringa +4 (só sem a cor da mesa). Ao ficar com uma carta, aperte **Última!** — se um bot esquecer, aperte **Pegou!**. Partida de uma mão, até 200 ou até 500 pontos.
 
-- **Regras da casa** opcionais: acumular +2 e +4, comprar até poder jogar e jogar sem o desafio do +4.
-- **Bots** Estrategista, Atacante e Paciente, em três níveis. No Mestre eles leem o que cada um tem pelo que compra e pelas cores que escolhe, simulam cada jogada até o fim da mão e aprendem quanto você blefa no +4 e quanto desafia.
-- **Coach**: a chance de ganhar a mão com cada jogada, a melhor e por quê (quem está perto de sair, que cor o próximo não tem, quando guardar o coringa, quando vale desafiar), e a nota de cada jogada.
+- **A mesa não entrega o jogo**: as cartas que servem não ficam destacadas, cada carta comprada é um toque em Comprar (até nos +2 e +4) e, depois de comprar, você decide se joga ou passa.
+- **Regras da casa** opcionais: acumular +2 e +4, comprar até poder jogar e jogar cartas iguais juntas (vários números iguais de uma vez).
+- **Bots** Estrategista, Atacante e Paciente, em três níveis. No Mestre eles leem o que cada um tem pelo que compra e pelas cores que escolhe, e simulam cada jogada até o fim da mão.
+- **Coach**: a chance de ganhar a mão com cada jogada, a melhor e por quê (quem está perto de sair, que cor o próximo não tem, quando guardar o coringa, quando jogar as iguais juntas), e a nota de cada jogada.
 
 ## Xadrez
 
