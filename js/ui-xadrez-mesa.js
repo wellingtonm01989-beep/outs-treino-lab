@@ -17,18 +17,56 @@
   const limitar = (x, a, b) => Math.max(a, Math.min(b, x));
 
   // ------------------------------------------------------------------ peças
-  const BASE = '<path class="b" d="M11.5 35.5h22a1.5 1.5 0 0 1 1.5 1.5v2.2a1.3 1.3 0 0 1-1.3 1.3H11.3a1.3 1.3 0 0 1-1.3-1.3V37a1.5 1.5 0 0 1 1.5-1.5z"/>';
+  // Desenho próprio, no estilo Staunton (viewBox 45×45): b = corpo (com o gradiente de luz,
+  // como peça torneada), l = linha de detalhe, o = ponto cheio, h = brilho.
+  const BASE = '<path class="b" d="M12.2 31.2h20.6l1.3 3.3H10.9z"/><path class="b" d="M10.4 34.5h24.2a1.6 1.6 0 0 1 1.6 1.6v2.3a1.6 1.6 0 0 1-1.6 1.6H10.4a1.6 1.6 0 0 1-1.6-1.6v-2.3a1.6 1.6 0 0 1 1.6-1.6z"/>';
   const DESENHO = {
-    p: '<circle class="b" cx="22.5" cy="12.6" r="5.3"/><path class="b" d="M18.6 19.6h7.8l-.9 2.6c3.2 3.4 5.2 8 5.6 13.3H13.9c.4-5.3 2.4-9.9 5.6-13.3z"/>' + BASE,
-    t: '<path class="b" d="M15.6 18.5h13.8l1.4 14.6H14.2z"/><path class="b" d="M12.5 8.5h4.3v3.3h3.4V8.5h4.6v3.3h3.4V8.5h4.3v7.5l-2.6 2.5H15.1l-2.6-2.5z"/><path class="b" d="M13 33.1h19l1.2 2.4H11.8z"/>' + BASE + '<path class="l" d="M15.4 18.5h14.2"/>',
-    b: '<circle class="b" cx="22.5" cy="7.6" r="2.4"/><path class="b" d="M22.5 10.1c-5.4 3.6-8.2 8.4-8.2 13.1 0 3.6 2.3 6 4.9 7.1h6.6c2.6-1.1 4.9-3.5 4.9-7.1 0-4.7-2.8-9.5-8.2-13.1z"/><path class="b" d="M17.4 30.3h10.2l2 5.2H15.4z"/>' + BASE + '<path class="l" d="M25.6 15.2l-4.4 5.6M19.3 30.3h6.4"/>',
-    d: '<path class="b" d="M12.6 31.6 9.6 14.6l5.9 9.3.8-12.4 4.1 11.4 2.1-13.1 2.1 13.1 4.1-11.4.8 12.4 5.9-9.3-3 17z"/><circle class="b" cx="9.4" cy="13" r="2.1"/><circle class="b" cx="16.3" cy="9.6" r="2.1"/><circle class="b" cx="22.5" cy="7.4" r="2.2"/><circle class="b" cx="28.7" cy="9.6" r="2.1"/><circle class="b" cx="35.6" cy="13" r="2.1"/><path class="b" d="M12.6 31.6h19.8l.9 3.9H11.7z"/>' + BASE,
-    r: '<path class="b" d="M21 2.8h3v3.4h3.4v3H24v4.4h-3V9.2h-3.4v-3H21z"/><path class="b" d="M22.5 14.6c-6.4 0-11.2 4.1-11.2 9.3 0 3.6 2 6.3 4.3 8.2h13.8c2.3-1.9 4.3-4.6 4.3-8.2 0-5.2-4.8-9.3-11.2-9.3z"/><path class="b" d="M15.6 32.1h13.8l1.4 3.4H14.2z"/>' + BASE + '<path class="l" d="M22.5 14.6v9.8M16 24.4h13"/>',
-    c: '<path class="b" d="M14.2 35.5c.2-4.6 2.7-8.3 6.2-11.4l-3.6.9c-1.4.4-2.6 1.4-3.3 2.6l-.9 1.5c-.6 1-1.9 1.3-2.9.7l-1.7-1c-.9-.6-1.2-1.8-.7-2.8l4.6-8.8c1.6-3 3.9-5.3 6.8-6.6l1.2-4.8 2.4 3.7 1.3-3.4 2 3.9c5.9 2.6 9.5 8.9 9.6 17.2.1 3.6-.5 6.9-1.3 10.3z"/>' + BASE + '<circle class="o" cx="18.6" cy="15.8" r="1.4"/>'
+    p: '<path class="b" d="M18.4 19.4c-.3 4.4-2.4 8.4-5.6 11.8h19.4c-3.2-3.4-5.3-7.4-5.6-11.8z"/>' +
+       '<ellipse class="b" cx="22.5" cy="18.6" rx="6.3" ry="1.9"/>' +
+       '<circle class="b" cx="22.5" cy="11.6" r="5.3"/>' +
+       '<path class="h" d="M19.2 9.6a3.6 3.6 0 0 1 2.4-1.9M17.4 29.4c1.7-2.4 2.6-5.1 2.9-8.2"/>' + BASE,
+    t: '<path class="b" d="M14.6 17.2h15.8l1.6 14H13z"/>' +
+       '<path class="b" d="M11.4 7.8h4.6v3.4h3.2V7.8h6.6v3.4H29V7.8h4.6v7l-2.8 2.4H14.2l-2.8-2.4z"/>' +
+       '<path class="l" d="M14.4 17.2h16.2M13.4 28.4h18.2M16.2 20.6h12.6"/>' +
+       '<path class="h" d="M16.6 19v8.6M13.6 9.6v4.2"/>' + BASE,
+    b: '<circle class="b" cx="22.5" cy="6.4" r="2.3"/>' +
+       '<path class="b" d="M22.5 8.8c-5.6 3.6-8.1 8-7.6 11.9.4 3 2.9 4.9 7.6 4.9s7.2-1.9 7.6-4.9c.5-3.9-2-8.3-7.6-11.9z"/>' +
+       '<ellipse class="b" cx="22.5" cy="26.9" rx="6.6" ry="1.8"/>' +
+       '<path class="b" d="M17.7 28.4c-.4 1.3-2 2.3-3.5 2.8h16.6c-1.5-.5-3.1-1.5-3.5-2.8z"/>' +
+       '<path class="l" d="M25.7 13.2l-4.6 5.4M19.8 22.4h5.4"/>' +
+       '<path class="h" d="M17.2 19.4c-.1-2.2 1-4.6 3.2-6.8"/>' + BASE,
+    c: '<path class="b" d="M13.4 31.2c.2-3.4 1.9-6 4.6-7.4-2 .5-4.3.9-6.4.6-1.8-.3-2.9-1.8-2.5-3.5.4-1.9 1.7-3.6 3.4-5.3 2-2 3.9-3.6 5.6-5.6l1.1-5.1 3 3.8.8-3.3 2.4 3.6c5 1.8 8.4 6.2 9.4 12.5.7 4.1.4 7.6-.8 10.2z"/>' +
+       '<path class="l" d="M24.6 10.4c3.6 1.6 6.4 5 7.4 9.8M18 23.8c1.6-1.2 2.6-3 2.8-5.1M10.2 22.4c1.2.4 2.4.4 3.4.1"/>' +
+       '<circle class="o" cx="18.4" cy="13.6" r="1.25"/><circle class="o" cx="11.3" cy="19.9" r=".75"/>' +
+       '<path class="h" d="M15.5 29.6c.6-2.2 1.8-4 3.4-5.2"/>' + BASE,
+    d: '<circle class="b" cx="9.6" cy="12.4" r="2.1"/><circle class="b" cx="16" cy="8.8" r="2.1"/><circle class="b" cx="22.5" cy="7.4" r="2.2"/><circle class="b" cx="29" cy="8.8" r="2.1"/><circle class="b" cx="35.4" cy="12.4" r="2.1"/>' +
+       '<path class="b" d="M11.4 13.8l2.9 13.6h16.4l2.9-13.6-5.1 8.1.4-11.4-4.3 10.3-2.1-11.6-2.1 11.6-4.3-10.3.4 11.4z"/>' +
+       '<path class="b" d="M14.3 27.4h16.4c.2 1.5.7 2.8 1.6 3.8H12.7c.9-1 1.4-2.3 1.6-3.8z"/>' +
+       '<path class="l" d="M14.6 27.4h15.8"/>' +
+       '<path class="h" d="M14.2 18.6l1.4 6.8"/>' + BASE,
+    r: '<path class="b" d="M21.2 2.4h2.6v2.8h2.8v2.5h-2.8v3.1h-2.6V7.7h-2.8V5.2h2.8z"/>' +
+       '<path class="b" d="M22.5 10.6c-6.6 0-10.8 3.9-10.4 9 .3 3.2 2 5.9 3.6 7.8h13.6c1.6-1.9 3.3-4.6 3.6-7.8.4-5.1-3.8-9-10.4-9z"/>' +
+       '<path class="b" d="M15.7 27.4h13.6l1.4 3.8H14.3z"/>' +
+       '<path class="l" d="M22.5 10.8v8.6M14.6 20.4c4.6-1.6 11.2-1.6 15.8 0M15.6 27.4h13.8"/>' +
+       '<path class="h" d="M14.6 18.2c.4-2.2 1.9-3.9 4-4.9"/>' + BASE
   };
+  // gradientes (uma vez no documento): luz vindo da esquerda, como um torneado
+  const DEFS = '<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>' +
+    '<linearGradient id="xz-grad-br" x1="0" y1="0" x2="1" y2="0.25"><stop offset="0" stop-color="#ffffff"/><stop offset=".45" stop-color="#f4eedf"/><stop offset="1" stop-color="#cfc3a6"/></linearGradient>' +
+    '<linearGradient id="xz-grad-pr" x1="0" y1="0" x2="1" y2="0.25"><stop offset="0" stop-color="#6c737d"/><stop offset=".4" stop-color="#3a3f47"/><stop offset="1" stop-color="#15171b"/></linearGradient>' +
+    '</defs></svg>';
+  /** Os gradientes das peças ficam uma vez só no documento. */
+  function garantirDefs() {
+    if (document.getElementById('xz-grad-br') || !document.body) return;
+    const d = document.createElement('div');
+    d.innerHTML = DEFS;
+    document.body.appendChild(d.firstChild);
+  }
+  garantirDefs();
   const LETRA = [null, 'p', 'c', 'b', 't', 'd', 'r'];
   /** SVG da peça: k = 'r','d','t','b','c','p' (ou o tipo do motor), cor = 'b' (brancas) ou 'p' (pretas). */
   function pecaSVG(k, cor) {
+    garantirDefs();
     const l = typeof k === 'number' ? LETRA[k] : k;
     return `<svg class="xz-peca-svg ${cor === 'p' ? 'pr' : 'br'}" viewBox="0 0 45 45" aria-hidden="true">${DESENHO[l]}</svg>`;
   }
@@ -84,7 +122,8 @@
     g.aval = el('div', { class: 'xz-avaliacao', title: 'Avaliação do coach' }, el('i'), el('span'));
     g.moldura = el('div', { class: 'xz-moldura' }, g.tab);
     g.tabCaixa = el('div', { class: 'xz-tab-caixa' }, g.aval, g.moldura);
-    g.area = el('div', { class: 'xz-area' }, g.placaBot.raiz, g.tabCaixa, g.placaEu.raiz);
+    g.hist = el('div', { class: 'xz-hist', title: 'Lances da partida' });
+    g.area = el('div', { class: 'xz-area' }, g.placaBot.raiz, g.tabCaixa, g.placaEu.raiz, g.hist);
     g.promo = el('div', { class: 'xz-promo oculto' });
     g.palco = el('div', { class: 'mesa-palco xz-palco' }, g.area, g.promo,
       el('button', { class: 'btn-barra so-celular tr-btn-menu', title: 'Menu', html: '&#9776;', onclick: abrirMenu }));
@@ -120,27 +159,51 @@
   }
 
   // ============================================================== geometria
+  /**
+   * Em pé: placa do bot, barra de avaliação (deitada), tabuleiro na largura toda,
+   * a sua placa e os lances embaixo — tudo centrado no espaço que sobra.
+   * Deitado e no PC: as placas e a lista de lances à esquerda, o tabuleiro à direita.
+   */
   function layout() {
     if (!jogo || !jogo.ui) return;
     const g = jogo.ui;
     const W = g.palco.clientWidth, H = g.palco.clientHeight;
     if (!W || !H) return;
     const compacto = W < 640 || H < 420;
-    const lado = W > H * 1.35;                 // deitado: as placas vão para o lado do tabuleiro
+    const lado = W > H * 1.2;
     g.area.classList.toggle('lado', lado);
+    g.area.classList.toggle('retrato', !lado);
     g.palco.classList.toggle('compacto', compacto);
-    const placaH = compacto ? 42 : 52, pad = compacto ? 8 : 16;
-    const moldura = compacto ? 6 : 11, avalL = compacto ? 10 : 14, gapAval = compacto ? 5 : 8;
-    let L;
+    const placaH = compacto ? 46 : 56, pad = compacto ? 4 : 16;
+    const moldura = compacto ? 4 : 11, gap = compacto ? 6 : 8;
+    let L, apertado = false;
     if (lado) {
-      const placaL = Math.min(240, Math.round(W * 0.3));
+      const avalL = compacto ? 10 : 14, gapAval = compacto ? 5 : 8;
+      const placaL = Math.min(260, Math.round(W * 0.3));
       const reserva = compacto ? 44 : 0;          // o botão ☰ no canto
       L = Math.min(H - 2 * pad - 2 * moldura, W - 2 * pad - placaL - 14 - avalL - gapAval - 2 * moldura - reserva);
       g.raiz.style.setProperty('--xz-placa-l', placaL + 'px');
-    } else L = Math.min(W - 2 * pad - avalL - gapAval - 2 * moldura, H - 2 * pad - 2 * placaH - 16 - 2 * moldura);
+    } else {
+      const avalH = compacto ? 8 : 10;
+      let histH = 30;
+      const porLargura = W - 2 * pad - 2 * moldura;
+      const porAltura = H - 2 * pad - 2 * placaH - avalH - histH - 4 * gap - 2 * moldura;
+      L = Math.min(porLargura, porAltura);
+      // sobrou altura (o tabuleiro já ocupa a largura toda): os lances ganham uma segunda linha
+      if (porAltura - porLargura > 70) histH = 56;
+      g.area.classList.toggle('hist-alto', histH > 30);
+      g.raiz.style.setProperty('--xz-hist-h', histH + 'px');
+      const total = Math.max(200, L) + 2 * moldura + 2 * placaH + avalH + histH + 4 * gap;
+      apertado = (H - total) / 2 < 44 && W - (Math.max(200, L) + 2 * moldura) < 92;   // a placa de cima não pode ficar embaixo do ☰
+      g.raiz.style.setProperty('--xz-aval-h', avalH + 'px');
+    }
     L = Math.max(200, Math.floor(L / 8) * 8);
+    g.area.classList.toggle('apertado', apertado);
     g.raiz.style.setProperty('--xz-l', L + 'px');
     g.raiz.style.setProperty('--xz-placa-h', placaH + 'px');
+    g.raiz.style.setProperty('--xz-moldura', moldura + 'px');
+    g.raiz.style.setProperty('--xz-gap', gap + 'px');
+    renderAvaliacao();
   }
 
   // ============================================================== desenho
@@ -206,6 +269,24 @@
     renderSetas();
     renderCapturadas();
     renderAvaliacao();
+    renderHistorico();
+  }
+
+  /** Os lances da partida (com a nota do coach nos seus), sempre mostrando o último. */
+  function renderHistorico() {
+    const g = jogo.ui;
+    let h = '';
+    for (let i = 0; i < jogo.sans.length; i++) {
+      if (i % 2 === 0) h += `<span class="num">${i / 2 + 1}.</span>`;
+      const nota = jogo.notaPorLance[i];
+      h += `<span class="lance${nota ? ' n-' + nota : ''}${i === jogo.sans.length - 1 ? ' ultimo' : ''}">${esc(jogo.sans[i])}</span>`;
+    }
+    if (!h) h = '<span class="vazio">Os lances aparecem aqui.</span>';
+    if (g.hist._html === h) return;
+    g.hist.innerHTML = h;
+    g.hist._html = h;
+    const ult = g.hist.querySelector('.ultimo');
+    if (ult) { if (g.hist.scrollWidth > g.hist.clientWidth + 2) g.hist.scrollLeft = g.hist.scrollWidth; g.hist.scrollTop = g.hist.scrollHeight; }
   }
 
   function renderSetas() {
@@ -250,7 +331,9 @@
     const cpB = an.brancas, mateB = an.mateBrancas;
     const pB = mateB ? (mateB > 0 ? 1 : 0) : XC.chance(cpB);
     const frac = visao() === X.BRANCO ? pB : 1 - pB;
-    g.aval.firstChild.style.height = Math.round(frac * 100) + '%';
+    const deitada = g.area.classList.contains('retrato');
+    g.aval.firstChild.style.height = deitada ? '' : Math.round(frac * 100) + '%';
+    g.aval.firstChild.style.width = deitada ? Math.round(frac * 100) + '%' : '';
     g.aval.classList.toggle('pretas-embaixo', visao() !== X.BRANCO);
     g.aval.lastChild.textContent = XC.textoAvaliacao(cpB, mateB);
   }
@@ -383,6 +466,7 @@
       const reg = { n: antes.lances.length, nota: nota.nota, texto: nota.texto, perda: nota.perda, san: nota.jogadoSan };
       jogo.notas.push(reg);
       jogo.notaPorLance[antes.lances.length] = nota.nota;
+      renderHistorico();
       jogo.ultimaNota = nota;
       if (!jogo.opcoes.semSalvar) D().alterarEstat(e => { e.notas[nota.nota] = (e.notas[nota.nota] || 0) + 1; });
       if (jogo.opcoes.coach !== 'desligado') {
