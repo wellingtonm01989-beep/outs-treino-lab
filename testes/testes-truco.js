@@ -1,9 +1,10 @@
 /* ==========================================================================
    OUTS · Treino Lab — testes/testes-truco.js
-   Testes do truco paulista: regras (ordem, manilhas, rodadas, empates,
-   valores, conta do placar), motor (mãos montadas com baralho conhecido:
-   truco, seis, correr, mão de 11, mão de ferro, carta coberta, o que cada
-   um enxerga), coach (chance de ganhar, conselhos, notas) e bots.
+   Testes do truco: regras (ordem, manilhas, rodadas, empates, valores,
+   conta do placar), motor (mãos montadas com baralho conhecido: truco, seis,
+   correr, mão de 11, mão de ferro, carta coberta, o que cada um enxerga),
+   coach (chance de ganhar, conselhos, notas), bots, as regras do
+   paranaense (retruco, troca na mão de 11, empates) e o torneio.
    ========================================================================== */
 (function (P) {
   'use strict';
@@ -379,5 +380,215 @@
     }
     a.verdadeiro(v >= 15, `ganhou só ${v} de ${N}`);
     return `ganhou ${v} de ${N}`;
+  });
+
+  // ========================================================= paranaense
+  const GP = 'Truco: regras do paranaense';
+  const PR = { regras: 'paranaense' };
+
+  T(GP, 'Truco vale 3 e retruco vale 6; depois do retruco não há mais aumento', async a => {
+    const vr = R.variante('paranaense');
+    a.igualJSON(vr.VALORES, [1, 3, 6]);
+    a.igualJSON(vr.NOMES_PEDIDO, ['', 'Truco', 'Retruco']);
+    // o lugar 0 pede truco, o 1 retruca e o 0 tenta aumentar de novo: vira aceite
+    const ag = [roteiro(['truco', 'aumentar', '3s', '2s']), roteiro(['aumentar', '4c', '5c'])];
+    const { fim, eventos } = await umaMao(2, [cs('3s 2s As'), cs('4c 5c 6c')], c('Kd'), ag, PR);
+    a.igualJSON(eventos.filter(e => e.tipo === 'pedido').map(e => e.nome), ['Truco', 'Retruco']);
+    a.igual(eventos.filter(e => e.tipo === 'resposta').pop().resposta, 'aceitar', 'aumentar depois do retruco vira aceitar');
+    a.igual(fim.pontos, 6);
+  });
+
+  T(GP, 'Correr do retruco dá 3 pontos a quem retrucou', async a => {
+    const ag = [roteiro(['truco', 'correr']), roteiro(['aumentar'])];
+    const { fim } = await umaMao(2, [cs('4s 5s 6s'), cs('3c 2c Ac')], c('Kd'), ag, PR);
+    a.igual(fim.vencedor, 1); a.igual(fim.pontos, 3);
+  });
+
+  T(GP, 'Só retruca quem tem até 8 pontos', async a => {
+    // a dupla com 9 recebe um truco e tenta aumentar: vira aceite (não pode retrucar)
+    const ag = [roteiro(['3s', 'aumentar', '2s']), roteiro(['truco', '4c', '5c'])];
+    const { eventos, fim } = await umaMao(2, [cs('3s 2s As'), cs('4c 5c 6c')], c('Kd'), ag, { regras: 'paranaense', placar: [9, 2] });
+    a.igual(ag[0].vistas[1].podeAumentar, false, 'a vista avisa que não dá para retrucar');
+    a.igual(eventos.find(e => e.tipo === 'resposta').resposta, 'aceitar');
+    a.igual(eventos.filter(e => e.tipo === 'pedido').length, 1);
+    a.igual(fim.pontos, 3);
+    const vr = R.variante('paranaense');
+    a.igual(R.podePedirNivel(vr, 2, 8), true);
+    a.igual(R.podePedirNivel(vr, 2, 9), false);
+    a.igual(R.podePedirNivel(vr, 1, 11), true, 'o truco continua valendo');
+    a.igual(R.podePedirNivel(R.variante('paulista'), 2, 10), true, 'no paulista não tem limite');
+  });
+
+  T(GP, 'Mão de 11 em dupla: a dupla com 11 pode trocar cartas entre os parceiros', async a => {
+    const vira = c('6d');
+    const maos = [cs('4s 5s Qs'), cs('4d 5d 6s'), cs('7c 3h Js'), cs('Kd Ks 4h')];
+    const troca = { 0: cs('7c 3h 4s'), 2: cs('5s Qs Js') };
+    const ag = [roteiro([{ resposta: 'jogar', troca }, '7c', '3h']), roteiro(['4d', '5d']), roteiro(['5s', 'Qs']), roteiro(['Kd', 'Ks'])];
+    ag[0].bot = false;                        // na sua dupla, quem decide a mão de 11 é você
+    const { eventos, fim } = await umaMao(4, maos, vira, ag, { regras: 'paranaense', placar: [11, 4] });
+    const v = ag[0].vistas[0];
+    a.verdadeiro(v.trocaPermitida, 'a troca aparece na vista');
+    const onze = eventos.find(e => e.tipo === 'onze');
+    a.igual(onze.trocadas, 2, 'duas cartas mudaram de mão');
+    const ordem = arr => arr.slice().sort((x, y) => x - y);
+    a.igualJSON(ordem(ag[0].vistas[1].cartas), ordem(troca[0]), 'você joga com as cartas trocadas');
+    a.igualJSON(ordem(fim.iniciais[2]), ordem(troca[2]), 'o parceiro fica com as outras');
+    a.igual(fim.vencedor, 0); a.igual(fim.pontos, 3, 'mão de 11 vale 3');
+  });
+
+  T(GP, 'Troca com carta que a dupla não tem é recusada; no paulista não existe troca', async a => {
+    const vira = c('6d');
+    const maos = [cs('4s 5s Qs'), cs('4d 5d 6s'), cs('7c 3h Js'), cs('Kd Ks 4h')];
+    let erro = null;
+    try {
+      const ag0 = [roteiro([{ resposta: 'jogar', troca: { 0: cs('Kd 3h 4s'), 2: cs('5s Qs Js') } }]), roteiro([]), roteiro([]), roteiro([])];
+      ag0[0].bot = false;
+      await umaMao(4, maos, vira, ag0, { regras: 'paranaense', placar: [11, 4] });
+    } catch (e) { erro = e; }
+    a.verdadeiro(erro && /troca/.test(erro.message), 'deveria recusar a troca');
+    const ag = [roteiro([{ resposta: 'jogar', troca: { 0: cs('7c 3h 4s'), 2: cs('5s Qs Js') } }, '4s', '5s']), roteiro(['4d', '5d', '6s']), roteiro(['7c', '3h']), roteiro(['Kd', 'Ks', '4h'])];
+    ag[0].bot = false;
+    const { eventos } = await umaMao(4, maos, vira, ag, { regras: 'paulista', placar: [11, 4] });
+    a.igual(ag[0].vistas[0].trocaPermitida, false);
+    a.igual(eventos.find(e => e.tipo === 'onze').trocadas, 0, 'no paulista a troca é ignorada');
+  });
+
+  T(GP, 'Três empates na mão de 11: os 3 pontos vão para quem não está com 11', async a => {
+    const ag = [roteiro(['jogar', '3s', '2s', '4s']), roteiro(['3c', '2c', '4c'])];
+    const { fim } = await umaMao(2, [cs('3s 2s 4s'), cs('3c 2c 4c')], c('Kd'), ag, { regras: 'paranaense', placar: [11, 4] });
+    a.igual(fim.vencedor, 1); a.igual(fim.pontos, 3); a.igual(fim.motivo, 'empateOnze');
+    // 11 a 11 (mão de ferro): ninguém marca
+    const ag2 = [roteiro([0, 0, 0]), roteiro([0, 0, 0])];
+    const r2 = await umaMao(2, [cs('3s 2s 4s'), cs('3c 2c 4c')], c('Kd'), ag2, { regras: 'paranaense', placar: [11, 11] });
+    a.igual(r2.fim.vencedor, null);
+  });
+
+  T(GP, 'Três empates depois de truco: ganha quem pediu no escuro, perde quem pediu vendo a carta', async a => {
+    // no escuro: o lugar 0 pede antes de o adversário jogar
+    let r = await umaMao(2, [cs('3s 2s 4s'), cs('3c 2c 4c')], c('Kd'), [roteiro(['truco', '3s', '2s', '4s']), roteiro(['aceitar', '3c', '2c', '4c'])], PR);
+    a.igual(r.fim.vencedor, 0, 'no escuro: o empate é de quem pediu'); a.igual(r.fim.pontos, 3); a.igual(r.fim.motivo, 'empateEscuro');
+    a.igual(r.eventos.find(e => e.tipo === 'pedido').escuro, true);
+    // com carta exposta: o lugar 1 pede já vendo o 3 do lugar 0
+    r = await umaMao(2, [cs('3s 2s 4s'), cs('3c 2c 4c')], c('Kd'), [roteiro(['3s', 'aceitar', '2s', '4s']), roteiro(['truco', '3c', '2c', '4c'])], PR);
+    a.igual(r.fim.vencedor, 0, 'com carta exposta: o empate é contra quem pediu');
+    a.igual(r.eventos.find(e => e.tipo === 'pedido').escuro, false);
+    // no paulista, três empates: ninguém marca (mesmo com truco)
+    r = await umaMao(2, [cs('3s 2s 4s'), cs('3c 2c 4c')], c('Kd'), [roteiro(['truco', '3s', '2s', '4s']), roteiro(['aceitar', '3c', '2c', '4c'])], { regras: 'paulista' });
+    a.igual(r.fim.vencedor, null);
+  });
+
+  T(GP, 'A análise conta o empate de quem pediu no escuro', a => {
+    const vira = c('Kd');
+    const v = Object.assign(vista1x1(cs('4s'), vira), {
+      rodada: 2, resultados: ['E', 'E'], nCartas: [1, 1], vez: 0, nivel: 1, valor: 3, podeTrucar: false, regras: 'paranaense',
+      jogadas: [[{ j: 0, carta: c('3s') }, { j: 1, carta: c('3c') }], [{ j: 0, carta: c('2s') }, { j: 1, carta: c('2c') }], []]
+    });
+    // o adversário só pode ter cartas que empatam ou não: com empate a favor (0), a chance sobe
+    const contra = IA.analisar(Object.assign({}, v, { empateTriplo: 1 }), { amostras: 200 }).pGanhar;
+    const favor = IA.analisar(Object.assign({}, v, { empateTriplo: 0 }), { amostras: 200 }).pGanhar;
+    a.maior(favor, contra);
+    return `ganhar com o empate a favor: ${pct(favor)}; contra: ${pct(contra)}`;
+  });
+
+  T(GP, 'Melhor troca: usa as 6 cartas da dupla e não piora a chance', a => {
+    const vira = c('6d');
+    const v = Object.assign(vista1x1(cs('4s 5s Qs'), vira), {
+      n: 4, parceiro: 2, nCartas: [3, 3, 3, 3], tipo: 'onze', equipeOnze: 0, placar: [11, 4], nos: 11, eles: 4,
+      cartasParceiro: cs('7c 3h Js'), trocaPermitida: true, podeTrucar: false, regras: 'paranaense'
+    });
+    const t = IA.melhorTroca(v, { amostras: 120 });
+    const todas = t.troca[0].concat(t.troca[2]).slice().sort((x, y) => x - y).join();
+    a.igual(todas, cs('4s 5s Qs 7c 3h Js').sort((x, y) => x - y).join());
+    a.verdadeiro(t.p >= t.pAtual - 1e-9, 'a troca não piora');
+    return `chance sem troca ${pct(t.pAtual)}; com a melhor troca ${pct(t.p)} (${t.mudaram} carta${t.mudaram === 1 ? '' : 's'})`;
+  });
+
+  T(GP, 'Partidas inteiras entre bots no paranaense: nunca passa do retruco nem retruca com 9', async a => {
+    let maos = 0, alto = 0, proibido = 0;
+    for (let i = 0; i < 6; i++) {
+      const n = i % 2 ? 4 : 2;
+      const ag = Array.from({ length: n }, (_, j) => IA.criarBot(IA.LISTA_PERFIS[(i + j) % 3]));
+      let placar = [0, 0];
+      const r = await M.criar({ n, regras: 'paranaense' }, ag, { evento: ev => {
+        ag.forEach((x, j) => x.observar(ev, j % 2));
+        if (ev.tipo === 'inicioMao') placar = ev.placar;
+        if (ev.tipo === 'pedido') { if (ev.nivel > 2) alto++; if (ev.nivel === 2 && placar[ev.equipe] > 8) proibido++; }
+      } }).rodar();
+      maos += r.maos;
+      a.igual(r.placar[r.vencedor], 12);
+    }
+    a.igual(alto, 0, 'pedido acima do retruco'); a.igual(proibido, 0, 'retruco com 9 ou mais');
+    return `6 partidas, ${maos} mãos`;
+  });
+
+  // ============================================================== torneio
+  const GT = 'Truco: torneio';
+  const TT = P.Truco.Torneio;
+
+  T(GT, 'Chave com qualquer número de participantes: fases, byes e todos na 1ª fase', a => {
+    const linhas = [];
+    [2, 3, 5, 7, 8, 13, 24, 33, 64].forEach(N => {
+      const t = TT.criar({ regras: 'paulista', n: 2, participantes: N, melhorDe: 1, nome: 'Você' });
+      let tam = 1, fases = 0; while (tam < N) { tam *= 2; fases++; }
+      a.igual(t.rodadas.length, fases, N + ' participantes: fases');
+      a.igual(t.rodadas[0].length, tam / 2);
+      const byes = t.rodadas[0].filter(c => c.bye).length;
+      a.igual(byes, tam - N, 'byes');
+      const vistos = [];
+      t.rodadas[0].forEach(c => { vistos.push(c.a); if (c.b !== null) vistos.push(c.b); });
+      a.igual(vistos.slice().sort((x, y) => x - y).join(), t.participantes.map((_, i) => i).join(), 'cada um aparece uma vez');
+      // quem passou direto já está na 2ª fase
+      if (byes && t.rodadas.length > 1) a.igual(t.rodadas[1].reduce((s, c) => s + (c.a !== null) + (c.b !== null), 0), byes);
+      linhas.push(`${N}: ${fases} fases, ${byes} byes`);
+    });
+    return linhas.join(' · ');
+  });
+
+  T(GT, 'Nomes sem repetir mesmo com 64 duplas; você é o participante 0', a => {
+    const t = TT.criar({ regras: 'paranaense', n: 4, participantes: 64, melhorDe: 3, nome: 'Wellington' });
+    const nomes = [];
+    t.participantes.forEach(p => p.membros.forEach(m => nomes.push(m.nome)));
+    a.igual(nomes.length, 128);
+    a.igual(new Set(nomes).size, 128, 'nomes repetidos');
+    a.verdadeiro(t.participantes[0].voce && t.participantes[0].membros[0].voce);
+    a.igual(t.participantes[0].membros[1].perfil !== undefined, true, 'seu parceiro é um bot com estilo');
+    a.igual(t.regras, 'paranaense'); a.igual(t.melhorDe, 3);
+  });
+
+  T(GT, 'Melhor de 3: o confronto acaba com duas vitórias; perder te elimina', a => {
+    const t = TT.criar({ regras: 'paulista', n: 2, participantes: 4, melhorDe: 3, nome: 'Você' });
+    const meu = TT.meuConfronto(t);
+    a.verdadeiro(meu && meu.r === 0);
+    const eu = meu.lado, ele = eu === 'a' ? 'b' : 'a';
+    TT.registrarJogo(t, meu.r, meu.i, eu, [12, 5]);
+    a.igual(meu.c.vencedor, null, '1 a 0 ainda não acabou');
+    TT.registrarJogo(t, meu.r, meu.i, ele, [8, 12]);
+    TT.registrarJogo(t, meu.r, meu.i, ele, [10, 12]);
+    a.igual(meu.c.vencedor, ele);
+    a.igual(t.eliminadoNa, 0);
+    a.igual(TT.meuConfronto(t), null);
+    a.igual(TT.campanha(t).texto, 'Eliminado na semifinal.');
+    a.lanca(() => TT.registrarJogo(t, meu.r, meu.i, eu, [12, 0]), 'confronto decidido não aceita mais jogos');
+    const jg = TT.seusJogos(t);
+    a.igual(jg.vitorias, 1); a.igual(jg.derrotas, 2);
+  });
+
+  T(GT, 'Torneio inteiro com partidas de verdade entre bots, até o campeão', async a => {
+    const t = TT.criar({ regras: 'paranaense', n: 4, participantes: 6, melhorDe: 1, nome: 'Você' });
+    // você também "joga" aqui como bot, para o teste ir até o fim
+    for (let volta = 0; volta < 10; volta++) {
+      const meu = TT.meuConfronto(t);
+      await TT.simular(t, meu ? meu.r : undefined, null, true);
+      if (!meu) break;
+      const res = await TT.jogarEntreBots(t, meu.c.a, meu.c.b, true);
+      TT.registrarJogo(t, meu.r, meu.i, res.vencedor, res.placar);
+    }
+    await TT.simular(t, undefined, null, true);
+    t.rodadas.forEach(rod => rod.forEach(cf => a.verdadeiro(cf.vencedor, 'confronto sem vencedor')));
+    a.verdadeiro(t.campeao !== null);
+    const final = t.rodadas[t.rodadas.length - 1][0];
+    a.igual(final.vencedor === 'a' ? final.a : final.b, t.campeao);
+    JSON.parse(JSON.stringify(t));               // fica salvo como JSON
+    return `campeão: ${t.participantes[t.campeao].nome}; você: ${TT.campanha(t).texto}`;
   });
 })(window.Poker = window.Poker || {});

@@ -23,9 +23,14 @@ A mesa se ajusta ao celular em pé (mesa vertical, botões grandes embaixo) e de
 - **Coach**: dicas sempre visíveis, só quando pedir, modo quiz ou desligado. No fim de cada partida, uma análise completa do desempenho.
 - **Treino relâmpago, estatísticas, histórico com replay e auditoria do embaralhamento** (1.000.000 de baralhos testados).
 
-## Truco paulista
+## Truco paulista e paranaense
 
-Na aba **Truco**: 1 contra 1 ou em dupla (você e um parceiro bot contra dois), com vira e manilhas, truco/seis/nove/doze, carta coberta, mão de 11, mão de ferro e os sinais do parceiro. Partida até 12 pontos, sem dinheiro.
+Na aba **Truco**: 1 contra 1 ou em dupla (você e um parceiro bot contra dois), com vira e manilhas, carta coberta, mão de 11, mão de ferro e os sinais do parceiro. Partida até 12 pontos, sem dinheiro.
+
+- **Paulista**: truco, seis, nove e doze.
+- **Paranaense** (regulamento da Federação Paranaense de Truco): truco e retruco (retruco só até 8 pontos), troca de cartas entre os parceiros na mão de 11, três empates na mão de 11 dão os pontos a quem não está com 11 e, depois de um truco, o empate fica com quem pediu no escuro.
+- **Torneio** mata-mata contra bots: você escolhe as regras, 1 contra 1 ou duplas, quantos participantes (de 2 a 64) e se cada confronto é uma partida ou melhor de 3. Os outros jogos da chave são partidas de verdade entre os bots, jogadas na hora.
+- **Esconder a manilha** (treino): a mesa não diz qual é a manilha; você descobre pela vira e confere no resumo do fim da mão.
 
 - **Coach para quem está aprendendo**: na sua vez, a chance de ganhar a mão com cada carta (simulando as cartas que você não vê), qual jogar e se vale pedir truco — com a conta do blefe. Quando pedem truco para você, a chance mínima para aceitar (correr custa 1, aceitar arrisca 3 → 33%; no seis 25%), corrigida pelo placar perto do fim. Nota em cada decisão e resumo no fim da partida.
 - **Bots** Cauteloso, Esperto e Trucador, sorteados a cada partida. Eles só enxergam as próprias cartas e o que está na mesa; o Esperto repara se você corre muito e blefa mais.

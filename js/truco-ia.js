@@ -189,7 +189,7 @@
       }
       if (lerResposta) {
         const m = modelo(x.jResposta), vr = -val;
-        const naoCorre = chanceDado(m.aceite, vr), aumenta = x.nivel < 4 ? chanceDado(m.aumento, vr) : 0;
+        const naoCorre = chanceDado(m.aceite, vr), aumenta = x.nivel < (vista.maxNivel || 4) ? chanceDado(m.aumento, vr) : 0;
         w *= x.resposta === 'aceitar' ? Math.max(0.01, naoCorre - aumenta) : Math.max(0.01, 1 - naoCorre);
       }
     }
@@ -212,6 +212,7 @@
     const cnt = [0, 0, 0];
     const res = [];
     let eq = 0;
+    let empEq = null;                            // três empates: de quem é a mão (null = ninguém marca)
 
     function decidir() {
       const k = res.length;
@@ -225,7 +226,7 @@
       const r3 = res[2];
       if (r3 !== 2) return r3 === eq ? 1 : -1;
       if (r1 !== 2) return r1 === eq ? 1 : -1;
-      return 0;
+      return empEq === null ? 0 : empEq === eq ? 1 : -1;
     }
     // res guarda 0/1 (equipe que ganhou a rodada) ou 2 (empate). decidir() devolve 2 se a mão segue.
 
@@ -270,9 +271,11 @@
      * andamento; resultados: rodadas já fechadas (0, 1 ou 'E').
      * Devolve { valor } ou, com raiz = true, { porValor: Map(valorDaCarta → resultado) }
      * e, com cobrir = true, também { porValorCoberta } (a mesma carta jogada virada).
+     * empate: equipe que leva a mão se as três rodadas empatarem (regra paranaense), ou null.
      */
-    function resolver(maosValores, jogadasAtuais, resultados, vez, equipe, raiz, cobrir) {
+    function resolver(maosValores, jogadasAtuais, resultados, vez, equipe, raiz, cobrir, empate) {
       eq = equipe;
+      empEq = empate === undefined ? null : empate;
       res.length = 0;
       resultados.forEach(x => res.push(x === 'E' ? 2 : x));
       for (let j = 0; j < n; j++) {
@@ -322,6 +325,7 @@
     const rodada = vista.rodada;
     const atuais = (vista.jogadas[rodada] || []).map(x => ({ j: x.j, v: x.coberta ? R.VALOR_COBERTA : R.valor(x.carta, vira) }));
     const minhaVez = vista.vez === vista.eu && !vista.cegas && !vista.pedido;
+    const empate = vista.empateTriplo === undefined ? null : vista.empateTriplo;
     const minhasPorValor = new Map();
     if (minhaVez) vista.cartas.forEach(c => { const v = R.valor(c, vira); if (!minhasPorValor.has(v)) minhasPorValor.set(v, c); });
     const cobrir = minhaVez && !!vista.podeCobrir;
@@ -339,7 +343,7 @@
       somaW += w; somaW2 += w * w;
       const valores = maos.map(m => m.map(c => R.valor(c, vira)));
       if (minhaVez) {
-        const { porValor, porValorCoberta } = solver.resolver(valores, atuais, vista.resultados, vista.vez, eq, true, cobrir);
+        const { porValor, porValorCoberta } = solver.resolver(valores, atuais, vista.resultados, vista.vez, eq, true, cobrir, empate);
         let melhor = -2;
         porValor.forEach((val, v) => {
           const a = acum.get(v);
@@ -350,7 +354,7 @@
         geral[melhor === 1 ? 0 : melhor === -1 ? 1 : 2] += w;
         if (registros) registros.push({ w, res: new Map(porValor) });
       } else {
-        const { valor } = solver.resolver(valores, atuais, vista.resultados, vista.vez, eq, false);
+        const { valor } = solver.resolver(valores, atuais, vista.resultados, vista.vez, eq, false, false, empate);
         geral[valor === 1 ? 0 : valor === -1 ? 1 : 2] += w;
       }
     }
@@ -377,7 +381,8 @@
    * Devolve { correm, pAceito (chance de ganhar quando aceitam), ganho (pontos por mão), vale, novo }.
    */
   function contaDoTruco(vista, registros, valorCarta, perfis) {
-    const V = R.VALORES[vista.nivel], V2 = R.VALORES[vista.nivel + 1];
+    const valores = vista.valores || R.VALORES;
+    const V = valores[vista.nivel], V2 = valores[vista.nivel + 1];
     const modelos = [];
     for (let j = 0; j < vista.n; j++) if (j % 2 !== vista.equipe) modelos.push(MODELOS[(perfis && perfis[j]) || 'geral'] || MODELOS.geral);
     let sW = 0, corre = 0, aceitoW = 0, ganhaAceito = 0, dif = 0;
@@ -390,6 +395,39 @@
       dif += w * ((1 - naoCorre) * V + naoCorre * V2 * val - V * val);
     });
     return { correm: sW ? corre / sW : 0, pAceito: aceitoW ? ganhaAceito / aceitoW : 0, ganho: sW ? dif / sW : 0, vale: V, novo: V2 };
+  }
+
+  /**
+   * Paranaense, mão de 11 em dupla: das 20 maneiras de dividir as 6 cartas da
+   * dupla (3 para cada), qual dá mais chance de ganhar a mão?
+   * Devolve { troca: { [eu]: [...], [parceiro]: [...] }, p, pAtual, mudaram, saem, entram }.
+   */
+  function melhorTroca(vista, opts) {
+    const minhas = vista.cartas.slice(), dele = vista.cartasParceiro.slice(), todas = minhas.concat(dele);
+    const chave = arr => arr.slice().sort((a, b) => a - b).join();
+    const vistos = new Map();                    // assinatura (valores das duas mãos) → chance
+    const assinatura = (eu, ele) => eu.map(x => R.valor(x, vista.vira)).sort((x, y) => x - y).join() + '|' + ele.map(x => R.valor(x, vista.vira)).sort((x, y) => x - y).join();
+    let melhor = null, pAtual = null;
+    for (let a = 0; a < 6; a++) for (let b = a + 1; b < 6; b++) for (let c = b + 1; c < 6; c++) {
+      const eu = [todas[a], todas[b], todas[c]], ele = todas.filter((_, i) => i !== a && i !== b && i !== c);
+      // mesma divisão em valores (cartas iguais) dá o mesmo resultado: conta uma vez
+      const k = assinatura(eu, ele);
+      const atual = chave(eu) === chave(minhas);
+      if (vistos.has(k) && !atual) continue;
+      const p = analisar(Object.assign({}, vista, { cartas: eu, cartasParceiro: ele }), opts).p;
+      if (!vistos.has(k)) vistos.set(k, p);
+      if (atual) pAtual = p;
+      if (!melhor || p > melhor.p + 1e-9) melhor = { eu, ele, p };
+    }
+    if (pAtual !== null && melhor.p - pAtual < 0.02) melhor = { eu: minhas, ele: dele, p: pAtual };   // diferença pequena: não mexe
+    const troca = {};
+    troca[vista.eu] = melhor.eu; troca[vista.parceiro] = melhor.ele;
+    return {
+      troca, p: melhor.p, pAtual, mudaram: melhor.eu.filter(x => minhas.indexOf(x) < 0).length,
+      saem: minhas.filter(x => melhor.eu.indexOf(x) < 0), entram: melhor.eu.filter(x => minhas.indexOf(x) < 0),
+      /** Chance com qualquer divisão (para avaliar a troca que você fizer). */
+      pDe: (eu, ele) => vistos.get(assinatura(eu, ele))
+    };
   }
 
   // ------------------------------------------------------------------ bots
@@ -416,10 +454,11 @@
    * Um bot de truco. Ele só decide com a vista do lugar dele.
    * memoria: o que ele observou do adversário (para o Esperto se adaptar).
    */
-  function criarBot(perfil, perfisMesa) {
+  function criarBot(perfil, perfisMesa, ajustes) {
     const cfg = PERFIS[perfil] || PERFIS.esperto;
     // os bots leem os pedidos de truco com menos certeza que o coach (como gente: desconfiam, mas pagam para ver)
-    const op = { amostras: cfg.amostras, perfis: perfisMesa || null, leitura: cfg.leitura };
+    // ajustes.amostras: menos simulações (partidas de torneio que ninguém está vendo)
+    const op = { amostras: (ajustes && ajustes.amostras) || cfg.amostras, perfis: perfisMesa || null, leitura: cfg.leitura };
     const memoria = { pedidosNossos: 0, correramDeNos: 0 };
     let ultima = null;   // última análise (para os testes e o diagnóstico)
 
@@ -466,20 +505,24 @@
     function responder(vista, nivel) {
       const a = ultima = analisar(vista, op);
       const p = a.p;
-      const min = R.minimoParaAceitar(R.VALORES[nivel - 1], R.VALORES[nivel], vista.nos, vista.eles);
+      const valores = vista.valores || R.VALORES;
+      const min = R.minimoParaAceitar(valores[nivel - 1], valores[nivel], vista.nos, vista.eles);
       // aumentar fica mais exigente a cada nível (nove e doze são raros)
       const exige = Math.min(0.97, cfg.aumentar + 0.05 * Math.max(0, nivel - 1));
-      if (nivel < 4 && (p >= exige || (nivel === 1 && p < 0.35 && p >= min && RNG.chance(cfg.blefe * 0.3)))) return { resposta: 'aumentar', p };
+      const podeAumentar = vista.podeAumentar !== undefined ? vista.podeAumentar : nivel < 4;
+      if (podeAumentar && (p >= exige || (nivel === 1 && p < 0.35 && p >= min && RNG.chance(cfg.blefe * 0.3)))) return { resposta: 'aumentar', p };
       if (p >= min + cfg.margemAceitar) return { resposta: 'aceitar', p };
       return { resposta: 'correr', p };
     }
 
     function onze(vista) {
-      const a = ultima = analisar(vista, op);
-      const p = a.p;
+      // paranaense: antes de decidir, a dupla arruma as 6 cartas do melhor jeito
+      const t = vista.trocaPermitida ? melhorTroca(vista, op) : null;
+      const p = t ? t.p : (ultima = analisar(vista, op)).p;
       const jogar = p * R.chancePartida(vista.nos + 3, vista.eles) + (1 - p) * R.chancePartida(vista.nos, vista.eles + 3);
       const correr = R.chancePartida(vista.nos, vista.eles + 1);
-      return { resposta: jogar >= correr + cfg.margemOnze ? 'jogar' : 'correr', p };
+      const resposta = jogar >= correr + cfg.margemOnze ? 'jogar' : 'correr';
+      return { resposta, p, troca: resposta === 'jogar' && t && t.mudaram ? t.troca : undefined };
     }
 
     /** Eventos da mesa (para o Esperto aprender se o adversário corre muito). */
@@ -499,6 +542,6 @@
 
   T.IA = {
     PERFIS, LISTA_PERFIS, NOMES, MODELOS,
-    forcaMao, chanceDado, prepararAmostragem, sortear, pesoSorteio, analisar, criarBot, criarSolver
+    forcaMao, chanceDado, prepararAmostragem, melhorTroca, sortear, pesoSorteio, analisar, criarBot, criarSolver
   };
 })(window.Poker = window.Poker || {});

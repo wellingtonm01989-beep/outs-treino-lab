@@ -251,6 +251,51 @@
     clicar(botaoComTexto('Descartar', '.modal .modal-rodape'));
     await ate(() => !$('.truco-continuar') && $('.truco-novo'), 3000, 'partida descartada');
     passo(`truco ok (${jogoT.notas.length} notas do coach)`);
+
+    // 11) torneio de truco paranaense: 3 jogadores, chave, jogar, esconder a manilha, sair (salvo), continuar, abandonar
+    clicar(botaoComTexto('Torneio', '.tr-abas'));
+    clicar(botaoComTexto('Paranaense'));
+    clicar(botaoComTexto('1 contra 1'));
+    const qtd = $('#tr-qtd');
+    qtd.value = '3'; qtd.dispatchEvent(new Event('change'));
+    await ate(() => $('#tr-qtd') && $('#tr-qtd').value === '3', 3000, 'participantes');
+    clicar(botaoComTexto('Começar torneio'));
+    await ate(() => $('.tr-torneio .tr-t-chave'), 5000, 'chave do torneio');
+    await ate(() => $('#tr-t-jogar'), 30000, 'botão jogar');
+    clicar($('#tr-t-jogar'));
+    await ate(() => $('.tr-jogo') && /Paranaense/.test($('.tr-chip-info').textContent), 5000, 'mesa do torneio');
+    // esconder a manilha pelo menu
+    await ate(() => $('.tr-centro .rotulo-vira b'), 15000, 'vira com a manilha');
+    clicar($('.tr-barra button[title="Menu"]'));
+    await ate(() => $('.modal .menu-mesa'), 3000, 'menu');
+    clicar(botaoComTexto('Esconder a manilha', '.modal'));
+    await ate(() => !$('.modal') && $('.tr-centro .sem-manilha') && !$('.tr-mao .nome-carta.manilha'), 3000, 'manilha escondida');
+    let acoesT = 0;
+    const t1 = Date.now();
+    while (acoesT < 3) {
+      if (Date.now() - t1 > 90000) throw new Error('torneio: tempo esgotado jogando');
+      const prox = $('.tr-fim .btn-ouro'), aceitar = $('.tr-acoes .btn-aceitar:not(:disabled)'), carta = $('.tr-mao.jogavel .tr-carta-mao');
+      if (prox) clicar(prox);
+      else if (aceitar) { clicar(aceitar); acoesT++; }
+      else if (carta && !$('.tr-coach .calc')) { clicar(carta); acoesT++; }
+      await dormir(200);
+    }
+    clicar($('.tr-barra button[title="Menu"]'));
+    await ate(() => $('.modal .menu-mesa'), 3000, 'menu 2');
+    clicar(botaoComTexto('Mostrar a manilha', '.modal'));
+    clicar($('.tr-barra button[title="Menu"]'));
+    await ate(() => $('.modal .menu-mesa'), 3000, 'menu 3');
+    clicar(botaoComTexto('Sair da partida', '.modal'));
+    await ate(() => botaoComTexto('Continuar jogando', '.modal'), 3000, 'confirmação de saída do torneio');
+    clicar(botaoComTexto('Sair', '.modal .modal-rodape'));
+    await ate(() => $('.tr-torneio') && $('#tr-t-jogar') && /Continuar o jogo/.test($('#tr-t-jogar').textContent), 5000, 'jogo do torneio salvo');
+    clicar(botaoComTexto('Abandonar', '.tr-t-cab'));
+    await ate(() => botaoComTexto('Continuar no torneio', '.modal'), 3000, 'confirmação de abandono');
+    clicar(botaoComTexto('Abandonar', '.modal .modal-rodape'));
+    await ate(() => $('.truco-novo') && !$('.tr-torneio'), 5000, 'torneio abandonado');
+    if (P.Truco.Dados.torneio() || P.Truco.Dados.salva()) throw new Error('torneio abandonado ficou salvo');
+    if (P.Truco.Dados.estat().torneios.jogados !== 1) throw new Error('torneio abandonado não contou como jogado');
+    passo('torneio ok');
   }
 
   // dentro do simulador de celular (testes/celular.html) o resultado vai também para a página de fora

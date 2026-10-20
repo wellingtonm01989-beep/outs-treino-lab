@@ -1,9 +1,11 @@
 /* ==========================================================================
    OUTS · Treino Lab — truco-motor.js
-   Motor de uma partida de truco paulista (2 jogadores, ou 4 em duplas).
-   Embaralha (crypto, o mesmo Fisher-Yates do poker), distribui 3 cartas
-   para cada um e vira a vira, conduz as rodadas, os pedidos de truco, seis,
-   nove e doze, a mão de 11 e a mão de ferro, e marca os pontos até 12.
+   Motor de uma partida de truco (2 jogadores, ou 4 em duplas), nas regras
+   paulista ou paranaense (cfg.regras; veja truco-regras.js). Embaralha
+   (crypto, o mesmo Fisher-Yates do poker), distribui 3 cartas para cada um
+   e vira a vira, conduz as rodadas, os pedidos (truco, seis, nove e doze;
+   ou truco e retruco), a mão de 11 (com a troca de cartas do paranaense)
+   e a mão de ferro, e marca os pontos até 12.
 
    Lugares: 0 é você; a vez passa para o lugar seguinte (0 → 1 → 2 → 3),
    no sentido anti-horário da mesa. Equipe = lugar % 2 (você e o lugar 2
@@ -14,7 +16,8 @@
    o que já foi jogado na mesa e o sinal do parceiro. Nunca as cartas dos outros.
      agente.decidir(vista)          → { tipo: 'carta', carta | indice, coberta } ou { tipo: 'truco' }
      agente.responder(vista, nivel) → 'aceitar' | 'correr' | 'aumentar' (ou { resposta, p })
-     agente.onze(vista)             → 'jogar' | 'correr' (ou { resposta, p })
+     agente.onze(vista)             → 'jogar' | 'correr' (ou { resposta, p, troca })
+       troca (paranaense, dupla com 11): { [lugar]: [3 cartas], [parceiro]: [3 cartas] }
    ganchos.evento(ev) recebe cada acontecimento (a interface anima e devolve
    uma Promise); ganchos.salvar(estado) é chamado no começo de cada mão.
    ========================================================================== */
@@ -34,6 +37,7 @@
   function criar(cfg, agentes, ganchos) {
     ganchos = ganchos || {};
     const n = cfg.n === 4 ? 4 : 2;
+    const vr = R.variante(cfg.regras);
     if (agentes.length !== n) throw new Error('Truco: precisa de um agente por lugar');
     const equipe = j => j % 2;
     const parceiro = j => (n === 4 ? (j + 2) % 4 : null);
@@ -63,7 +67,8 @@
         eu: j, n, equipe: eq, parceiro: parceiro(j),
         placar: est.placar.slice(), nos: est.placar[eq], eles: est.placar[1 - eq],
         maoNumero: est.maoNumero, dador: est.dador,
-        tipo: m ? m.tipo : 'normal'
+        tipo: m ? m.tipo : 'normal',
+        regras: vr.id, valores: vr.VALORES, nomesPedido: vr.NOMES_PEDIDO, maxNivel: vr.maxNivel
       };
       if (!m) return v;
       v.inicio = m.inicio;
@@ -87,14 +92,35 @@
       v.sinalParceiro = n === 4 && m.sinais ? m.sinais[parceiro(j)] : undefined;
       // mão de 11: a dupla que está com 11 vê as cartas do parceiro
       v.cartasParceiro = n === 4 && m.tipo === 'onze' && m.equipeOnze === eq ? m.maos[parceiro(j)].slice() : null;
+      v.trocaPermitida = !!(v.cartasParceiro && vr.trocaNoOnze && !m.decidiuOnze);
       v.podeTrucar = podeTrucar(j);
+      // respondendo a um pedido: dá para aumentar? (paranaense: retruco só até 8 pontos)
+      v.podeAumentar = !!m.pedido && m.pedido.equipe !== eq && R.podePedirNivel(vr, m.pedido.nivel + 1, est.placar[eq]);
+      // três empates: de quem é a mão (paranaense: mão de 11 e empate depois de truco)
+      v.empateTriplo = empateTriplo();
       v.podeCobrir = m.tipo !== 'ferro' && m.resultados.length > 0;
       return v;
     }
 
     function podeTrucar(j) {
       const m = est.mao;
-      return !!m && !m.acabou && m.tipo === 'normal' && m.nivel < 4 && m.ultimoAumento !== equipe(j) && !m.pedido;
+      return !!m && !m.acabou && m.tipo === 'normal' && R.podePedirNivel(vr, m.nivel + 1, est.placar[equipe(j)]) &&
+        m.ultimoAumento !== equipe(j) && !m.pedido;
+    }
+
+    /** Se as três rodadas empatarem, quem leva a mão (0, 1) ou null (ninguém marca). */
+    function empateTriplo() {
+      const m = est.mao;
+      if (!m) return null;
+      if (m.tipo === 'onze' && vr.empateOnzeParaQuemNaoTem) return 1 - m.equipeOnze;
+      if (vr.empateNoEscuro && m.nivel > 0 && m.empateVence !== null) return m.empateVence;
+      return null;
+    }
+
+    /** Pedido "no escuro": quem pede ainda não viu nenhuma carta aberta do outro lado nesta rodada. */
+    function pedidoNoEscuro(jPede) {
+      const m = est.mao, rod = m.jogadas[m.resultados.length] || [];
+      return !rod.some(x => equipe(x.j) !== equipe(jPede) && !x.coberta);
     }
 
     // ---------------------------------------------------------- uma mão
@@ -111,7 +137,7 @@
       // na sua equipe quem decide é você; numa equipe só de bots, vale a resposta de quem está mais confiante
       const membros = n === 4 ? [eq, eq + 2] : [eq];
       const humano = membros.find(j => !agentes[j].bot);
-      if (humano !== undefined) return { j: humano, resposta: normalizar(await agentes[humano][metodo](vistaPara(humano), extra)) };
+      if (humano !== undefined) return Object.assign({ j: humano }, normalizarObj(await agentes[humano][metodo](vistaPara(humano), extra)));
       let melhor = null;
       for (const j of membros) {
         const r = normalizarObj(await agentes[j][metodo](vistaPara(j), extra));
@@ -119,7 +145,6 @@
       }
       return melhor;
     }
-    const normalizar = r => (r && typeof r === 'object' ? r.resposta : r);
     const normalizarObj = r => (r && typeof r === 'object' ? r : { resposta: r });
 
     async function jogarMao() {
@@ -138,7 +163,7 @@
         jogadas: [], resultados: [], vencedoresRodada: [],
         vez: inicio, valor: 1, nivel: 0, ultimoAumento: null, pedido: null, pedidos: [],
         equipeOnze: tipo === 'onze' ? (a === 11 ? 0 : 1) : null,
-        sinais: null, acabou: false
+        empateVence: null, decidiuOnze: false, sinais: null, acabou: false
       };
       if (n === 4 && tipo === 'normal') m.sinais = maos.map(c => sinalDe(c, vira));
       if (ganchos.salvar) ganchos.salvar(estadoParaSalvar());
@@ -148,7 +173,9 @@
 
       if (tipo === 'onze') {
         const d = await decisaoEquipe(m.equipeOnze, 'onze');
-        await emitir({ tipo: 'onze', equipe: m.equipeOnze, j: d.j, resposta: d.resposta });
+        m.decidiuOnze = true;
+        const trocadas = d.resposta === 'jogar' ? aplicarTroca(m.equipeOnze, d.troca) : 0;
+        await emitir({ tipo: 'onze', equipe: m.equipeOnze, j: d.j, resposta: d.resposta, trocadas });
         if (est.parado) return;
         if (d.resposta === 'correr') return encerrarMao(1 - m.equipeOnze, 1, 'onzeCorreu');
         m.valor = 3;
@@ -174,7 +201,13 @@
         const d = R.decidirMao(m.resultados);
         await emitir({ tipo: 'fimRodada', rodada: r, vencedor: res.vencedor, quem: res.quem, maior: res.maior, fimMao: d.fim });
         if (est.parado) return;
-        if (d.fim) return encerrarMao(d.vencedor, m.valor, 'jogo');
+        if (d.fim) {
+          if (d.vencedor === null && empateTriplo() !== null) {
+            // paranaense: três empates na mão de 11 ou depois de truco não ficam sem dono
+            return encerrarMao(empateTriplo(), m.valor, m.tipo === 'onze' ? 'empateOnze' : 'empateEscuro');
+          }
+          return encerrarMao(d.vencedor, m.valor, 'jogo');
+        }
       }
       throw new Error('Truco: mão terminou sem decisão');
     }
@@ -212,33 +245,52 @@
       const m = est.mao;
       let quemPede = equipe(j), nivel = m.nivel + 1, jPede = j;
       for (;;) {
-        m.pedido = { nivel, equipe: quemPede, j: jPede };
-        m.pedidos.push({ nivel, equipe: quemPede, j: jPede, rodada: m.resultados.length });
-        await emitir({ tipo: 'pedido', j: jPede, equipe: quemPede, nivel, nome: R.NOMES_PEDIDO[nivel], valor: R.VALORES[nivel] });
+        const escuro = pedidoNoEscuro(jPede);
+        m.pedido = { nivel, equipe: quemPede, j: jPede, escuro };
+        m.pedidos.push({ nivel, equipe: quemPede, j: jPede, rodada: m.resultados.length, escuro });
+        await emitir({ tipo: 'pedido', j: jPede, equipe: quemPede, nivel, nome: vr.NOMES_PEDIDO[nivel], valor: vr.VALORES[nivel], escuro });
         if (est.parado) return null;
         const responde = 1 - quemPede;
         const d = await decisaoEquipe(responde, 'responder', null, nivel);
         if (est.parado) return null;
         let resp = d.resposta;
-        if (resp === 'aumentar' && nivel >= 4) resp = 'aceitar';
+        if (resp === 'aumentar' && !R.podePedirNivel(vr, nivel + 1, est.placar[responde])) resp = 'aceitar';
         const registro = m.pedidos[m.pedidos.length - 1];
         registro.resposta = resp;
         registro.jResposta = d.j;
-        await emitir({ tipo: 'resposta', j: d.j, equipe: responde, nivel, resposta: resp, proximo: resp === 'aumentar' ? R.NOMES_PEDIDO[nivel + 1] : null });
+        await emitir({ tipo: 'resposta', j: d.j, equipe: responde, nivel, resposta: resp, proximo: resp === 'aumentar' ? vr.NOMES_PEDIDO[nivel + 1] : null });
         m.pedido = null;
         if (resp === 'correr') {
-          const pontos = R.VALORES[nivel - 1];
+          const pontos = vr.VALORES[nivel - 1];
           return () => encerrarMao(quemPede, pontos, 'correu');
         }
         // aceitar (ou aumentar, que aceita o nível pedido e pede o seguinte)
         m.nivel = nivel;
-        m.valor = R.VALORES[nivel];
+        m.valor = vr.VALORES[nivel];
         m.ultimoAumento = quemPede;
+        m.empateVence = escuro ? quemPede : 1 - quemPede;
         if (resp === 'aceitar') return null;
         quemPede = responde;
         jPede = d.j;
         nivel = nivel + 1;
       }
+    }
+
+    /**
+     * Troca de cartas na mão de 11 (paranaense, dupla): a dupla redistribui as
+     * suas 6 cartas, 3 para cada um. Devolve quantas cartas mudaram de mão.
+     */
+    function aplicarTroca(eq, troca) {
+      if (!troca || !vr.trocaNoOnze || n !== 4) return 0;
+      const m = est.mao, a = eq, b = parceiro(eq);
+      const novaA = troca[a], novaB = troca[b];
+      if (!Array.isArray(novaA) || !Array.isArray(novaB) || novaA.length !== 3 || novaB.length !== 3) throw new Error('Truco: troca inválida');
+      const antes = m.maos[a].concat(m.maos[b]).slice().sort((x, y) => x - y).join();
+      if (novaA.concat(novaB).slice().sort((x, y) => x - y).join() !== antes) throw new Error('Truco: troca com cartas que a dupla não tem');
+      const mudaram = novaA.filter(c => m.maos[a].indexOf(c) < 0).length;
+      m.maos[a] = novaA.slice(); m.maos[b] = novaB.slice();
+      m.iniciais[a] = novaA.slice(); m.iniciais[b] = novaB.slice();
+      return mudaram;
     }
 
     async function encerrarMao(vencedor, pontos, motivo) {
@@ -276,7 +328,7 @@
       placar: () => est.placar.slice(),
       fim: () => est.fim,
       maoNumero: () => est.maoNumero,
-      equipe, parceiro, n
+      equipe, parceiro, n, regras: vr.id
     };
   }
 

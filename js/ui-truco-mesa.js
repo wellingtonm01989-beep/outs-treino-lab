@@ -7,6 +7,9 @@
    (com a conta completa ao tocar nela). No fim de cada mão aparecem as
    cartas de todo mundo; no fim da partida, o resumo das suas decisões.
    A partida fica salva no começo de cada mão: se o app fechar, ela volta.
+   Regras paulista ou paranaense (com a troca de cartas na mão de 11), a
+   opção de esconder a manilha (treino) e os jogos do torneio, que no fim
+   voltam para a chave (ui-truco-torneio.js).
    ========================================================================== */
 (function (P) {
   'use strict';
@@ -55,10 +58,12 @@
     g.valeBox = el('div', { class: 'tr-vale', title: 'Quanto vale a mão' }, g.valeRot, g.vale);
     g.rodadas = el('div', { class: 'tr-rodadas', title: 'Rodadas desta mão' }, el('i'), el('i'), el('i'));
     g.tipoMao = el('span', { class: 'tipo-mao oculto' });
+    // regras da mesa e, no torneio, a fase e o jogo (no celular estreito ficam escondidos; aparecem no aviso do começo)
+    g.chipInfo = el('span', { class: 'tr-chip-info', text: (jogo.torneio && jogo.torneio.curto ? jogo.torneio.curto + ' · ' : '') + jogo.vr.nome });
     g.btnCoach = el('button', { class: 'btn', title: 'Ver a conta do coach', html: '💡<span class="rot"> Coach</span>', onclick: abrirCoach });
     g.barra = el('div', { class: 'tr-barra' },
       el('div', { class: 'tr-placar' }, g.ladoNos, el('span', { text: '×' }), g.ladoEles),
-      g.valeBox, g.rodadas, g.tipoMao, el('span', { class: 'espaco' }),
+      g.valeBox, g.rodadas, g.tipoMao, g.chipInfo, el('span', { class: 'espaco' }),
       g.btnCoach,
       el('button', { class: 'btn', title: 'Menu', html: '&#9776;<span class="rot"> Menu</span>', onclick: abrirMenu }));
 
@@ -284,46 +289,94 @@
     s.classList.add('on');
   }
 
-  /** A sua mão (e a do parceiro na mão de 11). */
+  /** A sua mão (e a do parceiro na mão de 11; no paranaense, com a troca de cartas). */
   function renderMao() {
     const g = jogo.ui, v = jogo.motor.vistaPara(0);
     g.mao.innerHTML = '';
     if (!v.cartas) return;
+    const esconder = !!jogo.opcoes.esconderManilha;
+    const troca = jogo.troca && jogo.pendente && jogo.pendente.tipo === 'onze' ? jogo.troca : null;
+    const minhas = troca ? troca.eu : v.cartas, dele = troca ? troca.ele : v.cartasParceiro;
     const sugerida = jogo.conselho && jogo.conselho.tipo === 'vez' && jogo.opcoes.coach === 'sempre' ? jogo.conselho.carta : null;
-    v.cartas.forEach((c, i) => {
+    // coach (dicas sempre): as cartas que ele sugere trocar ficam marcadas
+    const sugTroca = troca && jogo.conselho && jogo.conselho.troca && jogo.conselho.troca.mudaram && (jogo.opcoes.coach === 'sempre' || jogo.dicaVista)
+      ? jogo.conselho.troca.saem.concat(jogo.conselho.troca.entram) : [];
+    const rotulo = c => (esconder ? '' : R.ehManilha(c, v.vira) ? R.nome(c, v.vira) : '');
+    const titulo = c => (esconder || !R.ehManilha(c, v.vira) ? P.Cartas.bonito(c) : R.nome(c, v.vira));
+    minhas.forEach((c, i) => {
       const cega = c === null;
       const div = P.UI.carta(cega ? null : c, { fechada: cega });
-      const manilha = !cega && R.ehManilha(c, v.vira);
-      const nome = el('span', { class: 'nome-carta' + (manilha ? ' manilha' : ''), text: cega ? '?' : manilha ? R.nome(c, v.vira) : '' });
-      const b = el('button', { class: 'tr-carta-mao' + (c !== null && c === sugerida ? ' sugerida' : ''), 'data-carta': cega ? '' : c, 'data-indice': i, title: cega ? 'Carta escondida (mão de ferro)' : R.nome(c, v.vira) }, div, nome);
-      b.addEventListener('click', () => jogarCarta(cega ? { indice: i } : { carta: c }));
+      const nome = el('span', { class: 'nome-carta' + (!cega && rotulo(c) ? ' manilha' : ''), text: cega ? '?' : rotulo(c) });
+      const cls = 'tr-carta-mao' + (c !== null && c === sugerida ? ' sugerida' : '') + (troca && jogo.selTroca === c ? ' selecionada' : '') + (sugTroca.indexOf(c) >= 0 ? ' troca-sugerida' : '');
+      const b = el('button', { class: cls, 'data-carta': cega ? '' : c, 'data-indice': i, title: cega ? 'Carta escondida (mão de ferro)' : titulo(c) }, div, nome);
+      b.addEventListener('click', () => (troca ? tocarTroca(c, 'eu') : jogarCarta(cega ? { indice: i } : { carta: c })));
       g.mao.appendChild(b);
     });
-    if (v.cartasParceiro && jogo.mostrarParceiro) {
-      g.mao.appendChild(el('span', { class: 'sep-parceiro', text: 'parceiro' }));
-      v.cartasParceiro.forEach(c => {
-        const manilha = R.ehManilha(c, v.vira);
-        g.mao.appendChild(el('div', { class: 'tr-carta-mao parceiro' }, P.UI.carta(c), el('span', { class: 'nome-carta' + (manilha ? ' manilha' : ''), text: manilha ? R.nome(c, v.vira) : '' })));
+    if (dele && jogo.mostrarParceiro) {
+      g.mao.appendChild(el('span', { class: 'sep-parceiro', text: troca ? 'parceiro · toque para trocar' : 'parceiro' }));
+      dele.forEach(c => {
+        const cls = 'tr-carta-mao parceiro' + (troca ? ' trocavel' : '') + (troca && jogo.selTroca === c ? ' selecionada' : '') + (sugTroca.indexOf(c) >= 0 ? ' troca-sugerida' : '');
+        const b = el(troca ? 'button' : 'div', { class: cls, 'data-carta': c, title: titulo(c) }, P.UI.carta(c), el('span', { class: 'nome-carta' + (rotulo(c) ? ' manilha' : ''), text: rotulo(c) }));
+        if (troca) b.addEventListener('click', () => tocarTroca(c, 'ele'));
+        g.mao.appendChild(b);
       });
     }
     g.mao.classList.toggle('jogavel', !!(jogo.pendente && jogo.pendente.tipo === 'vez'));
+    g.mao.classList.toggle('trocando', !!troca);
     g.mao.classList.toggle('cobrindo', !!jogo.cobrir);
     // com as cartas do parceiro do lado, as suas diminuem para caber tudo na largura
-    const comParceiro = !!(v.cartasParceiro && jogo.mostrarParceiro);
+    const comParceiro = !!(dele && jogo.mostrarParceiro);
     if (comParceiro) {
       const base = parseFloat(getComputedStyle(g.raiz).getPropertyValue('--mao-l')) || 80;
       g.mao.style.setProperty('--mao-l', Math.min(base, (g.mao.clientWidth - 44) / 5.75) + 'px');
     } else g.mao.style.removeProperty('--mao-l');
   }
 
-  function renderVira(vira) {
+  /** Troca na mão de 11 (paranaense): toque numa carta sua e numa do parceiro. */
+  function tocarTroca(c, lado) {
+    const t = jogo && jogo.troca;
+    if (!t) return;
+    const sel = jogo.selTroca;
+    if (sel === null || sel === undefined) { jogo.selTroca = c; renderMao(); return; }
+    if (sel === c) { jogo.selTroca = null; renderMao(); return; }
+    const ladoSel = t.eu.indexOf(sel) >= 0 ? 'eu' : 'ele';
+    if (ladoSel === lado) { jogo.selTroca = c; renderMao(); return; }      // mesma mão: muda a escolha
+    const [minha, dele] = lado === 'eu' ? [c, sel] : [sel, c];
+    t.eu[t.eu.indexOf(minha)] = dele;
+    t.ele[t.ele.indexOf(dele)] = minha;
+    jogo.selTroca = null;
+    atualizarBotaoTroca();
+    renderMao();
+  }
+  function trocaMudou() {
+    const t = jogo.troca, v = jogo.pendente && jogo.pendente.vista;
+    return !!(t && v && t.eu.some(c => v.cartas.indexOf(c) < 0));
+  }
+  function atualizarBotaoTroca() {
+    const g = jogo.ui, mudou = trocaMudou();
+    g.btnTruco.disabled = !mudou;
+    g.btnTruco.className = 'btn-acao btn-truco';
+    g.btnTruco.innerHTML = mudou ? 'Desfazer<small>a troca</small>' : 'Troca<small>toque nas cartas</small>';
+    g.btnTruco.onclick = () => {
+      const v = jogo.pendente && jogo.pendente.vista;
+      if (!v) return;
+      jogo.troca = { eu: v.cartas.slice(), ele: v.cartasParceiro.slice() };
+      jogo.selTroca = null;
+      atualizarBotaoTroca();
+      renderMao();
+    };
+  }
+
+  function renderVira(vira, semAnimar) {
     const g = jogo.ui;
+    jogo.viraAtual = vira;
     g.viraSlot.innerHTML = '';
     if (vira === null || vira === undefined) { g.rotuloVira.innerHTML = ''; return; }
-    const d = P.UI.carta(vira, { fechada: true });
+    const d = P.UI.carta(vira, { fechada: !semAnimar });
     g.viraSlot.appendChild(d);
-    setTimeout(() => P.UI.revelar(d, vira), 60);
-    g.rotuloVira.innerHTML = `vira<br>manilha<br><b>${R.ROTULO_RANK[R.manilhaDe(vira)]}</b>`;
+    if (!semAnimar) setTimeout(() => P.UI.revelar(d, vira), 60);
+    // treino "esconder a manilha": só a vira; a manilha você descobre
+    g.rotuloVira.innerHTML = jogo.opcoes.esconderManilha ? 'vira<br><span class="sem-manilha">manilha?</span>' : `vira<br>manilha<br><b>${R.ROTULO_RANK[R.manilhaDe(vira)]}</b>`;
   }
 
   function cartaNoMonte(j, carta, coberta) {
@@ -400,7 +453,7 @@
       if (c.tipo === 'vez' && c.analise && c.analise.cartas.length > 1) {
         const barras = el('div', { class: 'tr-barras-cartas' });
         c.analise.cartas.forEach(x => barras.appendChild(el('div', { class: 'tr-barra-carta' },
-          el('span', { html: CO.cartaHtml(x.carta) + (R.ehManilha(x.carta, c.vira) ? ' <small>' + R.nome(x.carta, c.vira) + '</small>' : '') }),
+          el('span', { html: CO.cartaHtml(x.carta) + (!jogo.opcoes.esconderManilha && R.ehManilha(x.carta, c.vira) ? ' <small>' + R.nome(x.carta, c.vira) + '</small>' : '') }),
           el('div', { class: 'barra' }, el('i', { style: { width: Math.round(x.p * 100) + '%' } })),
           el('b', { text: CO.pct(x.p) }))));
         corpo.appendChild(el('div', { class: 'bloco' }, el('h4', { text: 'Chance de ganhar a mão com cada carta' }), barras));
@@ -424,8 +477,8 @@
   }
 
   /** Nota de uma decisão sua: aparece na faixa e entra no resumo da partida. */
-  function registrarNota(conselho, acao) {
-    const av = CO.avaliar(conselho, acao);
+  function registrarNota(conselho, acao, extra) {
+    const av = CO.avaliar(conselho, acao, extra);
     if (!av) return;
     av.linhas = conselho.linhas;
     av.mao = jogo.motor.maoNumero();
@@ -460,12 +513,16 @@
   function prepararVez(vista) {
     const g = jogo.ui;
     acoesEspera(vista.cegas ? '<b>Mão de ferro:</b> toque numa carta (ninguém sabe qual é)' : '<b>Sua vez:</b> toque numa carta para jogar');
+    const vr = jogo.vr;
     if (vista.podeTrucar) {
       g.btnTruco.disabled = false;
-      g.btnTruco.innerHTML = R.NOMES_PEDIDO[vista.nivel + 1] + '!<small>vale ' + R.VALORES[vista.nivel + 1] + '</small>';
-    } else if (vista.tipo === 'normal' && vista.nivel < 4) {
-      g.btnTruco.innerHTML = R.NOMES_PEDIDO[vista.nivel + 1] + '!<small>só o outro lado</small>';
-    } else if (vista.tipo !== 'normal') {
+      g.btnTruco.innerHTML = vr.NOMES_PEDIDO[vista.nivel + 1] + '!<small>vale ' + vr.VALORES[vista.nivel + 1] + '</small>';
+    } else if (vista.tipo === 'normal' && vista.nivel < vr.maxNivel) {
+      const porPontos = vista.ultimoAumento !== vista.equipe && !R.podePedirNivel(vr, vista.nivel + 1, vista.nos);
+      g.btnTruco.innerHTML = vr.NOMES_PEDIDO[vista.nivel + 1] + '!<small>' + (porPontos ? 'só até 8 pontos' : 'só o outro lado') + '</small>';
+    } else if (vista.tipo === 'normal') {
+      g.btnTruco.innerHTML = vr.NOMES_PEDIDO[vista.nivel] + '<small>é o máximo</small>';
+    } else {
       g.btnTruco.innerHTML = 'Truco<small>' + (vista.tipo === 'onze' ? 'não na mão de 11' : 'não na de ferro') + '</small>';
     }
     g.btnCobrir.disabled = !vista.podeCobrir;
@@ -509,7 +566,7 @@
       if (!pend.vista.podeTrucar) return;
       if (conselhoAgora(pend)) registrarNota(jogo.conselho, { tipo: 'truco' });
       resolverPendente({ tipo: 'truco' });
-    } else if (pend.tipo === 'resposta' && pend.nivel < 4) {
+    } else if (pend.tipo === 'resposta' && pend.vista.podeAumentar) {
       if (conselhoAgora(pend)) registrarNota(jogo.conselho, 'aumentar');
       resolverPendente('aumentar');
     }
@@ -526,8 +583,15 @@
     pend.resolve(valor);
   }
 
+  /** Refaz o conselho da decisão em aberto (ex.: depois de esconder ou mostrar a manilha). */
+  function recalcularConselho(pend) {
+    const v = pend.vista;
+    const fn = pend.tipo === 'vez' ? () => CO.vez(v, opcoesCoach()) : pend.tipo === 'resposta' ? () => CO.resposta(v, pend.nivel, opcoesCoach()) : () => CO.onze(v, opcoesCoach());
+    calcularConselho(fn).then(c => { if (!jogo || jogo.pendente !== pend) return; jogo.conselho = c; renderMao(); mostrarConselho(); });
+  }
+
   /** O coach sabe o estilo de cada bot (aparece na mesa) e usa isso para ler os pedidos de truco. */
-  function opcoesCoach() { return { amostras: jogo.opcoes.amostras, perfis: jogo.jogadores.map(x => x.perfil || null) }; }
+  function opcoesCoach() { return { amostras: jogo.opcoes.amostras, perfis: jogo.jogadores.map(x => x.perfil || null), esconderManilha: !!jogo.opcoes.esconderManilha }; }
 
   /** Calcula o conselho do coach sem travar o desenho da tela. */
   function calcularConselho(fn) {
@@ -569,13 +633,15 @@
           jogo.conselho = null;
           renderMao();
           const g = jogo.ui;
-          acoesEspera(`<b>Pediram ${R.NOMES_PEDIDO[nivel].toLowerCase()}!</b> Correr dá ${R.VALORES[nivel - 1]} a eles; aceitar faz a mão valer ${R.VALORES[nivel]}`);
-          g.btnCobrir.className = 'btn-acao btn-correr'; g.btnCobrir.innerHTML = 'Correr<small>eles +' + R.VALORES[nivel - 1] + '</small>'; g.btnCobrir.disabled = false;
+          const vr = jogo.vr;
+          acoesEspera(`<b>Pediram ${vr.NOMES_PEDIDO[nivel].toLowerCase()}!</b> Correr dá ${vr.VALORES[nivel - 1]} a eles; aceitar faz a mão valer ${vr.VALORES[nivel]}`);
+          g.btnCobrir.className = 'btn-acao btn-correr'; g.btnCobrir.innerHTML = 'Correr<small>eles +' + vr.VALORES[nivel - 1] + '</small>'; g.btnCobrir.disabled = false;
           g.btnCobrir.onclick = () => responderHumano('correr');
-          g.btnTerceiro.className = 'btn-acao btn-aceitar'; g.btnTerceiro.innerHTML = 'Aceitar<small>vale ' + R.VALORES[nivel] + '</small>'; g.btnTerceiro.disabled = false;
+          g.btnTerceiro.className = 'btn-acao btn-aceitar'; g.btnTerceiro.innerHTML = 'Aceitar<small>vale ' + vr.VALORES[nivel] + '</small>'; g.btnTerceiro.disabled = false;
           g.btnTerceiro.onclick = () => responderHumano('aceitar');
-          if (nivel < 4) { g.btnTruco.disabled = false; g.btnTruco.innerHTML = R.NOMES_PEDIDO[nivel + 1] + '!<small>vale ' + R.VALORES[nivel + 1] + '</small>'; }
-          else g.btnTruco.innerHTML = 'Doze<small>é o máximo</small>';
+          if (vista.podeAumentar) { g.btnTruco.disabled = false; g.btnTruco.innerHTML = vr.NOMES_PEDIDO[nivel + 1] + '!<small>vale ' + vr.VALORES[nivel + 1] + '</small>'; }
+          else if (nivel < vr.maxNivel) g.btnTruco.innerHTML = vr.NOMES_PEDIDO[nivel + 1] + '<small>só até 8 pontos</small>';
+          else g.btnTruco.innerHTML = vr.NOMES_PEDIDO[nivel] + '<small>é o máximo</small>';
           if (P.Som) P.Som.vez();
           const pend = jogo.pendente;
           calcularConselho(() => CO.resposta(vista, nivel, opcoesCoach())).then(c => {
@@ -591,15 +657,20 @@
           jogo.pendente = { tipo: 'onze', vista, resolve };
           jogo.conselho = null;
           jogo.mostrarParceiro = true;
+          jogo.troca = vista.trocaPermitida ? { eu: vista.cartas.slice(), ele: vista.cartasParceiro.slice() } : null;
+          jogo.selTroca = null;
           renderMao();
           const g = jogo.ui;
-          acoesEspera(`<b>Mão de 11:</b> jogar valendo 3 ou correr (eles +1)?`);
+          acoesEspera(vista.trocaPermitida ? '<b>Mão de 11:</b> troque cartas com o parceiro, se quiser, e jogue (vale 3) ou corra (eles +1)'
+            : `<b>Mão de 11:</b> jogar valendo 3 ou correr (eles +1)?`);
           g.btnCobrir.className = 'btn-acao btn-correr'; g.btnCobrir.innerHTML = 'Correr<small>eles +1</small>'; g.btnCobrir.disabled = false;
           g.btnCobrir.onclick = () => responderHumano('correr');
           g.btnTerceiro.className = 'btn-acao btn-aceitar'; g.btnTerceiro.innerHTML = 'Jogar<small>vale 3</small>'; g.btnTerceiro.disabled = false;
           g.btnTerceiro.onclick = () => responderHumano('jogar');
           g.btnTruco.innerHTML = 'Truco<small>não na mão de 11</small>';
-          aviso(vista.cartasParceiro ? '<b>Mão de 11!</b> Vocês veem as cartas do parceiro (embaixo, à direita) e decidem: jogar valendo 3 ou correr.' : '<b>Mão de 11!</b> Veja suas cartas e decida: jogar valendo 3 ou correr.');
+          if (vista.trocaPermitida) atualizarBotaoTroca();
+          aviso(vista.trocaPermitida ? '<b>Mão de 11!</b> Vocês veem as cartas do parceiro e, no paranaense, podem trocar: toque numa carta sua e depois numa dele. Depois, jogue (vale 3) ou corra.'
+            : vista.cartasParceiro ? '<b>Mão de 11!</b> Vocês veem as cartas do parceiro (embaixo, à direita) e decidem: jogar valendo 3 ou correr.' : '<b>Mão de 11!</b> Veja suas cartas e decida: jogar valendo 3 ou correr.');
           const pend = jogo.pendente;
           calcularConselho(() => CO.onze(vista, opcoesCoach())).then(c => {
             if (!jogo || jogo.pendente !== pend) return;
@@ -615,9 +686,16 @@
   function responderHumano(r) {
     const pend = jogo && jogo.pendente;
     if (!pend || (pend.tipo !== 'resposta' && pend.tipo !== 'onze')) return;
-    if (conselhoAgora(pend)) registrarNota(jogo.conselho, r);
-    if (pend.tipo === 'onze') { jogo.mostrarParceiro = false; limparAviso(); }
-    resolverPendente(r);
+    let valor = r, extra;
+    if (pend.tipo === 'onze' && jogo.troca && r === 'jogar') {
+      const t = jogo.troca, mudou = trocaMudou();
+      const c = conselhoAgora(pend);
+      extra = { pTroca: c && c.troca ? c.troca.pDe(t.eu, t.ele) : undefined };
+      if (mudou) { const troca = {}; troca[0] = t.eu.slice(); troca[2] = t.ele.slice(); valor = { resposta: 'jogar', troca }; }
+    }
+    if (conselhoAgora(pend)) registrarNota(jogo.conselho, r, extra);
+    if (pend.tipo === 'onze') { jogo.mostrarParceiro = false; jogo.troca = null; jogo.selTroca = null; limparAviso(); }
+    resolverPendente(valor);
     renderMao();
   }
 
@@ -631,7 +709,10 @@
       return jogarCarta({ carta: c ? c.carta : pend.vista.cartas[0] });
     }
     if (pend.tipo === 'resposta') return c && c.recomendacao === 'aumentar' ? acaoTruco() : responderHumano(c ? c.recomendacao : 'aceitar');
-    if (pend.tipo === 'onze') return responderHumano(c ? c.recomendacao : 'jogar');
+    if (pend.tipo === 'onze') {
+      if (c && c.troca && c.troca.mudaram && jogo.troca) jogo.troca = { eu: c.troca.troca[0].slice(), ele: c.troca.troca[2].slice() };
+      return responderHumano(c ? c.recomendacao : 'jogar');
+    }
   }
 
   function agenteBot(j, perfil) {
@@ -707,7 +788,12 @@
         limparAviso();
         const nosso = ev.equipe === 0;
         if (ev.resposta === 'correr') { balao(ev.j, 'Corro!', 'correu'); aviso(nosso ? 'Vocês correram da mão de 11: <b>eles +1</b>.' : 'Eles correram da mão de 11: <b>vocês +1</b>.', 1800); if (P.Som) P.Som.fold(); }
-        else { balao(ev.j, 'Vamos jogar!', 'aceitou'); aviso(nosso ? 'Vocês jogam a mão de 11 (vale 3).' : 'Eles jogam a mão de 11 (vale 3).', 1500); }
+        else {
+          balao(ev.j, 'Vamos jogar!', 'aceitou');
+          const troca = ev.trocadas ? ` ${nosso ? 'Vocês trocaram' : 'Eles trocaram'} ${ev.trocadas} ${ev.trocadas === 1 ? 'carta' : 'cartas'} entre si.` : '';
+          aviso((nosso ? 'Vocês jogam a mão de 11 (vale 3).' : 'Eles jogam a mão de 11 (vale 3).') + troca, troca ? 2400 : 1500);
+          if (nosso) renderMao();
+        }
         await esperar(900 * fv());
         break;
       }
@@ -716,18 +802,18 @@
         if (ev.j !== 0) jogo.ui.status.innerHTML = `Vez de <b>${esc(nome(ev.j))}</b>…`;
         break;
       case 'pedido': {
-        const txt = R.NOMES_PEDIDO[ev.nivel].toUpperCase() + '!';
+        const txt = jogo.vr.NOMES_PEDIDO[ev.nivel].toUpperCase() + '!';
         balao(ev.j, txt, 'forte', 2200 * Math.max(0.6, fv()));
         splash(txt, ev.equipe);
-        atualizarVale(ev.nivel === 1 ? jogo.motor.vistaPara(0).valor : R.VALORES[ev.nivel - 1], ev.valor);
+        atualizarVale(ev.nivel === 1 ? jogo.motor.vistaPara(0).valor : jogo.vr.VALORES[ev.nivel - 1], ev.valor);
         if (P.Som) P.Som.alerta();
         await esperar(900 * fv());
         break;
       }
       case 'resposta': {
         if (ev.resposta === 'correr') { balao(ev.j, 'Corro!', 'correu'); if (P.Som) P.Som.fold(); }
-        else if (ev.resposta === 'aceitar') { balao(ev.j, R.NOMES_PEDIDO[ev.nivel] === 'Truco' ? 'Aceito!' : 'Desce!', 'aceitou'); atualizarVale(R.VALORES[ev.nivel]); if (P.Som) P.Som.check(); }
-        else { atualizarVale(R.VALORES[ev.nivel]); }
+        else if (ev.resposta === 'aceitar') { balao(ev.j, ev.nivel === 1 ? 'Aceito!' : 'Desce!', 'aceitou'); atualizarVale(jogo.vr.VALORES[ev.nivel]); if (P.Som) P.Som.check(); }
+        else { atualizarVale(jogo.vr.VALORES[ev.nivel]); }
         await esperar(600 * fv());
         break;
       }
@@ -773,7 +859,7 @@
     acoesEspera('');
     atualizarRodadas(jogo.motor.vistaPara(0));
     atualizarPlacar(ev.vencedor === null ? -1 : ev.vencedor);
-    atualizarVale(ev.vencedor === null ? R.VALORES[ev.nivel] : ev.pontos);
+    atualizarVale(ev.vencedor === null ? jogo.vr.VALORES[ev.nivel] : ev.pontos);
     if (g.sinal) { g.sinal.remove(); g.sinal = null; }
     if (!jogo.opcoes.semSalvar) D.alterarEstat(e => { e.maos++; });
     const n = jogo.n;
@@ -782,7 +868,9 @@
         : `Eles ganharam a mão: +${ev.pontos}`;
     const motivo = ev.motivo === 'correu' ? (ev.vencedor === 0 ? 'Eles correram.' : (n === 4 ? 'Vocês correram.' : 'Você correu.'))
       : ev.motivo === 'onzeCorreu' ? 'Correram da mão de 11.'
-        : ev.nivel > 0 ? `Valendo ${R.VALORES[ev.nivel]} (${R.NOMES_PEDIDO[ev.nivel].toLowerCase()} aceito).` : ev.tipoMao === 'onze' ? 'Mão de 11, valendo 3.' : '';
+        : ev.motivo === 'empateOnze' ? 'Três empates na mão de 11: pela regra paranaense, os pontos vão para quem não estava com 11.'
+          : ev.motivo === 'empateEscuro' ? `Três empates depois do ${jogo.vr.NOMES_PEDIDO[ev.nivel].toLowerCase()}: pela regra paranaense, o empate é de quem pediu no escuro e contra quem pediu já vendo a carta do adversário.`
+            : ev.nivel > 0 ? `Valendo ${jogo.vr.VALORES[ev.nivel]} (${jogo.vr.NOMES_PEDIDO[ev.nivel].toLowerCase()} aceito).` : ev.tipoMao === 'onze' ? 'Mão de 11, valendo 3.' : '';
     const fimPartida = ev.placar[0] >= R.PONTOS_PARTIDA || ev.placar[1] >= R.PONTOS_PARTIDA;
     if (ev.vencedor === 0 && P.Som) P.Som.ficha();
     const caixa = el('div', { class: 'tr-fim' },
@@ -830,8 +918,11 @@
     const cfgT = D.config();
     let salva = opcoes.retomar || null;
     const n = salva ? salva.cfg.n : (opcoes.n === 2 ? 2 : 4);
+    const regras = R.variante(salva ? salva.cfg.regras : opcoes.regras || cfgT.regras).id;
+    const torneio = salva ? salva.cfg.torneio || null : opcoes.torneio || null;
     let jogadores;
     if (salva) jogadores = salva.cfg.jogadores;
+    else if (opcoes.jogadores) jogadores = opcoes.jogadores;
     else {
       const nomes = P.Baralho.embaralhar(IA.NOMES.slice());
       jogadores = [{ nome: P.Config.get('nome') || 'Você', avatar: null }];
@@ -839,8 +930,8 @@
     }
     jogo = {
       n, jogadores, token: ++contador, notas: salva ? (salva.notas || []) : [], placar: [0, 0],
-      opcoes: Object.assign({ coach: cfgT.coach, amostras: 400 }, opcoes),
-      pendente: null, conselho: null
+      opcoes: Object.assign({ coach: cfgT.coach, amostras: 400, esconderManilha: !!cfgT.esconderManilha }, opcoes),
+      pendente: null, conselho: null, vr: R.variante(regras), torneio
     };
     jogo.agentes = [agenteHumano()];
     for (let j = 1; j < n; j++) jogo.agentes.push(agenteBot(j, jogadores[j].perfil));
@@ -852,14 +943,15 @@
     const estado = salva ? salva.estado : { placar: [0, 0], dador: P.RNG.inteiroAbaixo(n), maoNumero: 0 };
     const token = jogo.token;
     const semSalvar = !!opcoes.semSalvar;
-    jogo.motor = T.Motor.criar(Object.assign({ n }, estado), jogo.agentes, {
+    jogo.motor = T.Motor.criar(Object.assign({ n, regras }, estado), jogo.agentes, {
       evento: ev => aoEvento(ev),
       salvar: est => {
         if (semSalvar || !jogo || jogo.token !== token) return;
-        D.salvar({ cfg: { n, jogadores }, estado: est, notas: jogo.notas, emJogo: true });
+        D.salvar({ cfg: { n, jogadores, regras, torneio }, estado: est, notas: jogo.notas, emJogo: true });
       }
     });
     if (opcoes.aviso && salva) P.UI.aviso(`<b>Partida de truco retomada</b> (${salva.estado.placar[0]} × ${salva.estado.placar[1]}). A mão que estava em andamento foi anulada.`, 'aviso-ouro');
+    else if (torneio && torneio.rotulo) P.UI.aviso(`<b>${esc(torneio.rotulo)}</b>`, 'aviso-ouro');
     let r = null;
     try {
       r = await jogo.motor.rodar();
@@ -896,11 +988,23 @@
       corpo.appendChild(el('h3', { text: 'Para revisar' }));
       corpo.appendChild(el('div', { class: 'piores' }, piores.map(x => el('div', { html: `<span class="feedback-nota nota-${x.nota}">${CO.ROTULOS[x.nota]}</span> Mão ${x.mao}: ${x.texto}` }))));
     } else if (notas.length) corpo.appendChild(el('p', { style: { textAlign: 'center', color: 'var(--ok)' }, text: 'Nenhum erro nas decisões avaliadas. Muito bem!' }));
+    const torneio = jogo.torneio;
+    if (torneio && !jogo.opcoes.semSalvar) {
+      // jogo de torneio: o resultado vai para a chave e a aba volta para ela
+      const resumo = P.UITrucoTorneio.registrarPartida(torneio, venceu, r.placar);
+      if (resumo) corpo.insertBefore(el('div', { class: 'tr-torneio-res', html: resumo }), corpo.children[1]);
+      if (jogo.opcoes.autoHeroi) { encerrar(); P.UITruco.abrirTorneio(); P.App.irPara('truco'); return; }
+      await P.UI.modal({ titulo: 'Fim do jogo', conteudo: corpo, fechavel: false, botoes: [{ texto: 'Voltar ao torneio', classe: 'btn-ouro', valor: 'torneio' }] });
+      encerrar();
+      P.UITruco.abrirTorneio();
+      P.App.irPara('truco');
+      return;
+    }
     if (jogo.opcoes.autoHeroi) { encerrar(); P.App.irPara('truco'); return; }
     const v = await P.UI.modal({ titulo: 'Fim da partida', conteudo: corpo, fechavel: false, botoes: [{ texto: 'Voltar', valor: 'voltar' }, { texto: 'Jogar de novo', classe: 'btn-ouro', valor: 'denovo' }] });
-    const n = jogo.n;
+    const n = jogo.n, regras = jogo.vr.id;
     encerrar();
-    if (v === 'denovo') iniciar({ n });
+    if (v === 'denovo') iniciar({ n, regras });
     else P.App.irPara('truco');
   }
 
@@ -937,7 +1041,7 @@
   async function abrirMenu() {
     if (!jogo) return;
     const modos = [['sempre', 'Coach: dicas sempre'], ['pedido', 'Coach: sob pedido'], ['desligado', 'Coach: desligado']];
-    const itens = [['regras', 'Como jogar'], ['quiz', 'Treino de cartas']]
+    const itens = [['regras', 'Como jogar'], ['quiz', 'Treino de cartas'], ['manilha', jogo.opcoes.esconderManilha ? 'Mostrar a manilha' : 'Esconder a manilha (treino)']]
       .concat(modos.filter(m => m[0] !== jogo.opcoes.coach))
       .concat([['som', P.Config.get('som') ? 'Desligar o som' : 'Ligar o som'], ['sair', 'Sair da partida']]);
     pausar(true);
@@ -952,9 +1056,18 @@
     if (!escolha || !jogo) return;
     if (escolha === 'sair') return sair();
     if (escolha === 'som') return P.Config.set('som', !P.Config.get('som'));
+    if (escolha === 'manilha') {
+      jogo.opcoes.esconderManilha = !jogo.opcoes.esconderManilha;
+      const c = D.config(); c.esconderManilha = jogo.opcoes.esconderManilha; D.salvarConfig(c);
+      if (jogo.viraAtual !== undefined) renderVira(jogo.viraAtual, true);
+      renderMao();
+      if (jogo.conselho) { jogo.conselho = null; if (jogo.pendente) recalcularConselho(jogo.pendente); }
+      P.UI.aviso(jogo.opcoes.esconderManilha ? 'Manilha escondida: descubra pela vira.' : 'A manilha volta a aparecer na mesa.', 'aviso-ouro');
+      return;
+    }
     if (escolha === 'regras') {
       pausar(true);
-      try { await P.UI.modal({ titulo: 'Como jogar', largo: true, conteudo: P.UITruco.regrasNo ? P.UITruco.regrasNo() : '' }); } finally { pausar(false); }
+      try { await P.UI.modal({ titulo: 'Como jogar', largo: true, conteudo: P.UITruco.regrasNo ? P.UITruco.regrasNo(jogo.vr.id) : '' }); } finally { pausar(false); }
       return;
     }
     if (escolha === 'quiz') { pausar(true); try { await P.UITruco.abrirQuiz(); } finally { pausar(false); } return; }

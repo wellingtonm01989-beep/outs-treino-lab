@@ -1,9 +1,10 @@
 /* ==========================================================================
    OUTS · Treino Lab — truco-regras.js
-   Regras do truco paulista (sem estado): baralho de 40 cartas, ordem de
-   força, vira e manilhas, quem ganha cada rodada (vaza), quem ganha a mão
-   com os empates, valores do truco e a "conta do placar" (chance de ganhar
-   a partida a partir de cada placar), usada pelo coach e pelos bots.
+   Regras do truco (sem estado): baralho de 40 cartas, ordem de força, vira
+   e manilhas, quem ganha cada rodada (vaza), quem ganha a mão com os
+   empates, valores do truco nas variantes paulista e paranaense e a "conta
+   do placar" (chance de ganhar a partida a partir de cada placar), usada
+   pelo coach e pelos bots.
 
    As cartas usam o mesmo número do poker (carta = rank * 4 + naipe), então
    o desenho das cartas e os nomes já existentes servem aqui também.
@@ -108,6 +109,41 @@
   const NOMES_PEDIDO = ['', 'Truco', 'Seis', 'Nove', 'Doze'];
   const PONTOS_PARTIDA = 12;
 
+  // ------------------------------------------------------------ variantes
+  /**
+   * As duas regras do app. O baralho, a vira, as manilhas, as rodadas e a mão
+   * de 11 valendo 3 são iguais; o que muda:
+   *
+   * Paulista: truco (3), seis, nove e doze. Três empates: ninguém marca.
+   *
+   * Paranaense (regulamento da Federação Paranaense de Truco, FPRT):
+   *  - só truco (3) e retruco (6); quem corre do retruco entrega 3;
+   *  - só retruca a dupla que tem até 8 pontos;
+   *  - mão de 11: a dupla que está com 11 vê as cartas do parceiro e, se
+   *    for jogar, pode trocar cartas entre os dois;
+   *  - três empates na mão de 11: marca (3) quem não está com 11;
+   *  - três empates depois de truco ou retruco: o empate é de quem pediu
+   *    "no escuro" (antes de ver a carta do adversário naquela rodada) e é
+   *    contra quem pediu "com carta exposta" (já vendo a carta dele).
+   */
+  const VARIANTES = {
+    paulista: {
+      id: 'paulista', nome: 'Paulista', VALORES, NOMES_PEDIDO, maxNivel: 4,
+      limiteRetruco: null, trocaNoOnze: false, empateOnzeParaQuemNaoTem: false, empateNoEscuro: false
+    },
+    paranaense: {
+      id: 'paranaense', nome: 'Paranaense', VALORES: [1, 3, 6], NOMES_PEDIDO: ['', 'Truco', 'Retruco'], maxNivel: 2,
+      limiteRetruco: 8, trocaNoOnze: true, empateOnzeParaQuemNaoTem: true, empateNoEscuro: true
+    }
+  };
+  const variante = id => VARIANTES[id] || VARIANTES.paulista;
+  /** A equipe com "pontos" pode pedir o nível "nivel" nessa variante? (paranaense: retruco só até 8 pontos) */
+  function podePedirNivel(vr, nivel, pontos) {
+    if (nivel > vr.maxNivel) return false;
+    if (vr.limiteRetruco !== null && nivel >= 2 && pontos > vr.limiteRetruco) return false;
+    return true;
+  }
+
   // ------------------------------------------------------ conta do placar
   /**
    * Chance de a equipe ganhar a partida estando "nos" a "eles", num modelo
@@ -159,7 +195,7 @@
   }
 
   T.Regras = {
-    BARALHO, ORDEM, FORCA_RANK, VALORES, NOMES_PEDIDO, PONTOS_PARTIDA, VALOR_COBERTA,
+    BARALHO, ORDEM, FORCA_RANK, VALORES, NOMES_PEDIDO, PONTOS_PARTIDA, VALOR_COBERTA, VARIANTES, variante, podePedirNivel,
     NOME_MANILHA, NOME_RANK, NOME_RANK_PLURAL, ROTULO_RANK,
     rankDe, naipeDe, ehCartaDeTruco, manilhaDe, valor, ehManilha, nome, rotulo,
     resultadoRodada, decidirMao, chancePartida, minimoParaAceitar, correrMinimoBlefe

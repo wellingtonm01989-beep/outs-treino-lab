@@ -322,6 +322,93 @@
   .tr-acoes { background: transparent; }
 }
 
+/* ========================================== entrada: abas, regras, torneio */
+.tr-abas { align-self: start; }
+.tr-ajuda { color: var(--texto-3); font-size: 11.5px; line-height: 1.4; }
+.tr-participantes { align-items: center; }
+.tr-participantes .opcao { min-width: 44px; text-align: center; }
+.tr-passo { font-size: 16px; line-height: 1; padding: 6px 12px; }
+.tr-stepper { display: inline-flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
+.tr-qtd { width: 64px; height: 34px; text-align: center; font-size: 15px; }
+.tr-chave { align-items: flex-start; line-height: 1.35; }
+.tr-chave i { margin-top: 2px; }
+.tr-chave b { color: var(--texto); font-weight: 700; }
+.tr-chave small { color: var(--texto-3); font-size: 11.5px; }
+/* o foco do teclado na chave escondida aparece no trilho */
+.tr-chave input:focus-visible + i { outline: 2px solid var(--ouro); outline-offset: 2px; }
+.tr-lista { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.tr-lista b { color: var(--texto); }
+
+/* ===================================================== mesa: novidades */
+.tr-chip-info { font-size: 11px; font-weight: 700; color: var(--texto-2); padding: 3px 8px; border-radius: 6px; background: var(--superficie-2); border: 1px solid var(--borda); white-space: nowrap; }
+.tr-centro .rotulo-vira .sem-manilha { color: var(--ouro-2); font-size: 13px; letter-spacing: .04em; }
+/* troca de cartas na mão de 11 (paranaense) */
+.tr-mao.trocando .tr-carta-mao { cursor: pointer; }
+.tr-mao.trocando .tr-carta-mao:hover .carta { transform: translateY(-4px); }
+.tr-carta-mao.selecionada .carta { transform: translateY(-10px); }
+.tr-carta-mao.selecionada .carta .face { box-shadow: 0 0 0 3px var(--info), 0 0 16px rgba(76,154,255,.55); }
+.tr-carta-mao.troca-sugerida .carta .face { outline: 2px dashed var(--ok); outline-offset: 2px; }
+.tr-carta-mao.parceiro.trocavel .carta { filter: none; }
+.tr-torneio-res { text-align: center; font-size: 14px; padding: 8px 10px; border-radius: 10px; background: rgba(216,178,90,.1); border: 1px solid var(--ouro-escuro); }
+.tr-torneio-res b { color: var(--ouro-2); }
+
+/* ============================================================== torneio */
+.tr-torneio { max-width: 980px; }
+.tr-t-cab { display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap; }
+.tr-t-tit { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.tr-t-tit small { color: var(--texto-3); font-size: 11.5px; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
+.tr-t-tit h1 { font-size: 24px; text-wrap: balance; }
+.tr-t-acoes { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tr-t-jogos { color: var(--texto-2); font-size: 12.5px; margin-right: 4px; }
+.tr-t-jogos b { color: var(--texto); font-variant-numeric: tabular-nums; }
+.btn-sair-t { color: #ff8a87; }
+
+.tr-t-proximo, .tr-t-fim { display: grid; gap: 14px; padding: 18px; }
+.tr-t-rot { font-size: 11.5px; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; color: var(--ouro-2); }
+.tr-t-espera { color: var(--texto-2); margin: 0; }
+.tr-t-versus { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; }
+.tr-t-lado { display: grid; justify-items: center; gap: 6px; text-align: center; min-width: 0; }
+.tr-t-avatares { display: flex; }
+.tr-t-avatares .avatar { width: 52px; height: 52px; border: 2px solid #3a4758; }
+.tr-t-avatares .avatar + .avatar { margin-left: -12px; }
+.tr-t-lado.voce .avatar:first-child { border-color: var(--ouro); }
+.tr-t-nomes { display: grid; gap: 3px; min-width: 0; }
+.tr-t-nome { display: flex; align-items: center; justify-content: center; gap: 5px; font-weight: 700; font-size: 13.5px; min-width: 0; }
+.tr-t-nome span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tr-t-nome .tag-perfil { flex: none; font-size: 9px; padding: 0 4px; }
+.tr-t-x { font-size: 13px; color: var(--texto-3); font-weight: 800; }
+.tr-t-x b { font-size: 24px; color: var(--ouro-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tr-t-sim { display: grid; gap: 6px; font-size: 12px; color: var(--texto-3); }
+.tr-t-sim .progresso { height: 5px; }
+
+.tr-t-fim { justify-items: center; text-align: center; }
+.tr-t-fim h2 { font-size: 22px; text-wrap: balance; }
+.tr-t-fim p { margin: 0; color: var(--texto-2); }
+.tr-t-fim p b { color: var(--texto); }
+.tr-t-fim.campeao { border-color: var(--ouro-escuro); background: radial-gradient(400px 160px at 50% 0%, rgba(216,178,90,.18), transparent 70%), var(--superficie); }
+.tr-t-fim.campeao h2 { color: var(--ouro-2); }
+.tr-t-trofeu svg { width: 64px; height: 64px; display: block; }
+.tr-t-botoes { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+
+.tr-t-chave { display: grid; gap: 10px; padding: 14px 16px 16px; }
+.tr-t-fases { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.tr-t-fases .opcao { flex: none; white-space: nowrap; }
+.tr-t-fases .opcao small { color: var(--texto-3); font-size: 10.5px; margin-left: 2px; font-variant-numeric: tabular-nums; }
+.tr-t-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+.tr-t-conf { display: grid; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--fundo-2); border: 1px solid var(--borda); min-width: 0; }
+.tr-t-conf.meu { border-color: var(--ouro-escuro); background: rgba(216,178,90,.06); }
+.tr-t-c-lado { display: grid; grid-template-columns: minmax(0, 1fr) auto 26px; align-items: center; gap: 6px; font-size: 13px; color: var(--texto-2); }
+.tr-t-c-lado .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tr-t-c-lado .tags { display: flex; gap: 2px; }
+.tr-t-c-lado .tags .tag-perfil { font-size: 8.5px; padding: 0 3px; }
+.tr-t-c-lado b { text-align: right; font-variant-numeric: tabular-nums; color: var(--texto); }
+.tr-t-c-lado.venceu { color: var(--texto); font-weight: 700; }
+.tr-t-c-lado.venceu b { color: var(--ok); }
+.tr-t-c-lado.perdeu { opacity: .55; }
+.tr-t-c-lado.voce .nm { color: var(--ouro-2); }
+.tr-t-c-lado.vazio .nm { color: var(--texto-3); font-style: italic; }
+.tr-t-c-info { color: var(--texto-3); font-size: 11px; font-variant-numeric: tabular-nums; }
+
 /* =============================================================== celular */
 @media (max-width: 1000px) {
   .truco-grade { grid-template-columns: minmax(0, 1fr); }
@@ -350,6 +437,12 @@
 }
 @media (max-width: 480px) {
   .tr-barra .tipo-mao { display: none; }       /* no celular a "mão de 11" aparece no quadro do valor */
+  .tr-barra .tr-chip-info { display: none; }   /* regras e fase do torneio: no aviso do começo e no menu */
+  .tr-t-tit h1 { font-size: 20px; }
+  .tr-t-avatares .avatar { width: 42px; height: 42px; }
+  .tr-t-nome { font-size: 12.5px; }
+  .tr-t-versus { gap: 6px; }
+  .tr-t-lista { grid-template-columns: minmax(0, 1fr); }
   .tr-barra .btn .rot { display: none; }
   .tr-barra .btn { width: 36px; padding: 0; }
 }

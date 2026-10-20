@@ -9,6 +9,8 @@
      &autoheroi=1&maos=N                o herói joga sozinho N mãos
      ?tela=treino|estatisticas|...      abre direto uma tela
      ?truco=demo&jogadores=2|4          abre direto uma partida de truco
+       &regras=paranaense               nas regras do Paraná (padrão: paulista)
+       &esconder=1                      com a manilha escondida
        &auto=1                          você joga sozinho seguindo o coach
    ========================================================================== */
 (function (P) {
@@ -156,7 +158,8 @@
     // truco direto (testes): ?truco=demo&jogadores=4&auto=1
     if (parametro('truco')) {
       irPara('truco');
-      const op = { n: +parametro('jogadores') === 2 ? 2 : 4, semSalvar: true };
+      const op = { n: +parametro('jogadores') === 2 ? 2 : 4, semSalvar: true, regras: parametro('regras') || 'paulista' };
+      if (parametro('esconder')) op.esconderManilha = true;
       if (parametro('auto')) Object.assign(op, { autoHeroi: true, velocidade: 0.05, amostras: 120 });
       if (parametro('coach')) op.coach = parametro('coach');
       P.UITrucoMesa.iniciar(op);

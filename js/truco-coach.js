@@ -2,6 +2,8 @@
    OUTS · Treino Lab — truco-coach.js
    O coach do truco: transforma a análise (truco-ia.js) em conselho em
    português simples, para quem está aprendendo, e dá a nota de cada decisão.
+   Vale para as duas regras (paulista e paranaense): nomes e valores dos
+   pedidos vêm da vista da mesa.
 
    Três momentos:
    - a sua vez: qual carta jogar (com a chance de ganhar a mão com cada uma)
@@ -21,12 +23,19 @@
   const pct = x => Math.round(x * 100) + '%';
   const pontos = v => v + (v === 1 ? ' ponto' : ' pontos');
   const cartaHtml = c => `<span class="carta-txt n-${c & 3}">${P.Cartas.bonito(c)}</span>`;
+  // "Esconder a manilha" (treino): o coach não diz quais cartas são manilha antes da decisão
+  let esconder = false;
+  const configurar = opts => { esconder = !!(opts && opts.esconderManilha); };
   /** "4♣ (Zap)" para manilhas, "3♦" para as outras. */
   function cartaNome(c, vira) {
-    return cartaHtml(c) + (R.ehManilha(c, vira) ? ` <small>(${R.nome(c, vira)})</small>` : '');
+    return cartaHtml(c) + (!esconder && R.ehManilha(c, vira) ? ` <small>(${R.nome(c, vira)})</small>` : '');
   }
 
   // ------------------------------------------------------------ apoio
+  // valores e nomes dos pedidos da variante desta mesa (paulista: seis/nove/doze; paranaense: retruco)
+  const valoresDe = v => v.valores || R.VALORES;
+  const nomesDe = v => v.nomesPedido || R.NOMES_PEDIDO;
+
   /** Situação da rodada em andamento, do ponto de vista de "vista.eu". */
   function mesaAgora(vista) {
     const atuais = vista.jogadas[vista.rodada] || [];
@@ -91,6 +100,7 @@
    * truco: 'pedir' | 'pode' | 'nao' | null (quando não dá para pedir).
    */
   function vez(vista, opts) {
+    configurar(opts);
     if (vista.cegas) {
       return { cegas: true, linhas: ['<b>Mão de ferro:</b> 11 a 11, ninguém vê as próprias cartas e não tem truco. É pura sorte: escolha qualquer uma. Quem ganhar a mão ganha a partida.'], resumo: 'Mão de ferro: escolha qualquer carta' };
     }
@@ -113,7 +123,7 @@
 
     let truco = null, linhaTruco = '';
     if (vista.podeTrucar && an.truco) {
-      const nivel = vista.nivel + 1, nomeP = R.NOMES_PEDIDO[nivel].toLowerCase();
+      const nivel = vista.nivel + 1, nomeP = nomesDe(vista)[nivel].toLowerCase();
       const t = an.truco, p = an.p;
       const conta = `Se pedir: eles correm ~${pct(t.correm)} das vezes (vocês levam ${pontos(t.vale)}); quando aceitam, você ganha ${pct(t.pAceito)} valendo ${t.novo}.`;
       // pedir com a mão na frente quando a conta fecha; blefe só aparece como informação (contra estes bots ele rende pouco)
@@ -134,25 +144,37 @@
       }
       if (p >= 0.2 || t.ganho > 0.05) linhaTruco += ` Saldo de pedir: ${t.ganho >= 0 ? '+' : ''}${t.ganho.toFixed(2).replace('.', ',')} ponto por mão.`;
       linhas.push(linhaTruco);
+      // paranaense: se esta mão pode acabar em três empates, conta como o pedido seria feito
+      if (vista.regras === 'paranaense' && vista.resultados.indexOf('E') >= 0) {
+        const mesa = mesaAgora(vista);
+        linhas.push(mesa.deles === -2 || mesa.deles === R.VALOR_COBERTA
+          ? 'Regra paranaense: pedindo agora, sem ter visto a carta deles nesta rodada, o pedido é <b>no escuro</b>: se a mão terminar em três empates, o ponto é de vocês.'
+          : 'Regra paranaense: pedindo agora, já vendo a carta deles, o pedido é <b>com carta exposta</b>: se a mão terminar em três empates, o ponto é deles.');
+      }
+    } else if (vista.regras === 'paranaense' && vista.tipo === 'normal' && vista.nivel === 1 && vista.ultimoAumento !== vista.equipe && vista.nos > 8) {
+      linhas.push('Regra paranaense: com 9 pontos ou mais, vocês não podem retrucar.');
     }
     const unica = vista.cartas.length === 1;
-    const resumo = (unica ? `Última carta (${pct(melhor.p)})` : `Jogue ${cartaHtml(melhor.carta)} (${pct(melhor.p)})`) + (truco === 'pedir' ? ` · peça ${R.NOMES_PEDIDO[vista.nivel + 1].toLowerCase()}` : '');
+    const resumo = (unica ? `Última carta (${pct(melhor.p)})` : `Jogue ${cartaHtml(melhor.carta)} (${pct(melhor.p)})`) + (truco === 'pedir' ? ` · peça ${nomesDe(vista)[vista.nivel + 1].toLowerCase()}` : '');
     return { tipo: 'vez', analise: an, vira: vista.vira, nivelPedido: vista.nivel + 1, carta: melhor.carta, truco, linhas, resumo, p: an.p };
   }
 
   // ------------------------------------------------- pediram truco
   function resposta(vista, nivel, opts) {
+    configurar(opts);
     const an = IA.analisar(vista, { amostras: (opts && opts.amostras) || 400, perfis: opts && opts.perfis });
     const p = an.p;
-    const vale = R.VALORES[nivel - 1], novo = R.VALORES[nivel];
+    const valores = valoresDe(vista);
+    const vale = valores[nivel - 1], novo = valores[nivel];
     const min = R.minimoParaAceitar(vale, novo, vista.nos, vista.eles);
     const simples = R.minimoParaAceitar(vale, novo);
+    const podeAumentar = vista.podeAumentar !== undefined ? vista.podeAumentar : nivel < 4;
     let rec;
-    if (nivel < 4 && p >= 0.72) rec = 'aumentar';
+    if (podeAumentar && p >= 0.72) rec = 'aumentar';
     else if (p >= min) rec = 'aceitar';
     else rec = 'correr';
     const linhas = [];
-    const prox = nivel < 4 ? R.NOMES_PEDIDO[nivel + 1].toLowerCase() : null;
+    const prox = podeAumentar ? nomesDe(vista)[nivel + 1].toLowerCase() : null;
     linhas.push(rec === 'aumentar' ? `<b>Peça ${prox}!</b> Sua chance de ganhar a mão é ${pct(p)}.`
       : rec === 'aceitar' ? `<b>Aceite.</b> Sua chance de ganhar a mão é ${pct(p)} e você precisa de ${pct(min)}.`
         : `<b>Corra.</b> Sua chance de ganhar a mão é ${pct(p)} e você precisaria de ${pct(min)}.`);
@@ -167,7 +189,8 @@
       linhas.push(`Com o placar ${vista.nos} a ${vista.eles} a conta muda (${porque}): o mínimo vira ${pct(min)}.`);
     }
     linhas.push('Quem pede truco costuma ter mão boa — a sua chance já leva isso em conta.');
-    if (rec === 'aumentar') linhas.push(`Aumentando, você aceita os ${novo} e pede ${R.VALORES[nivel + 1]}: se correrem, vocês levam ${novo}.`);
+    if (rec === 'aumentar') linhas.push(`Aumentando, você aceita os ${novo} e pede ${valores[nivel + 1]}: se correrem, vocês levam ${novo}.`);
+    if (!podeAumentar && vista.regras === 'paranaense' && nivel < vista.maxNivel) linhas.push('Regra paranaense: com 9 pontos ou mais, vocês não podem retrucar.');
     const sinal = linhaSinal(vista);
     if (sinal) linhas.push(sinal);
     const resumo = (rec === 'aumentar' ? `Peça ${prox}` : rec === 'aceitar' ? 'Aceite' : 'Corra') + ` (${pct(p)}; precisa de ${pct(min)})`;
@@ -176,8 +199,12 @@
 
   // --------------------------------------------------------- mão de 11
   function onze(vista, opts) {
-    const an = IA.analisar(vista, { amostras: (opts && opts.amostras) || 400, perfis: opts && opts.perfis });
-    const p = an.p;
+    configurar(opts);
+    const op = { amostras: (opts && opts.amostras) || 400, perfis: opts && opts.perfis };
+    // paranaense: antes de decidir, a dupla pode trocar cartas — a conta usa a melhor troca
+    const troca = vista.trocaPermitida ? IA.melhorTroca(vista, Object.assign({}, op, { amostras: Math.min(op.amostras, 250) })) : null;
+    const an = troca ? null : IA.analisar(vista, op);
+    const p = troca ? troca.p : an.p;
     const jogar = p * R.chancePartida(vista.nos + 3, vista.eles) + (1 - p) * R.chancePartida(vista.nos, vista.eles + 3);
     const correr = R.chancePartida(vista.nos, vista.eles + 1);
     const rec = jogar >= correr ? 'jogar' : 'correr';
@@ -187,8 +214,17 @@
       `Chance de ganhar a partida: jogando ${pct(jogar)}, correndo ${pct(correr)}.`
     ];
     if (vista.cartasParceiro) linhas.push('Na mão de 11 você vê as cartas do seu parceiro — elas já entraram na conta.');
-    const resumo = (rec === 'jogar' ? '<b>Jogue</b> a mão de 11' : '<b>Corra</b> da mão de 11') + ` · chance de ganhar a partida: jogando ${pct(jogar)}, correndo ${pct(correr)}`;
-    return { tipo: 'onze', analise: an, p, jogar, correr, recomendacao: rec, linhas, resumo };
+    let resumoTroca = '';
+    if (troca) {
+      if (troca.mudaram) {
+        const nomes = arr => arr.map(c => cartaNome(c, vista.vira)).join(' e ');
+        linhas.splice(1, 0, `<b>Troca (regra paranaense):</b> passe ${nomes(troca.saem)} para o parceiro e fique com ${nomes(troca.entram)}. Com a troca, a chance de ganhar a mão vai de ${pct(troca.pAtual)} para ${pct(troca.p)}.`);
+        resumoTroca = ` · troque ${troca.saem.map(cartaHtml).join(' ')} por ${troca.entram.map(cartaHtml).join(' ')}`;
+      } else linhas.splice(1, 0, 'Troca (regra paranaense): do jeito que está já é a melhor divisão das cartas da dupla.');
+      linhas.push('Para trocar, toque numa carta sua e depois numa do parceiro.');
+    }
+    const resumo = (rec === 'jogar' ? '<b>Jogue</b> a mão de 11' : '<b>Corra</b> da mão de 11') + resumoTroca + ` · chance de ganhar a partida: jogando ${pct(jogar)}, correndo ${pct(correr)}`;
+    return { tipo: 'onze', analise: an || { amostras: Math.min(op.amostras, 250) }, p, jogar, correr, recomendacao: rec, linhas, resumo, troca, nos: vista.nos, eles: vista.eles };
   }
 
   // ------------------------------------------------------------- notas
@@ -199,7 +235,7 @@
    * momento; acao: { tipo: 'carta', carta, coberta } | { tipo: 'truco' } | 'aceitar' | 'correr' | 'aumentar' | 'jogar'.
    * Devolve { nota, rotulo, texto, perda } (perda: quanto a decisão custou, em chance).
    */
-  function avaliar(conselho, acao) {
+  function avaliar(conselho, acao, extra) {
     if (!conselho || conselho.cegas) return null;
     let nota, texto, perda = 0;
     if (conselho.tipo === 'vez' && acao && acao.tipo === 'truco') {
@@ -247,13 +283,22 @@
         else { nota = 'erro'; texto = `Aumentou com ${pct(p)} de chance — nem para aceitar dava (precisava de ${pct(min)}).`; perda = min - p; }
       }
     } else if (conselho.tipo === 'onze') {
-      const { jogar, correr } = conselho;
-      const escolhido = acao === 'jogar' ? jogar : correr, melhor = Math.max(jogar, correr);
+      const { correr } = conselho;
+      let jogar = conselho.jogar;
+      // paranaense: jogando, vale a divisão de cartas que você deixou (com ou sem troca)
+      const pTroca = extra && extra.pTroca;
+      if (acao === 'jogar' && pTroca !== undefined && pTroca !== null) {
+        jogar = pTroca * R.chancePartida(conselho.nos + 3, conselho.eles) + (1 - pTroca) * R.chancePartida(conselho.nos, conselho.eles + 3);
+      }
+      const escolhido = acao === 'jogar' ? jogar : correr, melhor = Math.max(conselho.jogar, correr);
       perda = melhor - escolhido;
       if (perda <= 0.005) { nota = 'otima'; texto = `Decisão certa: ${pct(escolhido)} de chance de ganhar a partida.`; }
       else if (perda <= 0.02) { nota = 'boa'; texto = `Quase igual: ${pct(escolhido)} contra ${pct(melhor)}.`; }
       else if (perda <= 0.05) { nota = 'imprecisa'; texto = `A outra opção era melhor: ${pct(melhor)} contra ${pct(escolhido)}.`; }
       else { nota = 'erro'; texto = `Decisão cara: ${pct(escolhido)} de chance de ganhar a partida, contra ${pct(melhor)}.`; }
+      if (acao === 'jogar' && conselho.troca && pTroca !== undefined && pTroca !== null && conselho.troca.p - pTroca >= 0.02) {
+        texto += ` A troca podia ser melhor: ${pct(pTroca)} de chance na mão, contra ${pct(conselho.troca.p)}.`;
+      }
     }
     if (!nota) return null;
     return { nota, rotulo: ROTULOS[nota], texto, perda };
@@ -281,5 +326,5 @@
     return Object.assign({ chave: ch, significa: ch === 'tres' ? 'um 3' : 'um 2' }, SINAIS[ch]);
   }
 
-  T.Coach = { vez, resposta, onze, avaliar, mesaAgora, sinalDaCarta, SINAIS, ROTULOS, cartaHtml, cartaNome, pct };
+  T.Coach = { vez, resposta, onze, avaliar, configurar, mesaAgora, sinalDaCarta, SINAIS, ROTULOS, cartaHtml, cartaNome, pct };
 })(window.Poker = window.Poker || {});
