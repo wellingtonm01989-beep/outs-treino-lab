@@ -20,7 +20,10 @@
    Quem zera a mão ganha a mão e marca os pontos das cartas dos outros
    (número = o valor; Pular, Inverter e +2 = 20; coringas = 50).
 
-   Regras da casa (opcionais): acumular +2 e +4; comprar até poder jogar; jogar
+   +2 e +4 passam adiante (regra fixa da mesa): quem recebe pode jogar outro +2
+   ou +4 em cima — vale +2 sobre +4 e +4 sobre +2 — e o próximo compra tudo.
+
+   Regras da casa (opcionais): comprar até poder jogar; jogar
    cartas iguais juntas (cartas de número: a primeira combina com a mesa, as
    outras têm o mesmo número; a última fica por cima e vale a cor dela).
    ========================================================================== */
@@ -72,7 +75,7 @@
   }
 
   // ---------------------------------------------------------------- opções
-  const OPCOES_PADRAO = { acumular: false, comprarAtePoder: false, desafio: false, juntas: false, ate: 200 };
+  const OPCOES_PADRAO = { acumular: true, comprarAtePoder: false, desafio: false, juntas: false, ate: 200 };
   function opcoes(o) { return Object.assign({}, OPCOES_PADRAO, o || {}); }
 
   // ------------------------------------------------------------- jogadas
@@ -91,13 +94,13 @@
   /**
    * Cartas que podem ser jogadas agora.
    * pendente: { qtd, tipo } quando há compra acumulada esperando (regra acumular):
-   * aí só vale responder com +2 (sobre +2) ou +4.
+   * aí só vale responder com +2 ou +4 (qualquer um, sobre qualquer um).
    */
   function jogaveis(mao, topo, cor, op, pendente) {
     const o = op || OPCOES_PADRAO;
     if (pendente) {
       if (!o.acumular) return [];
-      return mao.filter(id => { const c = CARTAS[id]; return c.tipo === 'mais4' || (pendente.tipo === 'mais2' && c.tipo === 'mais2'); });
+      return mao.filter(id => { const c = CARTAS[id]; return c.tipo === 'mais4' || c.tipo === 'mais2'; });
     }
     const semCor = !temCor(mao, cor);
     return mao.filter(id => {

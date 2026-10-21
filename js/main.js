@@ -1,7 +1,7 @@
 /* ==========================================================================
    OUTS · Treino Lab — main.js
    Inicialização e navegação entre telas (lobby, mesa, mesa com amigos,
-   truco, treino relâmpago, estatísticas, histórico, auditoria), banca, som e
+   truco, cacheta, Última!, xadrez, damas, trilha, treino relâmpago, estatísticas, histórico, auditoria), banca, som e
    preferências visuais. Um link #mesa=CODIGO abre direto a mesa com amigos.
 
    Parâmetros de URL usados só para testes automáticos:
@@ -10,7 +10,10 @@
      ?tela=treino|estatisticas|...      abre direto uma tela
      ?truco=demo&jogadores=2|4          abre direto uma partida de truco
      ?uno=demo&jogadores=2..6           abre direto uma partida de Última! (&auto=1: você joga sozinho)
+     ?cacheta=demo&jogadores=2..6       abre direto uma partida de cacheta (&auto=1: você joga sozinho)
      ?xadrez=demo&nivel=1..5&cor=pretas abre direto uma partida de xadrez (&auto=1: você joga sozinho)
+     ?damas=demo&nivel=1..5&cor=pretas  abre direto uma partida de damas (&auto=1: você joga sozinho)
+     ?trilha=demo&nivel=1..5&cor=pretas abre direto uma partida de trilha (&auto=1; &voar=0 sem voar)
        &regras=paranaense               nas regras do Paraná (padrão: paulista)
        &esconder=1                      com a manilha escondida
        &auto=1                          você joga sozinho seguindo o coach
@@ -20,8 +23,10 @@
 
   const { $, $$ } = P.UI;
   const F = P.Formato;
-  const TELAS = ['lobby', 'mesa', 'amigos', 'truco', 'uno', 'xadrez', 'treino', 'estatisticas', 'historico', 'auditoria'];
+  const TELAS = ['lobby', 'mesa', 'amigos', 'truco', 'cacheta', 'uno', 'xadrez', 'damas', 'trilha', 'treino', 'estatisticas', 'historico', 'auditoria'];
   let telaAtual = 'lobby';
+  // no celular, os jogos de tabuleiro ficam juntos numa aba só
+  const TABULEIRO = [['xadrez', 'Xadrez'], ['damas', 'Damas'], ['trilha', 'Trilha']];
 
   const ICONE_SOM = on => on
     ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>'
@@ -39,21 +44,28 @@
     if (TELAS.indexOf(tela) < 0) tela = 'lobby';
     if (telaAtual === 'mesa' && tela !== 'mesa' && P.UIMesa.emJogo()) P.UIMesa.encerrar(true);
     if (telaAtual === 'truco' && tela !== 'truco' && P.UITrucoMesa.emJogo()) P.UITrucoMesa.encerrar();
+    if (telaAtual === 'cacheta' && tela !== 'cacheta' && P.UICachetaMesa.emJogo()) P.UICachetaMesa.encerrar();
     if (telaAtual === 'uno' && tela !== 'uno' && P.UIUnoMesa.emJogo()) P.UIUnoMesa.encerrar();
     if (telaAtual === 'xadrez' && tela !== 'xadrez' && P.UIXadrezMesa.emJogo()) P.UIXadrezMesa.encerrar();
+    if (telaAtual === 'damas' && tela !== 'damas' && P.UIDamasMesa.emJogo()) P.UIDamasMesa.encerrar();
+    if (telaAtual === 'trilha' && tela !== 'trilha' && P.UITrilhaMesa.emJogo()) P.UITrilhaMesa.encerrar();
     telaAtual = tela;
     TELAS.forEach(t => $('#tela-' + t).classList.toggle('oculto', t !== tela));
     $('#app').classList.toggle('em-jogo', tela === 'mesa');
     $$('#nav button[data-tela]').forEach(b => b.classList.toggle('ativo', b.dataset.tela === tela));
     $('#nav-mais').classList.toggle('ativo', ['estatisticas', 'historico', 'auditoria'].indexOf(tela) >= 0);
+    $('#nav-tabuleiro').classList.toggle('ativo', TABULEIRO.some(x => x[0] === tela));
     $('#nav').classList.toggle('oculto', tela === 'mesa');
     atualizarSaldo();
     const raiz = $('#tela-' + tela);
     if (tela === 'lobby') P.UILobby.render();
     else if (tela === 'amigos') P.UIAmigos.render();
     else if (tela === 'truco') P.UITruco.render();
+    else if (tela === 'cacheta') P.UICacheta.render();
     else if (tela === 'uno') P.UIUno.render();
     else if (tela === 'xadrez') P.UIXadrez.render();
+    else if (tela === 'damas') P.UIDamas.render();
+    else if (tela === 'trilha') P.UITrilha.render();
     else if (tela === 'treino') P.UIPaineis.renderTreino(raiz);
     else if (tela === 'estatisticas') P.UIPaineis.renderEstatisticas(raiz);
     else if (tela === 'historico') P.UIPaineis.renderHistorico(raiz);
@@ -143,6 +155,11 @@
         aoAbrir: (corpo, fechar) => itens.forEach(([id, txt]) => corpo.firstChild.appendChild(P.UI.el('button', { class: 'btn', text: txt, onclick: () => fechar(id) }))) });
       if (escolha) irPara(escolha);
     });
+    $('#nav-tabuleiro').addEventListener('click', async () => {
+      const escolha = await P.UI.modal({ titulo: 'Jogos de tabuleiro', conteudo: P.UI.el('div', { class: 'menu-mesa' }),
+        aoAbrir: (corpo, fechar) => TABULEIRO.forEach(([id, txt]) => corpo.firstChild.appendChild(P.UI.el('button', { class: 'btn' + (id === telaAtual ? ' btn-ouro' : ''), text: txt, onclick: () => fechar(id) }))) });
+      if (escolha) irPara(escolha);
+    });
     $('#marca').addEventListener('click', e => { e.preventDefault(); if (telaAtual !== 'mesa') irPara('lobby'); });
     $('#btn-som').addEventListener('click', () => { P.Config.set('som', !P.Config.get('som')); if (P.Config.get('som')) P.Som.ficha(); });
     $('#btn-cola').addEventListener('click', () => P.UIPaineis.abrirCola());
@@ -179,6 +196,15 @@
       P.UITrucoMesa.iniciar(op);
       return;
     }
+    // cacheta direto (testes): ?cacheta=demo&jogadores=4&auto=1
+    if (parametro('cacheta')) {
+      irPara('cacheta');
+      const op = { n: +parametro('jogadores') || 4, semSalvar: true };
+      if (parametro('auto')) Object.assign(op, { autoHeroi: true, velocidade: 0.05, amostras: 16, amostrasBots: 8 });
+      if (parametro('coach')) op.coach = parametro('coach');
+      P.UICachetaMesa.iniciar(op);
+      return;
+    }
     // Última! direto (testes): ?uno=demo&jogadores=4&auto=1
     if (parametro('uno')) {
       irPara('uno');
@@ -195,6 +221,24 @@
       if (parametro('auto')) Object.assign(op, { autoHeroi: true, tempoCoach: 300 });
       if (parametro('coach')) op.coach = parametro('coach');
       P.UIXadrezMesa.iniciar(op);
+      return;
+    }
+    // damas direto (testes): ?damas=demo&nivel=2&auto=1
+    if (parametro('damas')) {
+      irPara('damas');
+      const op = { semSalvar: true, nivel: +parametro('nivel') || 3, cor: parametro('cor') || 'brancas' };
+      if (parametro('auto')) Object.assign(op, { autoHeroi: true, tempoCoach: 300 });
+      if (parametro('coach')) op.coach = parametro('coach');
+      P.UIDamasMesa.iniciar(op);
+      return;
+    }
+    // trilha direto (testes): ?trilha=demo&nivel=2&auto=1
+    if (parametro('trilha')) {
+      irPara('trilha');
+      const op = { semSalvar: true, nivel: +parametro('nivel') || 3, cor: parametro('cor') || 'brancas', voar: parametro('voar') !== '0' };
+      if (parametro('auto')) Object.assign(op, { autoHeroi: true, tempoCoach: 300 });
+      if (parametro('coach')) op.coach = parametro('coach');
+      P.UITrilhaMesa.iniciar(op);
       return;
     }
     const demo = parametro('demo');

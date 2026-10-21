@@ -1,0 +1,75 @@
+/* ==========================================================================
+   OUTS · Treino Lab — damas.css
+   O tabuleiro é o do xadrez (xadrez.css: moldura, casas no tom do feltro,
+   placas, lista de lances, barra de avaliação); aqui ficam as peças (disco
+   com borda e sulcos; a dama com a coroa dourada), as marcas das capturas
+   (peças que podem comer, as que vão ser comidas, onde a peça cai) e a
+   entrada da aba.
+   ========================================================================== */
+
+/* peças (gradientes em ui-damas-mesa.js) */
+.dm-peca-svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.dm-peca-svg .dm-face { stroke-width: 1.6; }
+.dm-peca-svg .dm-sulco { fill: none; stroke-width: 2.2; }
+.dm-peca-svg .dm-brilho { fill: none; stroke: #fff; stroke-width: 3.2; stroke-linecap: round; }
+.dm-peca-svg .dm-coroa { fill: url(#dm-g-ouro); stroke: #6d4c0e; stroke-width: 1.6; stroke-linejoin: round; }
+.dm-peca-svg .dm-joia { fill: #fff6d6; stroke: #6d4c0e; stroke-width: 1.2; }
+.dm-peca-svg.br .dm-pe { fill: #a4926a; stroke: #4b4130; stroke-width: 1.6; }
+.dm-peca-svg.br .dm-face { fill: url(#dm-g-br); stroke: #6b5d40; }
+.dm-peca-svg.br .dm-sulco { stroke: rgba(120, 100, 62, .55); }
+.dm-peca-svg.br .dm-brilho { opacity: .85; }
+.dm-peca-svg.pr .dm-pe { fill: #050607; stroke: #000; stroke-width: 1.6; }
+.dm-peca-svg.pr .dm-face { fill: url(#dm-g-pr); stroke: #07080a; }
+.dm-peca-svg.pr .dm-sulco { stroke: rgba(0, 0, 0, .55); }
+.dm-peca-svg.pr .dm-brilho { opacity: .22; }
+
+/* no tabuleiro: o disco fica um pouco menor que a casa */
+.dm-tabuleiro .dm-peca { inset: 9% 9% 7%; filter: drop-shadow(0 calc(var(--xz-l) / 180) calc(var(--xz-l) / 200) rgba(0,0,0,.45)); cursor: pointer; }
+/* as peças que podem (e têm de) comer */
+.dm-tabuleiro .xz-casa.deve-comer::after {
+  content: ''; position: absolute; inset: 5%; border-radius: 50%; z-index: 3; pointer-events: none;
+  box-shadow: 0 0 0 calc(var(--xz-l) / 160) rgba(255, 214, 72, .95), 0 0 calc(var(--xz-l) / 40) rgba(255, 214, 72, .7);
+  animation: dm-pulso 1.4s ease-in-out infinite;
+}
+@keyframes dm-pulso { 50% { opacity: .45; } }
+/* onde a peça pode cair (a próxima casa do caminho e a casa final) */
+.dm-tabuleiro .xz-casa.alvo::after { width: 30%; height: 30%; background: rgba(255, 255, 255, .38); box-shadow: 0 0 0 2px rgba(20, 30, 40, .35); }
+.dm-tabuleiro .xz-casa.alvo-final::after {
+  content: ''; position: absolute; inset: 22%; border-radius: 50%; z-index: 3; pointer-events: none;
+  border: calc(var(--xz-l) / 140) dashed rgba(255, 255, 255, .6);
+}
+/* as peças que vão ser comidas e as que acabaram de sair */
+.dm-tabuleiro .xz-casa.vai-comer .dm-peca { opacity: .55; }
+.dm-tabuleiro .xz-casa.vai-comer::after {
+  content: '\00D7'; position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; pointer-events: none;
+  font: 900 calc(var(--xz-l) / 11) / 1 var(--fonte); color: #ff5a52; text-shadow: 0 1px 3px rgba(0,0,0,.6);
+}
+.dm-tabuleiro .xz-casa.comida-ult::after {
+  content: ''; position: absolute; inset: 30%; border-radius: 50%; z-index: 1; pointer-events: none;
+  background: radial-gradient(circle, rgba(255, 90, 82, .55), rgba(255, 90, 82, 0) 70%);
+}
+.dm-tabuleiro .xz-casa.ultimo::before { background: rgba(255, 214, 72, .34); }
+.dm-tabuleiro .xz-casa.sel::before { background: rgba(72, 170, 255, .5); }
+
+/* peças comidas nas placas */
+.dm-comidas { gap: 4px; }
+.dm-comidas .dm-peca-svg { width: 17px; height: 17px; flex: none; filter: drop-shadow(0 1px 1px rgba(0,0,0,.5)); }
+.dm-comidas b { margin-left: 0; font-size: 11.5px; color: var(--texto); }
+.dm-comidas em { margin-left: 6px; font-style: normal; font-size: 11px; color: var(--texto-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* peça no meio do texto (regras) */
+.dm-mini { display: inline-block; width: 21px; height: 21px; vertical-align: -5px; margin: 0 1px; padding: 1px; border-radius: 4px; background: #769656; }
+.dm-mini .dm-peca-svg { overflow: visible; }
+
+/* ================================================================ entrada */
+.damas-faixa {
+  background:
+    radial-gradient(420px 200px at 90% 120%, rgba(176,99,94,.22), transparent 70%),
+    radial-gradient(420px 200px at 0% -20%, rgba(216,178,90,.2), transparent 70%),
+    linear-gradient(135deg, #121a24, #0d131a);
+}
+.damas-faixa::after {
+  content: ''; position: absolute; right: 24%; top: -30px; width: 200px; height: 200px; pointer-events: none; transform: rotate(45deg); opacity: .045;
+  background: repeating-conic-gradient(#fff 0 25%, transparent 0 50%) 0 0 / 50px 50px;
+}
+.damas-faixa h1 b { color: var(--ouro-2); }

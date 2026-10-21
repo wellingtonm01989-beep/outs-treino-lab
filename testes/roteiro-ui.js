@@ -362,7 +362,63 @@
     const cfgU = P.Uno.Dados.config(); cfgU.juntas = false; P.Uno.Dados.salvarConfig(cfgU);
     passo(`última ok (${jogadasU} jogadas, ${decidiuU} decisões depois de comprar, ${comprasU} compras por toque)`);
 
-    // 11) Xadrez: lobby, e2-e4 por toque, resposta do bot, desfazer, sair
+    // 11) Cacheta: lobby, partida curta: compra (monte e lixo), escolhe e descarta (dois toques), Bater sem fechar avisa,
+    //     arrumar a mão, coach, sair
+    P.App.irPara('cacheta');
+    await ate(() => $('.cacheta .truco-novo'), 3000, 'lobby da cacheta');
+    clicar(botaoComTexto('3', '.cacheta .truco-novo'));
+    P.UICachetaMesa.iniciar({ n: 3, semSalvar: true, amostras: 10, amostrasBots: 6, velocidade: 0.05 });
+    const RC = P.Cacheta.Regras;
+    let comprasC = 0, descartesC = 0, recusouC = false, doLixoC = 0;
+    const t0C = Date.now();
+    while ((descartesC < 4 || !recusouC) && Date.now() - t0C < 120000) {
+      await dormir(150);
+      if ($('.ca-fim .btn-ouro')) { clicar($('.ca-fim .btn-ouro')); continue; }
+      const jg = P.UICachetaMesa._jogo();
+      if (!jg) break;
+      const pend = jg.pendente;
+      if (!pend || $('.tr-coach .calc')) continue;
+      if (pend.tipo === 'furar') { clicar($('.ca-acoes .btn-acao[data-papel="deixar"]')); continue; }
+      if (pend.tipo === 'comprar') {
+        const lixo = pend.vista.topo !== null && comprasC % 3 === 1;
+        clicar(lixo ? $('.ca-lixo') : $('.ca-monte'));
+        if (lixo) doLixoC++;
+        comprasC++;
+        continue;
+      }
+      // jogar: uma vez, Bater sem fechar → aviso e a vez continua
+      const v = pend.vista;
+      const b = RC.batidas(v.mao, v.curinga);
+      if (!recusouC && !b.com10 && !b.com9.length) {
+        clicar($('.ca-acoes .btn-acao[data-papel="bater"]'));
+        await ate(() => $('.tr-aviso-mesa'), 2000, 'aviso de batida que não fecha');
+        if (P.UICachetaMesa._jogo().pendente !== pend) throw new Error('Cacheta: bater sem fechar encerrou a vez');
+        recusouC = true;
+        continue;
+      }
+      if (b.com10 || b.com9.some(o => o.descarte !== v.doLixo)) { clicar($('.ca-acoes .btn-acao[data-papel="bater"]')); continue; }
+      const semCur = v.mao.find(x => x !== v.doLixo && !RC.ehCuringa(x, v.curinga));
+      const id = semCur !== undefined ? semCur : v.mao.find(x => x !== v.doLixo);
+      const carta = () => $(`.ca-mao .ca-carta-mao[data-carta="${id}"]`);
+      clicar(carta());
+      await ate(() => carta() && carta().classList.contains('selecionada'), 2000, 'carta escolhida');
+      clicar(carta());                                   // o segundo toque descarta
+      await ate(() => P.UICachetaMesa._jogo() && P.UICachetaMesa._jogo().pendente !== pend, 3000, 'descarte');
+      descartesC++;
+    }
+    if (descartesC < 4) throw new Error('Cacheta: não consegui jogar (' + descartesC + ' descartes)');
+    if (!recusouC) throw new Error('Cacheta: não testei o Bater que não fecha');
+    const ordemAntes = $('.ca-ordem').textContent;
+    clicar($('.ca-ordem'));
+    await ate(() => $('.ca-ordem').textContent !== ordemAntes, 2000, 'arrumar a mão');
+    clicar($('.ca-acoes .tr-coach'));
+    await ate(() => $('.modal .tr-coach-modal') || $('.tr-painel:not(.recolhido) .tr-coach-modal'), 3000, 'coach da cacheta');
+    if ($('.modal .tr-coach-modal')) clicar($('.modal .fechar'));
+    P.UICachetaMesa.encerrar();
+    const cfgC = P.Cacheta.Dados.config(); cfgC.ordem = 'jogos'; P.Cacheta.Dados.salvarConfig(cfgC);
+    passo(`cacheta ok (${comprasC} compras, ${doLixoC} do lixo, ${descartesC} descartes)`);
+
+    // 12) Xadrez: lobby, e2-e4 por toque, resposta do bot, desfazer, sair
     P.App.irPara('xadrez');
     await ate(() => $('.xadrez .truco-novo'), 3000, 'lobby do xadrez');
     clicar(botaoComTexto('Casual', '.xadrez .truco-novo'));
@@ -379,6 +435,47 @@
     const lancesX = P.UIXadrezMesa._jogo().sans.join(' ');
     P.UIXadrezMesa.encerrar();
     passo('xadrez ok (' + lancesX + ')');
+
+    // 13) Damas: lobby, c3-d4 por toque, resposta do bot, um lance qualquer, desfazer, sair
+    P.App.irPara('damas');
+    await ate(() => $('.damas .truco-novo'), 3000, 'lobby das damas');
+    clicar(botaoComTexto('Casual', '.damas .truco-novo'));
+    P.UIDamasMesa.iniciar({ semSalvar: true, cor: 'brancas', nivel: 1, tempoCoach: 300 });
+    await ate(() => $('.dm-tabuleiro .xz-casa[data-casa="18"] .dm-peca'), 5000, 'tabuleiro das damas');
+    const tocarD = s => clicar($(`.dm-tabuleiro .xz-casa[data-casa="${s}"]`));
+    tocarD(18); await dormir(60);
+    await ate(() => $('.dm-tabuleiro .xz-casa[data-casa="27"].alvo'), 2000, 'casa d4 marcada');
+    tocarD(27);                                                   // c3 → d4
+    await ate(() => P.UIDamasMesa._jogo().lances.length >= 2 && P.UIDamasMesa._jogo().vezHumano, 15000, 'resposta do bot');
+    const mD = P.UIDamasMesa._jogo().legais[0];
+    tocarD(mD.de); await dormir(60); tocarD(mD.para);
+    await ate(() => P.UIDamasMesa._jogo().lances.length >= 4 && P.UIDamasMesa._jogo().vezHumano, 15000, 'segunda resposta');
+    await ate(() => !$('.dm-jogo .btn-cobrir').disabled, 5000, 'desfazer liberado (damas)');
+    clicar($('.dm-jogo .btn-cobrir'));
+    await ate(() => P.UIDamasMesa._jogo().lances.length === 2, 3000, 'desfeito (damas)');
+    const lancesD = P.UIDamasMesa._jogo().lances.join(' ');
+    P.UIDamasMesa.encerrar();
+    passo('damas ok (' + lancesD + ')');
+
+    // 14) Trilha: lobby, colocar em d6 por toque, resposta do bot, outra peça, desfazer, sair
+    P.App.irPara('trilha');
+    await ate(() => $('.trilha .truco-novo'), 3000, 'lobby da trilha');
+    clicar(botaoComTexto('Casual', '.trilha .truco-novo'));
+    P.UITrilhaMesa.iniciar({ semSalvar: true, cor: 'brancas', nivel: 1, tempoCoach: 300 });
+    await ate(() => $('.tl-tabuleiro .tl-casa[data-casa="4"]'), 5000, 'tabuleiro da trilha');
+    const tocarT = s => clicar($(`.tl-tabuleiro .tl-casa[data-casa="${s}"]`));
+    tocarT(4);                                                    // d6
+    await ate(() => P.UITrilhaMesa._jogo().lances.length >= 2 && P.UITrilhaMesa._jogo().vezHumano, 15000, 'resposta do bot (trilha)');
+    const livreT = [16, 10, 13, 19, 1, 7].find(s => !P.UITrilhaMesa._jogo().pos.t[s]);
+    tocarT(livreT);
+    await ate(() => P.UITrilhaMesa._jogo().lances.length >= 4 && P.UITrilhaMesa._jogo().vezHumano, 15000, 'segunda resposta (trilha)');
+    if ($('.tl-tabuleiro .tl-peca') === null) throw new Error('peças não aparecem');
+    await ate(() => !$('.tl-jogo .btn-cobrir').disabled, 5000, 'desfazer liberado (trilha)');
+    clicar($('.tl-jogo .btn-cobrir'));
+    await ate(() => P.UITrilhaMesa._jogo().lances.length === 2, 3000, 'desfeito (trilha)');
+    const lancesT = P.UITrilhaMesa._jogo().lances.join(' ');
+    P.UITrilhaMesa.encerrar();
+    passo('trilha ok (' + lancesT + ')');
   }
 
   // dentro do simulador de celular (testes/celular.html) o resultado vai também para a página de fora

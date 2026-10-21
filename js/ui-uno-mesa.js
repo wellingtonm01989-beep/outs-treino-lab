@@ -532,7 +532,7 @@
       botao(g.btnB, 'btn-correr', `Comprar ${p.qtd}<small>uma por toque</small>`, 'aceitar', () => acaoComprar());
       if (vista.podeDesafiar) botao(g.btnC, 'un-btn-desafio', 'Desafiar<small>blefe? ele compra 4</small>', 'desafiar', () => acaoDesafiar());
       else ajustarDica();
-      const passar = op.acumular ? ` Ou passe adiante com outro ${p.tipo === 'mais2' ? '+2 ou +4' : '+4'} (toque nele).` : '';
+      const passar = op.acumular ? ' Ou passe adiante com um +2 ou +4 (toque nele).' : '';
       g.status.innerHTML = vista.podeDesafiar ? `<b>+4 em você!</b> Compre as 4 ou desafie (se não era blefe, você compra 6).${passar}` : `<b>+${p.qtd} em você!</b> Compre as cartas.${passar}`;
     } else if (vista.fase === 'depoisDeComprar') {
       const comprada = CO.cartaHtml(vista.comprada);
@@ -625,7 +625,7 @@
       return jogarUma(id);
     }
     if (v.fase === 'responder') {
-      if (v.jogaveis.indexOf(id) < 0) return recusar(jogo.op.acumular ? `Para passar adiante, só com ${v.pendente.tipo === 'mais2' ? '+2 ou +4' : '+4'}.` : 'Agora é comprar as 4 ou desafiar.');
+      if (v.jogaveis.indexOf(id) < 0) return recusar(jogo.op.acumular ? 'Para passar adiante, só com um <b>+2</b> ou um <b>+4</b>.' : 'Agora é comprar as 4 ou desafiar.');
       return jogarUma(id);
     }
     if (jogo.op.juntas) return escolher(id);
@@ -938,8 +938,8 @@
     const cfgU = D.config();
     const salva = opcoes.retomar || null;
     const n = salva ? salva.cfg.n : Math.max(2, Math.min(6, opcoes.n || cfgU.jogadores));
-    // sem o desafio do +4: ele só sai sem a cor da mesa (vale também para partidas salvas antes da mudança)
-    const op = R.opcoes(Object.assign(salva ? salva.cfg.opcoes : { ate: cfgU.ate, acumular: cfgU.acumular, comprarAtePoder: cfgU.comprarAtePoder, juntas: cfgU.juntas }, { desafio: false }));
+    // sem o desafio do +4 (ele só sai sem a cor da mesa) e +2/+4 sempre passam adiante — vale também para partidas salvas antes
+    const op = R.opcoes(Object.assign(salva ? salva.cfg.opcoes : { ate: cfgU.ate, comprarAtePoder: cfgU.comprarAtePoder, juntas: cfgU.juntas }, { desafio: false, acumular: true }));
     const nivel = salva ? salva.cfg.nivel || 'mestre' : opcoes.nivel || cfgU.nivel;
     let jogadores;
     if (salva) jogadores = salva.cfg.jogadores;

@@ -66,7 +66,7 @@
       const quem = nomes[vista.pendente.de];
       linhas.push(`${quem} jogou +4 com a mesa em ${corHtml(vista.pendente.corAntes)}. Chance de ter sido blefe (ele tinha ${NOME_COR_MIN[vista.pendente.corAntes]}): <b>${pct(blefe.pBlefe)}</b>. Desafiar compensa a partir de uns 20%: se era blefe, ele compra 4 e você joga; se não era, você compra 6.`);
     } else if (vista.pendente) {
-      linhas.push(`Pediram para você comprar ${vista.pendente.qtd}. Na regra de acumular, dá para passar adiante com outro ${vista.pendente.tipo === 'mais2' ? '+2 ou +4' : '+4'}.`);
+      linhas.push(`Pediram para você comprar ${vista.pendente.qtd}. Dá para passar adiante com um +2 ou +4 (o próximo compra tudo somado).`);
     }
     if (junta(melhor)) {
       const ult = C[melhor.cartas[melhor.cartas.length - 1]];

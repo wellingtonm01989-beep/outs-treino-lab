@@ -107,7 +107,7 @@
     // acumulando: responde só com +2 / +4
     const opA = R.opcoes({ acumular: true });
     a.igualJSON(R.jogaveis([r2, bmais2, W4], rmais2, 0, opA, { qtd: 2, tipo: 'mais2' }), [bmais2, W4]);
-    a.igualJSON(R.jogaveis([r2, bmais2, W4], W4, 0, opA, { qtd: 4, tipo: 'mais4' }), [W4]);
+    a.igualJSON(R.jogaveis([r2, bmais2, W4], W4, 0, opA, { qtd: 4, tipo: 'mais4' }), [bmais2, W4], '+2 também passa o +4 adiante');
   });
 
   T(G, 'Pular, Inverter (vale Pular com 2) e +2 em partida de 2', async a => {
@@ -196,6 +196,17 @@
     a.verdadeiro(c && c.j === 2 && c.qtd === 4, 'o terceiro comprou 4');
   });
 
+  T(G, '+2 passa o +4 adiante: o próximo compra 6', async a => {
+    // o 0 não tem vermelho (o +4 vale); o 1 passa adiante com o +2 azul; o 2 compra tudo
+    const d = baralho(['W4 g1 g2 g3 g4 g5 g6', 'b+2 b1 b2 b3 b4 b5 b6', 'g1 g2 g3 g4 g5 g6 g7'], 'r9');
+    const ag = [roteiro(['W4:g']), roteiro(['b+2']), roteiro(['comprar'])];
+    const ev = [];
+    const m = M.criar({ n: 3, dador: 2, baralhos: [d], opcoes: { ate: 0 } }, ag, { evento: e => { ev.push(e); if (e.tipo === 'compra') m.parar(); } });
+    await m.rodar();
+    const c = ev.find(e => e.tipo === 'compra');
+    a.verdadeiro(c && c.j === 2 && c.qtd === 6, 'o terceiro comprou 4 + 2');
+  });
+
   T(G, 'Comprar até poder jogar (regra da casa)', async a => {
     // 0 não tem vermelho nem 9; as compras: b1, b2, r4 → para no r4 e pode jogar
     const d = baralho(['g1 g2 g3 g4 g5 g6 g7', 'b3 b4 b5 b6 b7 b8 b0'], 'r9', 'b1 b2 r4');
@@ -259,7 +270,8 @@
     const eu = { manual: true, jogar: () => ({ tipo: 'comprar' }), depoisDeComprar(v) { depois.push(v); return { tipo: 'passar' }; },
       antesDeComprar(v, info) { toques.push(info); return Promise.resolve(); }, escolherCor: () => 0, pegar: () => null };
     const ev = [];
-    const m = M.criar({ n: 2, dador: 1, baralhos: [d], opcoes: { ate: 0 } }, [ag0, eu], { evento: e => { ev.push(e); } });
+    // sem passar adiante (motor): o +2 cai direto em você; com a regra da mesa, o toque em "Comprar 2" já vale pela primeira
+    const m = M.criar({ n: 2, dador: 1, baralhos: [d], opcoes: { ate: 0, acumular: false } }, [ag0, eu], { evento: e => { ev.push(e); } });
     await m.rodar();
     a.igualJSON(toques.map(t => t.motivo + ':' + t.faltam + '/' + t.total), ['mais2:2/2', 'mais2:1/2'], 'um toque por carta do +2');
     a.igual(ev.filter(e => e.tipo === 'compra' && e.j === 1 && e.motivo === 'mais2').length, 2, 'e cada carta chega numa compra');

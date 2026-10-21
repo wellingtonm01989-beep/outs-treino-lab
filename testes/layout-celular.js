@@ -51,7 +51,7 @@
   }
 
   async function telas() {
-    for (const t of ['lobby', 'amigos', 'truco', 'uno', 'xadrez', 'treino', 'estatisticas', 'historico', 'auditoria']) {
+    for (const t of ['lobby', 'amigos', 'truco', 'cacheta', 'uno', 'xadrez', 'damas', 'trilha', 'treino', 'estatisticas', 'historico', 'auditoria']) {
       P.App.irPara(t);
       await dormir(400);
       const c = cortados($('#tela-' + t)).concat(cortados($('.topo')));
@@ -121,6 +121,38 @@
     if (cortes.length) problemas.push('mesa: ' + cortes.slice(0, 6).join(', '));
     log.push(`mesa ${lugares} lugares (${W}x${H}, palco ${Math.round(palco.width)}x${Math.round(palco.height)}, carta ${getComputedStyle($('.mesa-palco')).getPropertyValue('--carta-l').trim()})`);
     gravar();
+  }
+
+  /** A mesa da cacheta com 2 a 6 jogadores: placas dentro do palco, sem cobrir umas às outras, o centro nem a sua mão. */
+  async function mesaCacheta() {
+    for (const n of [2, 3, 4, 5, 6]) {
+      P.App.irPara('cacheta');
+      P.UICachetaMesa.iniciar({ n, semSalvar: true, amostras: 8, amostrasBots: 4, velocidade: 0.05 });
+      const t0 = Date.now();
+      while (!(P.UICachetaMesa._jogo() && P.UICachetaMesa._jogo().pendente) && Date.now() - t0 < 30000) await dormir(100);
+      await dormir(300);
+      const W = window.innerWidth, H = window.innerHeight;
+      const palco = $('.ca-palco').getBoundingClientRect();
+      const lugares = $$('.ca-lugar').map((l, j) => ({ j, r: l.querySelector('.corpo').getBoundingClientRect() }));
+      lugares.forEach(({ j, r }) => {
+        if (r.left < palco.left - 1 || r.right > palco.right + 1 || r.top < palco.top - 1 || r.bottom > palco.bottom + 1) problemas.push(`cacheta ${n}: lugar ${j} fora do palco`);
+      });
+      for (let i = 0; i < lugares.length; i++) for (let k = i + 1; k < lugares.length; k++) { const o = sobrepoe(lugares[i].r, lugares[k].r); if (o) problemas.push(`cacheta ${n}: lugares ${i} e ${k} sobrepostos ${o}`); }
+      const centro = $('.ca-centro').getBoundingClientRect();
+      lugares.forEach(({ j, r }) => { const o = sobrepoe(centro, r); if (o) problemas.push(`cacheta ${n}: lugar ${j} cobre o centro ${o}`); });
+      const mao = $('.ca-mao').getBoundingClientRect();
+      if (mao.left < -1 || mao.right > W + 1) problemas.push(`cacheta ${n}: a mão sai da tela (${Math.round(mao.left)}–${Math.round(mao.right)})`);
+      lugares.forEach(({ j, r }) => { if (j) { const o = sobrepoe(mao, r); if (o) problemas.push(`cacheta ${n}: a mão cobre o lugar ${j} ${o}`); } });
+      const o2 = sobrepoe(mao, centro); if (o2) problemas.push(`cacheta ${n}: a mão cobre o centro ${o2}`);
+      const bb = $('.ca-palco .btn-barra');
+      if (bb && visivel(bb)) { const rb = bb.getBoundingClientRect(); lugares.forEach(({ j, r }) => { const o = sobrepoe(rb, r); if (o) problemas.push(`cacheta ${n}: botão ☰ cobre o lugar ${j} ${o}`); }); }
+      $$('.ca-acoes .btn-acao').forEach(b => { const r = b.getBoundingClientRect(); if (r.right > W + 1 || r.bottom > H + 1 || r.left < -1) problemas.push(`cacheta ${n}: ${nome(b)} fora da tela`); });
+      const cortes = cortados($('#tela-cacheta'));
+      if (cortes.length) problemas.push(`cacheta ${n}: ` + cortes.slice(0, 6).join(', '));
+      log.push(`cacheta ${n} (carta ${getComputedStyle($('.ca-palco')).getPropertyValue('--mao-l').trim()} na mão)`);
+      gravar();
+      P.UICachetaMesa.encerrar();
+    }
   }
 
   /** &estado=coach|menu|config|relatorio: deixa a tela nesse estado no fim (para fotos). */
@@ -205,6 +237,7 @@
     P.Config.set('modoCoach', param('coach') || 'sempre');
     if (param('mesa') !== 'so') await telas();
     if (param('mesa') !== 'nao') await mesa();
+    if (param('mesa') !== 'nao' && param('cacheta') !== 'nao') await mesaCacheta();
     if (param('estado')) await deixarEstado(param('estado'));
   }
 

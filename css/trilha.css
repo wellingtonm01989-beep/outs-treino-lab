@@ -1,0 +1,93 @@
+/* ==========================================================================
+   OUTS · Treino Lab — trilha.css
+   O palco é o do xadrez (xadrez.css: moldura, placas, lista de lances, barra
+   de avaliação); aqui ficam o tabuleiro da trilha (madeira clara com os três
+   quadrados), as casas, as peças, as marcas (onde pode jogar, a peça a
+   tirar, a trilha que acabou de fechar), as peças na mão e a entrada da aba.
+   ========================================================================== */
+
+.tl-jogo { --tl-fundo: #e6d3a8; --tl-fundo-2: #cfb27a; --tl-linha: #5b3e22; }
+.tl-jogo[data-tema=azul] { --tl-fundo: #dfe6ee; --tl-fundo-2: #b9c8d8; --tl-linha: #2d4157; }
+.tl-jogo[data-tema=vermelho] { --tl-fundo: #efdccc; --tl-fundo-2: #d8b59c; --tl-linha: #5e2f24; }
+.tl-jogo[data-tema=preto] { --tl-fundo: #d6d6d6; --tl-fundo-2: #b3b3b3; --tl-linha: #2b2e33; }
+
+/* tabuleiro */
+.tl-tabuleiro {
+  position: relative; width: var(--xz-l); height: var(--xz-l); border-radius: 4px; overflow: hidden; touch-action: manipulation; user-select: none; -webkit-user-select: none;
+  background: radial-gradient(120% 90% at 30% 20%, rgba(255,255,255,.35), transparent 60%), linear-gradient(160deg, var(--tl-fundo), var(--tl-fundo-2));
+  box-shadow: 0 0 0 1px rgba(0,0,0,.5), inset 0 0 calc(var(--xz-l) / 14) rgba(0,0,0,.18);
+}
+.tl-linhas { position: absolute; inset: 4%; pointer-events: none; }
+.tl-linhas svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.tl-linhas .linhas polyline { fill: none; stroke: var(--tl-linha); stroke-width: 7; stroke-linejoin: round; stroke-linecap: round; opacity: .85; }
+.tl-linhas .trilha { fill: none; stroke: #f2c14e; stroke-width: 15; stroke-linecap: round; opacity: .9; filter: drop-shadow(0 0 6px rgba(242,193,78,.8)); }
+.tl-linhas .trilha.minha { stroke: #43c97f; filter: drop-shadow(0 0 6px rgba(67,201,127,.8)); }
+
+/* casas: um alvo de toque do tamanho de 1/7 do tabuleiro, centrado no ponto */
+.tl-casa {
+  position: absolute; width: calc(var(--xz-l) * .92 / 7 * .92); height: calc(var(--xz-l) * .92 / 7 * .92); transform: translate(-50%, -50%);
+  display: grid; place-items: center; border-radius: 50%; cursor: pointer; z-index: 2;
+}
+.tl-casa .ponto { width: 22%; height: 22%; border-radius: 50%; background: var(--tl-linha); box-shadow: 0 0 0 calc(var(--xz-l) / 260) rgba(255,255,255,.55); transition: transform 120ms; }
+.tl-casa:not(.ocupada):hover .ponto { transform: scale(1.3); }
+.tl-peca { position: absolute; inset: 7% 7% 5%; z-index: 2; filter: drop-shadow(0 calc(var(--xz-l) / 160) calc(var(--xz-l) / 200) rgba(0,0,0,.45)); }
+.tl-peca-svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.tl-peca-svg .tl-face { stroke-width: 1.6; }
+.tl-peca-svg .tl-sulco { fill: none; stroke-width: 2.2; }
+.tl-peca-svg .tl-brilho { fill: none; stroke: #fff; stroke-width: 3.2; stroke-linecap: round; }
+.tl-peca-svg.br .tl-pe { fill: #a7956c; stroke: #4b4130; stroke-width: 1.6; }
+.tl-peca-svg.br .tl-face { fill: url(#tl-g-br); stroke: #6b5d40; }
+.tl-peca-svg.br .tl-sulco { stroke: rgba(120, 100, 62, .45); }
+.tl-peca-svg.br .tl-brilho { opacity: .85; }
+.tl-peca-svg.pr .tl-pe { fill: #050607; stroke: #000; stroke-width: 1.6; }
+.tl-peca-svg.pr .tl-face { fill: url(#tl-g-pr); stroke: #07080a; }
+.tl-peca-svg.pr .tl-sulco { stroke: rgba(0, 0, 0, .5); }
+.tl-peca-svg.pr .tl-brilho { opacity: .22; }
+
+/* marcas */
+.tl-casa.ultimo::before { content: ''; position: absolute; inset: 4%; border-radius: 50%; background: rgba(255, 214, 72, .45); box-shadow: 0 0 0 2px rgba(255, 214, 72, .65); }
+.tl-casa.sel::before { content: ''; position: absolute; inset: 2%; border-radius: 50%; background: rgba(72, 170, 255, .45); box-shadow: 0 0 0 3px rgba(72, 170, 255, .85); }
+.tl-casa.alvo .ponto { width: 40%; height: 40%; background: rgba(32, 120, 72, .85); box-shadow: 0 0 0 calc(var(--xz-l) / 160) rgba(255,255,255,.75); }
+.tl-casa.alvo:hover .ponto { transform: scale(1.15); }
+.tl-casa.pode .tl-peca { filter: drop-shadow(0 0 calc(var(--xz-l) / 90) rgba(255, 214, 72, .55)) drop-shadow(0 calc(var(--xz-l) / 160) calc(var(--xz-l) / 200) rgba(0,0,0,.45)); }
+.tl-casa.tirar::after {
+  content: ''; position: absolute; inset: 0; border-radius: 50%; z-index: 3; pointer-events: none;
+  box-shadow: 0 0 0 calc(var(--xz-l) / 130) rgba(255, 90, 82, .95), 0 0 calc(var(--xz-l) / 36) rgba(255, 90, 82, .75);
+  animation: tl-pulso 1.1s ease-in-out infinite;
+}
+@keyframes tl-pulso { 50% { opacity: .45; } }
+.tl-casa.tirada-ult::after { content: ''; position: absolute; inset: 18%; border-radius: 50%; background: radial-gradient(circle, rgba(220, 60, 52, .6), rgba(220, 60, 52, 0) 70%); pointer-events: none; }
+.tl-coords { position: absolute; inset: 0; pointer-events: none; z-index: 1; font: 800 calc(var(--xz-l) / 40) var(--fonte); color: var(--tl-linha); opacity: .55; }
+.tl-coords .col { position: absolute; bottom: .2%; transform: translateX(-50%); line-height: 1; }
+.tl-coords .lin { position: absolute; left: .9%; transform: translateY(-50%); line-height: 1; }
+.tl-tabuleiro .tl-setas { z-index: 4; inset: 4%; }
+
+/* peças na mão (placas) */
+.tl-mao { gap: 5px; }
+.tl-mao .pedras { display: flex; align-items: center; }
+.tl-mao .pedras .tl-peca-svg { width: 15px; height: 15px; flex: none; filter: drop-shadow(0 1px 1px rgba(0,0,0,.5)); }
+.tl-mao .pedras .tl-peca-svg + .tl-peca-svg { margin-left: -9px; }
+.tl-mao b { font-size: 11.5px; color: var(--texto); }
+.tl-mao em { font-style: normal; font-size: 11px; color: var(--texto-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* desenho na página de regras */
+.tl-regras-tab { display: flex; justify-content: center; margin: 4px 0 10px; }
+.tl-mini { width: 180px; height: 180px; border-radius: 10px; background: linear-gradient(160deg, #e6d3a8, #cfb27a); box-shadow: 0 0 0 4px #3a2818, 0 8px 18px rgba(0,0,0,.45); }
+.tl-mini .linhas polyline { fill: none; stroke: #5b3e22; stroke-width: 9; stroke-linejoin: round; }
+.tl-mini .pts circle { fill: #5b3e22; }
+.tl-mini .trilha { fill: none; stroke: #f2c14e; stroke-width: 22; stroke-linecap: round; opacity: .85; }
+.tl-mini circle.br { fill: #f4eedf; stroke: #6b5d40; stroke-width: 4; }
+.tl-mini circle.pr { fill: #30353c; stroke: #07080a; stroke-width: 4; }
+
+/* ================================================================ entrada */
+.trilha-faixa {
+  background:
+    radial-gradient(420px 200px at 90% 120%, rgba(207,178,122,.24), transparent 70%),
+    radial-gradient(420px 200px at 0% -20%, rgba(216,178,90,.2), transparent 70%),
+    linear-gradient(135deg, #121a24, #0d131a);
+}
+.trilha-faixa::after {
+  content: ''; position: absolute; right: 24%; top: -20px; width: 190px; height: 190px; pointer-events: none; opacity: .05; transform: rotate(8deg);
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 70 70'%3E%3Cg fill='none' stroke='white' stroke-width='2.4'%3E%3Crect x='5' y='5' width='60' height='60'/%3E%3Crect x='15' y='15' width='40' height='40'/%3E%3Crect x='25' y='25' width='20' height='20'/%3E%3Cpath d='M35 5v20M35 45v20M5 35h20M45 35h20'/%3E%3C/g%3E%3C/svg%3E") center / contain no-repeat;
+}
+.trilha-faixa h1 b { color: var(--ouro-2); }

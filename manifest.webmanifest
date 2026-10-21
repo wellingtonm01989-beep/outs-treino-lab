@@ -1,7 +1,7 @@
 {
   "name": "OUTS · Treino Lab",
   "short_name": "OUTS Treino",
-  "description": "Treinador de No-Limit Hold'em, truco, Última! (cartas coloridas) e xadrez, com coach. Dinheiro fictício.",
+  "description": "Treinador de No-Limit Hold'em, truco, cacheta, Última! (cartas coloridas), xadrez, damas e trilha, com coach. Dinheiro fictício.",
   "id": "./",
   "start_url": "./",
   "scope": "./",

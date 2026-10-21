@@ -13,6 +13,22 @@
 @media (min-width: 641px) and (min-height: 501px) {
   .so-celular { display: none !important; }
 }
+/* abas: nomes curtos e "Mais" (estatísticas, histórico e auditoria) quando falta largura */
+.nav .nome-curto { display: none; }
+@media (max-width: 1240px), (max-height: 500px) {
+  .nav .nome-longo { display: none; }
+  .nav .nome-curto { display: inline; }
+}
+@media (max-width: 1499px), (max-height: 500px) {
+  .nav .nav-extra { display: none; }
+}
+@media (min-width: 1500px) and (min-height: 501px) {
+  .nav .nav-mais { display: none; }
+}
+@media (min-width: 641px) and (max-width: 1100px) and (min-height: 501px) {
+  .nav { margin-left: 8px; }
+  .nav button { padding: 8px 9px; }
+}
 
 /* ===================================================== mesa compacta (JS) */
 .mesa-palco.compacto .assento:not(.heroi) .corpo { flex-direction: column; gap: 0; padding: 0; background: none; border: 0; box-shadow: none; border-radius: 0; }
@@ -80,7 +96,7 @@
 /* ================================================== celular (os dois jeitos) */
 @media (max-width: 640px), (max-height: 500px) {
   .so-largo { display: none !important; }
-  .nav .nav-extra { display: none; }                /* no celular: estatísticas, histórico e auditoria ficam no "Mais" */
+  .nav .nav-tabuleiro { display: none; }           /* no celular: xadrez, damas e trilha ficam no "Tabuleiro" */
   .app { padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
   .app .topo { height: 48px; padding: 0 10px; gap: 8px; }
   .app .marca svg { width: 28px; height: 28px; }
@@ -176,12 +192,12 @@
   /* abas embaixo, como num app */
   .nav {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; margin: 0; gap: 2px;
-    display: grid; grid-template-columns: repeat(7, minmax(0, 1fr));
+    display: grid; grid-template-columns: repeat(8, minmax(0, 1fr));
     padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
     background: rgba(15, 20, 27, .97); border-top: 1px solid var(--borda); backdrop-filter: blur(6px);
   }
-  .nav button { display: grid; justify-items: center; gap: 2px; padding: 5px 2px; font-size: 10.5px; line-height: 1.15; border-radius: 8px; min-width: 0; }
-  .nav button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav button { display: grid; justify-items: center; gap: 2px; padding: 5px 0; font-size: min(10.5px, 2.6vw); letter-spacing: -.01em; line-height: 1.15; border-radius: 8px; min-width: 0; }
+  .nav button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.35; }
   .nav .icone-nav { display: block; width: 20px; height: 20px; }
   .icone-nav svg { width: 20px; height: 20px; display: block; }
   .app:not(.em-jogo) .app-corpo { margin-bottom: calc(56px + env(safe-area-inset-bottom)); }

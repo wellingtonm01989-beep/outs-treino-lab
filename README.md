@@ -14,6 +14,8 @@ Abra o link no Chrome do celular e toque em ⋮ → **Instalar app** (ou "Adicio
 
 A mesa se ajusta ao celular em pé (mesa vertical, botões grandes embaixo) e deitado (ações numa coluna à direita).
 
+No celular, as abas ficam embaixo; xadrez, damas e trilha estão juntos na aba **Tabuleiro**, e estatísticas, histórico e auditoria em **Mais**.
+
 ## O que tem
 
 - **Cash game, Sit & Go e torneio**, de 2 a 9 jogadores por mesa, do NL2 ao NL1000 e buy-ins de $1 a $1.050. No Sit & Go você escolhe quantos participam (uma mesa ou até 180 jogadores); no torneio, 45, 90 ou 180.
@@ -38,12 +40,22 @@ Na aba **Truco**: 1 contra 1 ou em dupla (você e um parceiro bot contra dois), 
 - **Como jogar** com as cartas na tela e **treino de cartas** (qual é a manilha, qual carta ganha).
 - A partida fica salva no começo de cada mão: se o app fechar, ela volta.
 
+## Cacheta
+
+Na aba **Cacheta**: dois baralhos, 9 cartas para cada um, de 2 a 6 jogadores contra bots. A vira define o curinga (a carta logo acima dela: mesmo naipe, mesma cor ou sem curinga). Junte a mão em trincas (mesmo valor, naipes diferentes) e sequências (mesmo naipe, o Ás antes do 2 ou depois do K). Compre do monte ou pegue a do lixo e descarte uma; bata com 9 (cada um perde 1 vida) ou com 10 (perde 2). Quem fica sem vidas sai; ganha o último na mesa. Vidas: 3, 5, 7 ou 10.
+
+- **Furar a fila** (opção): quem bate com a carta que alguém acabou de descartar pode pegá-la fora da vez.
+- **A sua mão arrumada** em jogos (os jogos juntos e as soltas no fim), por naipe ou por valor; cada jogador mostra o que pegou do lixo e, se quiser, o que descartou.
+- **Bots** Calculista, Arrojado e Cauteloso, em três níveis. No Mestre eles contam as cartas (as duas cópias de cada uma), pesam quantas das que ainda podem vir ajudam cada descarte — numa chance de ganhar a mão ajustada em milhares de jogadas simuladas — e sabem a hora de esperar a batida de 10.
+- **Coach**: se vale pegar a carta do lixo, qual descartar (os seus jogos, quantas cartas faltam, quais ajudam e quantas cópias ainda podem vir), o perigo de a carta fechar a batida do próximo, quando bater e quando esperar a de 10 — e a nota de cada jogada.
+
 ## Última! (cartas coloridas)
 
 Na aba **Última!**: o jogo das cartas coloridas (no estilo do Uno), de 2 a 6 jogadores contra bots. Combine a cor, o número ou o símbolo da carta da mesa; Pular, Inverter, +2, coringa e coringa +4 (só sem a cor da mesa). Ao ficar com uma carta, aperte **Última!** — se um bot esquecer, aperte **Pegou!**. Partida de uma mão, até 200 ou até 500 pontos.
 
 - **A mesa não entrega o jogo**: as cartas que servem não ficam destacadas, cada carta comprada é um toque em Comprar (até nos +2 e +4) e, depois de comprar, você decide se joga ou passa.
-- **Regras da casa** opcionais: acumular +2 e +4, comprar até poder jogar e jogar cartas iguais juntas (vários números iguais de uma vez).
+- **+2 e +4 passam adiante**: quem recebe pode jogar outro +2 ou +4 em cima (vale +2 sobre +4) e o próximo compra tudo.
+- **Regras da casa** opcionais: comprar até poder jogar e jogar cartas iguais juntas (vários números iguais de uma vez).
 - **Bots** Estrategista, Atacante e Paciente, em três níveis. No Mestre eles leem o que cada um tem pelo que compra e pelas cores que escolhe, e simulam cada jogada até o fim da mão.
 - **Coach**: a chance de ganhar a mão com cada jogada, a melhor e por quê (quem está perto de sair, que cor o próximo não tem, quando guardar o coringa, quando jogar as iguais juntas), e a nota de cada jogada.
 
@@ -54,6 +66,21 @@ Na aba **Xadrez**: contra bots de 5 níveis (do Iniciante, que olha um lance à 
 - **Coach**: seta com o melhor lance, barra de avaliação, o que está ameaçado, peças soltas, ideias de abertura e a nota de cada lance seu (de "melhor lance" a "erro grave", com o que o adversário faz depois).
 - **Treino**: desfazer lances, jogar sem relógio ou com relógio (10 min, 5+3, 3+2), virar o tabuleiro. Mova tocando na peça e na casa, ou arrastando.
 - O bot pensa em segundo plano (a tela não trava) e varia as aberturas.
+
+## Damas
+
+Na aba **Damas**: damas brasileiras (regras da Confederação Brasileira) contra bots de 5 níveis, do Iniciante ao Mestre. A pedra anda para frente e come para frente e para trás; a captura é obrigatória e vale a **lei da maioria** (o lance que come mais peças); a dama corre a diagonal inteira; coroação só parando na última fila; empates por 20 lances só de damas, pelos finais de 5 lances e pela repetição.
+
+- **Coach**: seta com o melhor lance (e o caminho das capturas), barra de avaliação, o golpe (entregar pedra para comer mais), o que o adversário ameaça comer e a nota de cada lance seu.
+- **Mover**: toque na peça e na casa; nas capturas de várias peças, toque nas casas onde ela cai — ou direto na última, se só houver um caminho. As peças que têm de comer piscam.
+- **Treino**: desfazer lances e virar o tabuleiro. A partida fica salva a cada lance.
+
+## Trilha
+
+Na aba **Trilha**: o jogo do moinho, com 9 peças para cada um, contra bots de 5 níveis. Coloque as peças, depois mova para a casa vizinha; três em linha (uma **trilha**) tiram uma peça do adversário — não a que está numa trilha, a não ser que todas estejam. Com 3 peças, **voar** para qualquer casa (opção, ligada por padrão). Perde quem fica com 2 peças ou sem lance.
+
+- **Coach**: o melhor lance com seta (e qual peça tirar), as trilhas que o adversário ameaça fechar, como tapar, a trilha dupla (duas ameaças de uma vez) e o moinho (abrir e fechar a mesma trilha), a avaliação e a nota de cada lance seu.
+- **Treino**: desfazer lances. A partida fica salva a cada lance.
 
 ## Testes
 
