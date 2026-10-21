@@ -17,7 +17,9 @@
   const { el, $, esc } = P.UI;
   const T = P.Truco, R = T.Regras, IA = T.IA, CO = T.Coach, D = T.Dados;
   const VELOCIDADES = { lenta: 2, normal: 1.4, rapida: 1, turbo: 0.22 };
-  const fv = () => (jogo && jogo.opcoes.velocidade !== undefined ? jogo.opcoes.velocidade : VELOCIDADES[P.Config.get('velocidade')] || 1);
+  // mesa com amigos: atrasada em relação ao servidor (aba escondida, sua vez já na fila), anda sem animação
+  const fv = () => (jogo && jogo.remota && jogo.remota.atrasado() ? 0.05
+    : jogo && jogo.opcoes.velocidade !== undefined ? jogo.opcoes.velocidade : VELOCIDADES[P.Config.get('velocidade')] || 1);
   const limitar = (x, a, b) => Math.max(a, Math.min(b, x));
   const POS = { 2: ['baixo', 'cima'], 4: ['baixo', 'direita', 'cima', 'esquerda'] };
 
@@ -38,7 +40,8 @@
       if (ms <= 0 && pausas === 0) res(); else setTimeout(tick, Math.min(Math.max(ms, 0), 80));
     });
   }
-  function pausar(p) { pausas = Math.max(0, pausas + (p ? 1 : -1)); }
+  // na mesa com amigos o prazo corre no servidor: menus abertos não param a mesa
+  function pausar(p) { if (jogo && jogo.remota) return; pausas = Math.max(0, pausas + (p ? 1 : -1)); }
 
   // ======================================================== montar a mesa
   /**
@@ -55,7 +58,7 @@
     raiz.dataset.tema = P.Config.get('tema') || 'verde';
     const g = jogo.ui = {};
     const n = jogo.n;
-    g.raiz = el('div', { class: 'tr-jogo', 'data-tema': P.Config.get('tema') || 'verde', 'data-n': n });
+    g.raiz = el('div', { class: 'tr-jogo' + (jogo.remota ? ' remota' : ''), 'data-tema': P.Config.get('tema') || 'verde', 'data-n': n });
 
     // placar, valor da mão e rodadas: num quadro no canto da mesa (sempre à vista, também no celular)
     g.nos = el('b', { text: '0' }); g.eles = el('b', { text: '0' });
@@ -136,14 +139,15 @@
     g.btnCobrir = el('button', { class: 'btn-acao btn-cobrir', html: 'Cobrir<small>carta virada</small>' });
     g.btnTerceiro = el('button', { class: 'btn-acao btn-tr-dica', html: 'Dica' });
     g.status = el('div', { class: 'tr-status' });
+    g.relogio = el('span', { class: 'relogio-vez oculto' });   // prazo da vez (mesa com amigos)
     g.acoes = el('div', { class: 'barra-acoes tr-acoes' },
-      el('div', { class: 'acoes-esquerda' }, g.status, g.coach),
+      el('div', { class: 'acoes-esquerda' }, g.relogio, g.status, g.coach),
       el('div', { class: 'acoes-botoes' }, g.btnTruco, g.btnCobrir, g.btnTerceiro));
 
     // painel do coach (PC), igual ao do poker
     g.painelCorpo = el('div', { class: 'coach-corpo' });
     g.painelModos = el('div', { class: 'coach-modos' });
-    [['sempre', 'Sempre'], ['pedido', 'Sob pedido'], ['desligado', 'Desligado']].forEach(([id, txt]) =>
+    if (!jogo.remota) [['sempre', 'Sempre'], ['pedido', 'Sob pedido'], ['desligado', 'Desligado']].forEach(([id, txt]) =>
       g.painelModos.appendChild(el('button', { 'data-modo': id, text: txt, onclick: () => mudarModoCoach(id) })));
     g.painel = el('aside', { class: 'painel-coach tr-painel' + (P.Config.get('coachAberto') !== false && jogo.opcoes.coach !== 'desligado' ? '' : ' recolhido') },
       el('div', { class: 'coach-cab' }, el('h2', { html: '<i>💡</i> Coach' }),
@@ -554,6 +558,10 @@
   function conteudoCoach(paraVer) {
     const c = jogo.conselho, ultima = jogo.ultimaNota, modo = jogo.opcoes.coach;
     const corpo = el('div', { class: 'tr-coach-modal' });
+    if (jogo.remota) {
+      corpo.appendChild(el('div', { class: 'coach-vazio', html: '<b>Sem coach</b>Na mesa com amigos não tem coach: a partida é só entre vocês.' }));
+      return corpo;
+    }
     if (modo === 'desligado') {
       corpo.appendChild(el('div', { class: 'coach-vazio', html: '<b>Coach desligado</b>Sem dicas durante o jogo. As suas decisões continuam sendo avaliadas, e o resumo aparece no fim da partida.' }));
       return corpo;
@@ -661,7 +669,7 @@
     g.btnCobrir.disabled = !vista.podeCobrir;
     if (!vista.podeCobrir && !vista.cegas) g.btnCobrir.innerHTML = 'Cobrir<small>a partir da 2ª</small>';
     g.btnTerceiro.disabled = jogo.opcoes.coach !== 'pedido';
-    if (jogo.opcoes.coach !== 'pedido') g.btnTerceiro.innerHTML = 'Dica<small>' + (jogo.opcoes.coach === 'sempre' ? 'já na faixa' : 'coach desligado') + '</small>';
+    if (jogo.opcoes.coach !== 'pedido') g.btnTerceiro.innerHTML = 'Dica<small>' + (jogo.remota ? 'sem coach' : jogo.opcoes.coach === 'sempre' ? 'já na faixa' : 'coach desligado') + '</small>';
     g.mao.classList.add('jogavel');
   }
 
@@ -675,6 +683,7 @@
 
   /** O conselho da decisão em aberto; se você foi mais rápido que a conta, ela é feita agora (para a nota). */
   function conselhoAgora(pend) {
+    if (jogo.remota) return null;     // mesa com amigos: sem coach (nem a nota)
     if (jogo.conselho) return jogo.conselho;
     try {
       const op = Object.assign(opcoesCoach(), { amostras: Math.min(200, jogo.opcoes.amostras || 200) });
@@ -737,6 +746,7 @@
 
   /** Calcula o conselho do coach sem travar o desenho da tela. */
   function calcularConselho(fn) {
+    if (jogo.remota) return Promise.resolve(null);
     const token = jogo.token;
     if (jogo.opcoes.coach !== 'desligado') { coachNota(null); coachTexto('<span class="calc">Calculando…</span>'); }
     return new Promise(res => setTimeout(() => {
@@ -1039,10 +1049,12 @@
     const botao = el('button', { class: 'btn btn-ouro', text: fimPartida ? 'Ver o resultado' : 'Próxima mão' });
     caixa.appendChild(el('div', { class: 'proxima' }, el('div', { class: 'progresso' }, barra), botao));
     g.palco.appendChild(caixa);
-    // espera o toque (ou alguns segundos; tocar na caixa para a contagem)
-    const total = (jogo.opcoes.autoHeroi ? 400 : 6000) * Math.max(0.5, fv());
+    // espera o toque (ou alguns segundos; tocar na caixa para a contagem). Na mesa com amigos a
+    // próxima mão já começou no servidor: o resumo fica pouco tempo e não dá para parar a contagem
+    const remota = !!jogo.remota;
+    const total = remota ? (jogo.remota.atrasado() ? 0 : 3500) : (jogo.opcoes.autoHeroi ? 400 : 6000) * Math.max(0.5, fv());
     let parado = false;
-    caixa.addEventListener('click', e => { if (e.target !== botao) { parado = true; barra.style.width = '0'; } });
+    caixa.addEventListener('click', e => { if (e.target !== botao && !remota) { parado = true; barra.style.width = '0'; } });
     await new Promise(res => {
       let t = 0;
       botao.onclick = () => res();
@@ -1065,11 +1077,15 @@
     encerrar();
     const cfgT = D.config();
     let salva = opcoes.retomar || null;
-    const n = salva ? salva.cfg.n : (opcoes.n === 2 ? 2 : 4);
-    const regras = R.variante(salva ? salva.cfg.regras : opcoes.regras || cfgT.regras).id;
+    // mesa com amigos: { controle (cartas-remotas.js), n, regras, jogadores (já girados: você no 0), aoSair, aoTerminar, aoFechar }
+    const remota = opcoes.remota || null;
+    if (remota) opcoes = Object.assign({}, opcoes, { coach: 'desligado', semSalvar: true, velocidade: 1 });
+    const n = remota ? remota.n : salva ? salva.cfg.n : (opcoes.n === 2 ? 2 : 4);
+    const regras = R.variante(remota ? remota.regras : salva ? salva.cfg.regras : opcoes.regras || cfgT.regras).id;
     const torneio = salva ? salva.cfg.torneio || null : opcoes.torneio || null;
     let jogadores;
-    if (salva) jogadores = salva.cfg.jogadores;
+    if (remota) jogadores = remota.jogadores;
+    else if (salva) jogadores = salva.cfg.jogadores;
     else if (opcoes.jogadores) jogadores = opcoes.jogadores;
     else {
       const nomes = P.Baralho.embaralhar(IA.NOMES.slice());
@@ -1080,10 +1096,11 @@
       n, jogadores, token: ++contador, notas: salva ? (salva.notas || []) : [], placar: [0, 0],
       opcoes: Object.assign({ coach: cfgT.coach, amostras: 400, esconderManilha: !!cfgT.esconderManilha }, opcoes),
       pendente: null, conselho: null, vr: R.variante(regras), torneio, leitor: IA.criarLeitor(),
-      memoriaVoce: D.leituraVoce()
+      memoriaVoce: D.leituraVoce(), remota: remota ? remota.controle : null, cfgRemota: remota
     };
     jogo.agentes = [agenteHumano()];
-    for (let j = 1; j < n; j++) jogo.agentes.push(agenteBot(j, jogadores[j].perfil));
+    // na mesa com amigos os outros lugares são gente (jogam no aparelho deles)
+    for (let j = 1; j < n; j++) jogo.agentes.push(remota ? { bot: false } : agenteBot(j, jogadores[j].perfil));
 
     // na tela: a mesa ocupa tudo (sem o menu de baixo)
     $('#app').classList.add('em-jogo');
@@ -1092,13 +1109,14 @@
     const estado = salva ? salva.estado : { placar: [0, 0], dador: P.RNG.inteiroAbaixo(n), maoNumero: 0 };
     const token = jogo.token;
     const semSalvar = !!opcoes.semSalvar;
-    jogo.motor = T.Motor.criar(Object.assign({ n, regras }, estado), jogo.agentes, {
+    const ganchos = {
       evento: ev => aoEvento(ev),
       salvar: est => {
         if (semSalvar || !jogo || jogo.token !== token) return;
         D.salvar({ cfg: { n, jogadores, regras, torneio }, estado: est, notas: jogo.notas, emJogo: true });
       }
-    });
+    };
+    jogo.motor = remota ? remota.controle.motor(jogo.agentes, ganchos) : T.Motor.criar(Object.assign({ n, regras }, estado), jogo.agentes, ganchos);
     if (opcoes.aviso && salva) P.UI.aviso(`<b>Partida de truco retomada</b> (${salva.estado.placar[0]} × ${salva.estado.placar[1]}). A mão que estava em andamento foi anulada.`, 'aviso-ouro');
     else if (torneio && torneio.rotulo) P.UI.aviso(`<b>${esc(torneio.rotulo)}</b>`, 'aviso-ouro');
     let r = null;
@@ -1115,7 +1133,23 @@
     await fimDePartida(r);
   }
 
+  /** Fim da partida da mesa com amigos: o placar e de volta para a sala (sem o resumo do coach). */
+  async function fimRemoto(r) {
+    const venceu = r.vencedor === 0, n = jogo.n;
+    if (venceu && P.Som) P.Som.vitoria();
+    document.documentElement.setAttribute('data-truco-fim', venceu ? 'vitoria' : 'derrota');
+    const nomes = eq => jogo.jogadores.filter((x, j) => j % 2 === eq).map(x => x.nome).join(' e ');
+    const corpo = el('div', { class: 'tr-resultado' },
+      el('div', { class: 'grande ' + (venceu ? 'nos' : 'eles'), text: (venceu ? (n === 4 ? 'Vocês venceram ' : 'Você venceu ') : (n === 4 ? 'Vocês perderam ' : 'Você perdeu ')) + `${r.placar[0]} a ${r.placar[1]}` }),
+      el('div', { style: { textAlign: 'center', color: 'var(--texto-2)', fontSize: '13px' }, text: `${n === 4 ? 'Venceram ' + nomes(venceu ? 0 : 1) : (venceu ? 'Você' : jogo.jogadores[1].nome) + ' venceu'} · ${r.maos} mãos jogadas` }));
+    const cfg = jogo.cfgRemota;
+    await P.UI.modal({ titulo: 'Fim da partida', conteudo: corpo, fechavel: false, botoes: [{ texto: 'Voltar para a sala', classe: 'btn-ouro', valor: 'ok' }] });
+    encerrar();
+    if (cfg && cfg.aoTerminar) cfg.aoTerminar();
+  }
+
   async function fimDePartida(r) {
+    if (jogo.remota) return fimRemoto(r);
     const venceu = r.vencedor === 0;
     if (!jogo.opcoes.semSalvar) {
       D.descartar();
@@ -1169,9 +1203,14 @@
       const p = j.pendente;
       p.resolve(p.tipo === 'vez' ? { tipo: 'carta', indice: 0 } : 'correr');
     }
-    // a partida saiu da tela: na próxima abertura do app não volta sozinha
-    const s = D.salva();
-    if (s && s.emJogo) { s.emJogo = false; D.salvar(s); }
+    if (j.remota) {
+      // mesa com amigos: a partida continua no servidor; a aba Mesa com amigos mostra como voltar
+      if (j.cfgRemota && j.cfgRemota.aoFechar) j.cfgRemota.aoFechar();
+    } else {
+      // a partida saiu da tela: na próxima abertura do app não volta sozinha
+      const s = D.salva();
+      if (s && s.emJogo) { s.emJogo = false; D.salvar(s); }
+    }
     $('#app').classList.remove('em-jogo');
     $('#nav').classList.remove('oculto');
     $('#tela-truco').classList.remove('tela-mesa');
@@ -1179,6 +1218,15 @@
   }
 
   async function sair() {
+    if (jogo.remota) {
+      const cfg = jogo.cfgRemota;
+      const ok = await P.UI.confirmar('Sair da mesa?', 'A partida continua sem você: na sua vez, a mesa espera o tempo acabar e joga por você (a carta mais fraca; num pedido de truco, corre). Dá para voltar pela aba Mesa com amigos enquanto a partida não terminar.', 'Sair', 'Continuar jogando');
+      if (!ok || !jogo) return;
+      if (cfg.aoSair) cfg.aoSair();
+      encerrar();
+      P.App.irPara('amigos');
+      return;
+    }
     pausar(true);
     const ok = await P.UI.confirmar('Sair da partida?', 'A partida fica salva: dá para continuar depois pela aba Truco, do começo da mão atual.', 'Sair', 'Continuar jogando');
     pausar(false);
@@ -1187,11 +1235,34 @@
     P.App.irPara('truco');
   }
 
+  /** Mesa com amigos: o pedido em aberto deixou de valer (o prazo acabou, o parceiro respondeu). */
+  function cancelarPendente() {
+    if (!jogo || !jogo.pendente) return;
+    jogo.pendente = null;
+    jogo.mostrarParceiro = false; jogo.troca = null; jogo.selTroca = null; jogo.cobrir = false;
+    limparAviso();
+    acoesEspera('');
+    renderMao();
+  }
+
+  /** Mesa com amigos: o prazo do pedido em aberto ({ ms, meu } ou null). */
+  function relogio(info) {
+    const r = jogo && jogo.ui && jogo.ui.relogio;
+    if (!r) return;
+    r.classList.toggle('oculto', !info);
+    if (!info) return;
+    const s = Math.ceil(info.ms / 1000);
+    r.textContent = '⏱ ' + s + ' s';
+    r.classList.toggle('meu', !!info.meu);
+    r.classList.toggle('urgente', !!info.meu && s <= 10);
+    if (info.meu && s <= 5 && s !== jogo.ultimoBip && P.Som) { jogo.ultimoBip = s; P.Som.alerta(); }
+  }
+
   async function abrirMenu() {
     if (!jogo) return;
     const modos = [['sempre', 'Coach: dicas sempre'], ['pedido', 'Coach: sob pedido'], ['desligado', 'Coach: desligado']];
     const itens = [['regras', 'Como jogar'], ['quiz', 'Treino de cartas'], ['manilha', jogo.opcoes.esconderManilha ? 'Mostrar a manilha' : 'Esconder a manilha (treino)']]
-      .concat(modos.filter(m => m[0] !== jogo.opcoes.coach))
+      .concat(jogo.remota ? [] : modos.filter(m => m[0] !== jogo.opcoes.coach))
       .concat([['som', P.Config.get('som') ? 'Desligar o som' : 'Ligar o som'], ['sair', 'Sair da partida']]);
     pausar(true);
     let escolha;
@@ -1222,5 +1293,5 @@
 
   P.Config.aoMudar((k, v) => { if (k === 'tema' && jogo && jogo.ui) { jogo.ui.raiz.dataset.tema = v; $('#tela-truco').dataset.tema = v; } });
 
-  P.UITrucoMesa = { iniciar, encerrar, emJogo: () => !!jogo, pausar, _jogo: () => jogo };
+  P.UITrucoMesa = { iniciar, encerrar, emJogo: () => !!jogo, remota: () => !!(jogo && jogo.remota), pausar, cancelarPendente, relogio, _jogo: () => jogo };
 })(window.Poker = window.Poker || {});

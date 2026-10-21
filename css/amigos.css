@@ -76,3 +76,21 @@
   .lugares-amigos { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
   .lugar-amigo { padding: 8px 9px; gap: 8px; }
 }
+
+/* criar mesa: regras da casa do Última! (liga/desliga) */
+.campo-check { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border: 1px solid var(--borda); border-radius: 8px; background: var(--fundo-2); cursor: pointer; }
+.campo-check input { margin-top: 3px; accent-color: var(--ouro); }
+.campo-check span { display: grid; gap: 2px; }
+.campo-check small { color: var(--texto-3); font-size: 12px; }
+
+/* sala de espera: tocar num lugar livre para trocar de lugar; no truco em dupla, as duas duplas */
+button.lugar-amigo { width: 100%; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.lugar-amigo.trocar:hover { border-color: var(--ouro); }
+.lugar-amigo.trocar .quem b { color: var(--ouro-2); }
+.lugar-amigo.lado-a { border-left: 3px solid #4f9de0; }
+.lugar-amigo.lado-b { border-left: 3px solid #e06a5f; }
+
+/* truco e Última! com amigos: o prazo da vez na barra de ações */
+.tr-acoes .relogio-vez { margin-left: 0; margin-right: 8px; align-self: center; }
+.tr-acoes .relogio-vez.meu { color: #1d1606; background: var(--ouro); }
+.tr-acoes .relogio-vez.urgente { color: #fff; background: var(--erro); }

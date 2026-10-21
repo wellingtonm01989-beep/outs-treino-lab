@@ -291,5 +291,5 @@
     return api;
   }
 
-  P.PartidaRemota = { criar, atual: () => atual, tabelaResultado, reais };
+  P.PartidaRemota = { criar, atual: () => atual, tabelaResultado, reais, avatarDe };
 })(window.Poker = window.Poker || {});

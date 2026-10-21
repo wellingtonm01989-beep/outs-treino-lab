@@ -19,7 +19,9 @@
   const U = P.Uno, R = U.Regras, IA = U.IA, CO = U.Coach, D = U.Dados;
   const C = R.CARTAS;
   const VELOCIDADES = { lenta: 1.8, normal: 1.25, rapida: 0.9, turbo: 0.25 };
-  const fv = () => (jogo && jogo.opcoes.velocidade !== undefined ? jogo.opcoes.velocidade : VELOCIDADES[P.Config.get('velocidade')] || 1);
+  // mesa com amigos: atrasada em relação ao servidor (aba escondida, sua vez já na fila), anda sem animação
+  const fv = () => (jogo && jogo.remota && jogo.remota.atrasado() ? 0.05
+    : jogo && jogo.opcoes.velocidade !== undefined ? jogo.opcoes.velocidade : VELOCIDADES[P.Config.get('velocidade')] || 1);
   const limitar = (x, a, b) => Math.max(a, Math.min(b, x));
 
   let jogo = null;
@@ -38,7 +40,8 @@
       if (ms <= 0 && pausas === 0) res(); else setTimeout(tick, Math.min(Math.max(ms, 0), 80));
     });
   }
-  function pausar(p) { pausas = Math.max(0, pausas + (p ? 1 : -1)); }
+  // na mesa com amigos o prazo corre no servidor: menus abertos não param a mesa
+  function pausar(p) { if (jogo && jogo.remota) return; pausas = Math.max(0, pausas + (p ? 1 : -1)); }
 
   // ================================================================ cartas
   /** Carta do Última! (id) ou o verso (null). */
@@ -63,7 +66,7 @@
     raiz.dataset.tema = P.Config.get('tema') || 'verde';
     const g = jogo.ui = {};
     const n = jogo.n;
-    g.raiz = el('div', { class: 'tr-jogo un-jogo', 'data-tema': P.Config.get('tema') || 'verde', 'data-n': n });
+    g.raiz = el('div', { class: 'tr-jogo un-jogo' + (jogo.remota ? ' remota' : ''), 'data-tema': P.Config.get('tema') || 'verde', 'data-n': n });
 
     // barra de cima
     const op = jogo.op;
@@ -134,17 +137,18 @@
     g.btnDica = el('button', { class: 'btn oculto', text: 'Dica', onclick: e => { e.stopPropagation(); mostrarDica(); } });
     g.coach = el('div', { class: 'tr-coach', title: 'Ver a conta do coach', onclick: () => abrirCoach() }, el('span', { class: 'ic', text: '💡' }), g.coachNota, g.coachTxt, g.btnDica);
     g.status = el('div', { class: 'tr-status' });
+    g.relogio = el('span', { class: 'relogio-vez oculto' });   // prazo da vez (mesa com amigos)
     g.btnA = el('button', { class: 'btn-acao un-btn-ultima', html: 'Última!<small>antes da penúltima</small>' });
     g.btnB = el('button', { class: 'btn-acao btn-aceitar', html: 'Comprar' });
     g.btnC = el('button', { class: 'btn-acao btn-tr-dica', html: 'Dica' });
     g.acoes = el('div', { class: 'barra-acoes tr-acoes un-acoes' },
-      el('div', { class: 'acoes-esquerda' }, g.status, g.coach),
+      el('div', { class: 'acoes-esquerda' }, g.relogio, g.status, g.coach),
       el('div', { class: 'acoes-botoes' }, g.btnA, g.btnB, g.btnC));
 
     // painel do coach (PC)
     g.painelCorpo = el('div', { class: 'coach-corpo' });
     g.painelModos = el('div', { class: 'coach-modos' });
-    [['sempre', 'Sempre'], ['pedido', 'Sob pedido'], ['desligado', 'Desligado']].forEach(([id, txt]) =>
+    if (!jogo.remota) [['sempre', 'Sempre'], ['pedido', 'Sob pedido'], ['desligado', 'Desligado']].forEach(([id, txt]) =>
       g.painelModos.appendChild(el('button', { 'data-modo': id, text: txt, onclick: () => mudarModoCoach(id) })));
     g.painel = el('aside', { class: 'painel-coach tr-painel' + (P.Config.get('coachAberto') !== false && jogo.opcoes.coach !== 'desligado' ? '' : ' recolhido') },
       el('div', { class: 'coach-cab' }, el('h2', { html: '<i>💡</i> Coach' }),
@@ -405,6 +409,10 @@
   function conteudoCoach(paraVer) {
     const c = jogo.conselho, ultima = jogo.ultimaNota, modo = jogo.opcoes.coach;
     const corpo = el('div', { class: 'tr-coach-modal' });
+    if (jogo.remota) {
+      corpo.appendChild(el('div', { class: 'coach-vazio', html: '<b>Sem coach</b>Na mesa com amigos não tem coach: a partida é só entre vocês.' }));
+      return corpo;
+    }
     if (modo === 'desligado') {
       corpo.appendChild(el('div', { class: 'coach-vazio', html: '<b>Coach desligado</b>Sem dicas durante o jogo. As suas jogadas continuam sendo avaliadas, e o resumo aparece no fim da partida.' }));
       return corpo;
@@ -486,6 +494,7 @@
     return { amostras: jogo.opcoes.amostras || 160, modelos, nomes: jogo.jogadores.map((x, j) => (j === 0 ? 'Você' : x.nome)) };
   }
   function calcularConselho(vista) {
+    if (jogo.remota) return;     // mesa com amigos: sem coach (nem a nota)
     const token = jogo.token, pend = jogo.pendente;
     if (jogo.opcoes.coach !== 'desligado') { coachNota(null); coachTexto('<span class="calc">Calculando…</span>'); }
     setTimeout(() => {
@@ -587,7 +596,7 @@
     const g = jogo.ui;
     g.btnC.className = 'btn-acao btn-tr-dica';
     g.btnC.disabled = jogo.opcoes.coach !== 'pedido';
-    g.btnC.innerHTML = 'Dica' + (jogo.opcoes.coach === 'sempre' ? '<small>já na faixa</small>' : jogo.opcoes.coach === 'desligado' ? '<small>coach desligado</small>' : '');
+    g.btnC.innerHTML = 'Dica' + (jogo.remota ? '<small>sem coach</small>' : jogo.opcoes.coach === 'sempre' ? '<small>já na faixa</small>' : jogo.opcoes.coach === 'desligado' ? '<small>coach desligado</small>' : '');
     g.btnC.onclick = () => mostrarDica();
   }
 
@@ -764,7 +773,9 @@
     if (jogo.opcoes.autoHeroi) return Promise.resolve(j === 0 ? 0 : primeiro ? primeiro.k : null);
     return new Promise(resolve => {
       let feito = false;
-      const fim = r => { if (feito) return; feito = true; acoesEspera(''); resolve(r); };
+      const fim = r => { if (feito) return; feito = true; jogo.janela = null; acoesEspera(''); resolve(r); };
+      // mesa com amigos: outro apertou primeiro (ou a janela fechou no servidor): sai sem mexer nos botões
+      jogo.janela = { cancelar: () => { feito = true; } };
       const limite = (primeiro ? primeiro.ms : 2600) * Math.max(0.45, fv());
       if (j === 0) {
         g.btnA.disabled = false; g.btnA.className = 'btn-acao un-btn-ultima pulsa'; g.btnA.innerHTML = 'Última!<small>rápido!</small>';
@@ -915,9 +926,11 @@
     const botao = el('button', { class: 'btn btn-ouro', text: fimPartida ? 'Ver o resultado' : 'Próxima mão' });
     caixa.appendChild(el('div', { class: 'proxima' }, el('div', { class: 'progresso' }, barra), botao));
     g.palco.appendChild(caixa);
-    const total = (jogo.opcoes.autoHeroi ? 400 : 7000) * Math.max(0.5, fv());
+    // mesa com amigos: a próxima mão já começou no servidor; o resumo fica pouco tempo e não para
+    const remota = !!jogo.remota;
+    const total = remota ? (jogo.remota.atrasado() ? 0 : 3500) : (jogo.opcoes.autoHeroi ? 400 : 7000) * Math.max(0.5, fv());
     let parado = false;
-    caixa.addEventListener('click', e => { if (e.target !== botao) { parado = true; barra.style.width = '0'; } });
+    caixa.addEventListener('click', e => { if (e.target !== botao && !remota) { parado = true; barra.style.width = '0'; } });
     await new Promise(res => {
       let t = 0;
       botao.onclick = () => res();
@@ -937,12 +950,18 @@
     encerrar();
     const cfgU = D.config();
     const salva = opcoes.retomar || null;
-    const n = salva ? salva.cfg.n : Math.max(2, Math.min(6, opcoes.n || cfgU.jogadores));
+    // mesa com amigos: { controle (cartas-remotas.js), n, cfg (ate, comprarAtePoder, juntas), jogadores (você no 0), aoSair, aoTerminar, aoFechar }
+    const remota = opcoes.remota || null;
+    if (remota) opcoes = Object.assign({}, opcoes, { coach: 'desligado', semSalvar: true, velocidade: 1 });
+    const n = remota ? remota.n : salva ? salva.cfg.n : Math.max(2, Math.min(6, opcoes.n || cfgU.jogadores));
     // sem o desafio do +4 (ele só sai sem a cor da mesa) e +2/+4 sempre passam adiante — vale também para partidas salvas antes
-    const op = R.opcoes(Object.assign(salva ? salva.cfg.opcoes : { ate: cfgU.ate, comprarAtePoder: cfgU.comprarAtePoder, juntas: cfgU.juntas }, { desafio: false, acumular: true }));
+    const base = remota ? { ate: remota.cfg.ate, comprarAtePoder: remota.cfg.comprarAtePoder, juntas: remota.cfg.juntas }
+      : salva ? salva.cfg.opcoes : { ate: cfgU.ate, comprarAtePoder: cfgU.comprarAtePoder, juntas: cfgU.juntas };
+    const op = R.opcoes(Object.assign({}, base, { desafio: false, acumular: true }));
     const nivel = salva ? salva.cfg.nivel || 'mestre' : opcoes.nivel || cfgU.nivel;
     let jogadores;
-    if (salva) jogadores = salva.cfg.jogadores;
+    if (remota) jogadores = remota.jogadores;
+    else if (salva) jogadores = salva.cfg.jogadores;
     else {
       const nomes = P.Baralho.embaralhar(IA.NOMES.slice());
       jogadores = [{ nome: P.Config.get('nome') || 'Você', avatar: null }];
@@ -951,24 +970,28 @@
     jogo = {
       n, jogadores, op, nivel, token: ++contador, notas: salva ? (salva.notas || []) : [],
       opcoes: Object.assign({ coach: cfgU.coach, amostras: 160 }, opcoes),
-      pendente: null, conselho: null, leitor: IA.criarLeitor(), memoriaVoce: D.leituraVoce()
+      pendente: null, conselho: null, leitor: IA.criarLeitor(), memoriaVoce: D.leituraVoce(),
+      remota: remota ? remota.controle : null, cfgRemota: remota
     };
     jogo.agentes = [agenteHumano()];
-    for (let j = 1; j < n; j++) jogo.agentes.push(agenteBot(j, jogadores[j].perfil));
+    // na mesa com amigos os outros lugares são gente (jogam no aparelho deles)
+    for (let j = 1; j < n; j++) jogo.agentes.push(remota ? { bot: false } : agenteBot(j, jogadores[j].perfil));
     $('#app').classList.add('em-jogo');
     $('#nav').classList.add('oculto');
     montar();
     const estado = salva ? salva.estado : { placar: new Array(n).fill(0), dador: P.RNG.inteiroAbaixo(n), maoNumero: 0 };
     const token = jogo.token;
     const semSalvar = !!opcoes.semSalvar;
-    jogo.motor = U.Motor.criar({ n, opcoes: op, placar: estado.placar, dador: estado.dador, maoNumero: estado.maoNumero }, jogo.agentes, {
+    const ganchos = {
       evento: ev => aoEvento(ev),
       janelaUltima,
       salvar: est => {
         if (semSalvar || !jogo || jogo.token !== token) return;
         D.salvar({ cfg: { n, jogadores, opcoes: op, nivel }, estado: { placar: est.placar, dador: est.dador, maoNumero: Math.max(0, est.maoNumero - 1) }, notas: jogo.notas, emJogo: true });
       }
-    });
+    };
+    jogo.motor = remota ? remota.controle.motor(jogo.agentes, ganchos)
+      : U.Motor.criar({ n, opcoes: op, placar: estado.placar, dador: estado.dador, maoNumero: estado.maoNumero }, jogo.agentes, ganchos);
     if (salva) P.UI.aviso(`<b>Partida retomada.</b> A mão que estava em andamento foi anulada.`, 'aviso-ouro');
     let r = null;
     try { r = await jogo.motor.rodar(); }
@@ -983,7 +1006,27 @@
     await fimDePartida(r);
   }
 
+  /** Fim da partida da mesa com amigos: o placar e de volta para a sala (sem o resumo do coach). */
+  async function fimRemoto(r) {
+    const venceu = r.vencedor === 0;
+    if (venceu && P.Som) P.Som.vitoria();
+    document.documentElement.setAttribute('data-uno-fim', venceu ? 'vitoria' : 'derrota');
+    const corpo = el('div', { class: 'tr-resultado' },
+      el('div', { class: 'grande ' + (venceu ? 'nos' : 'eles'), text: venceu ? 'Você venceu!' : `${jogo.jogadores[r.vencedor].nome} venceu` }),
+      el('div', { style: { textAlign: 'center', color: 'var(--texto-2)', fontSize: '13px' }, text: `${r.maos} ${r.maos === 1 ? 'mão' : 'mãos'}` }));
+    if (jogo.op.ate) {
+      const tab = el('div', { class: 'un-placar-fim' });
+      r.placar.map((p, j) => [p, j]).sort((a, b) => b[0] - a[0]).forEach(([p, j]) => tab.appendChild(el('div', { class: j === 0 ? 'eu' : '' }, el('span', { text: j === 0 ? 'Você' : jogo.jogadores[j].nome }), el('b', { text: p + ' pts' }))));
+      corpo.appendChild(tab);
+    }
+    const cfg = jogo.cfgRemota;
+    await P.UI.modal({ titulo: 'Fim da partida', conteudo: corpo, fechavel: false, botoes: [{ texto: 'Voltar para a sala', classe: 'btn-ouro', valor: 'ok' }] });
+    encerrar();
+    if (cfg && cfg.aoTerminar) cfg.aoTerminar();
+  }
+
   async function fimDePartida(r) {
+    if (jogo.remota) return fimRemoto(r);
     const venceu = r.vencedor === 0;
     if (!jogo.opcoes.semSalvar) { D.descartar(); D.alterarEstat(e => { e.partidas++; if (venceu) e.vitorias++; }); }
     document.documentElement.setAttribute('data-uno-fim', venceu ? 'vitoria' : 'derrota');
@@ -1029,8 +1072,13 @@
     if (j.observador) j.observador.disconnect();
     if (j.pendente) j.pendente.resolve({ tipo: 'comprar' });
     if (j.compraPendente) j.compraPendente.resolve();
-    const s = D.salva();
-    if (s && s.emJogo) { s.emJogo = false; D.salvar(s); }
+    if (j.remota) {
+      // mesa com amigos: a partida continua no servidor; a aba Mesa com amigos mostra como voltar
+      if (j.cfgRemota && j.cfgRemota.aoFechar) j.cfgRemota.aoFechar();
+    } else {
+      const s = D.salva();
+      if (s && s.emJogo) { s.emJogo = false; D.salvar(s); }
+    }
     $('#app').classList.remove('em-jogo');
     $('#nav').classList.remove('oculto');
     const raiz = $('#tela-uno');
@@ -1039,12 +1087,47 @@
   }
 
   async function sair() {
+    if (jogo.remota) {
+      const cfg = jogo.cfgRemota;
+      const ok = await P.UI.confirmar('Sair da mesa?', 'A partida continua sem você: na sua vez, a mesa espera o tempo acabar, compra e passa por você. Dá para voltar pela aba Mesa com amigos enquanto a partida não terminar.', 'Sair', 'Continuar jogando');
+      if (!ok || !jogo) return;
+      if (cfg.aoSair) cfg.aoSair();
+      encerrar();
+      P.App.irPara('amigos');
+      return;
+    }
     pausar(true);
     const ok = await P.UI.confirmar('Sair da partida?', 'A partida fica salva: dá para continuar depois pela aba Última!, do começo da mão atual.', 'Sair', 'Continuar jogando');
     pausar(false);
     if (!ok) return;
     encerrar();
     P.App.irPara('uno');
+  }
+
+  /** Mesa com amigos: o pedido em aberto deixou de valer (o prazo acabou, outro apertou "Pegou!" primeiro). */
+  function cancelarPendente(metodo) {
+    if (!jogo) return;
+    if (metodo === 'janela' && jogo.janela) { jogo.janela.cancelar(); jogo.janela = null; acoesEspera(''); return; }
+    if (!jogo.pendente && !jogo.compraPendente) return;
+    jogo.pendente = null;
+    jogo.compraPendente = null;
+    jogo.selecao = [];
+    esconderCores();
+    acoesEspera('');
+    renderMao();
+  }
+
+  /** Mesa com amigos: o prazo do pedido em aberto ({ ms, meu } ou null). */
+  function relogio(info) {
+    const r = jogo && jogo.ui && jogo.ui.relogio;
+    if (!r) return;
+    r.classList.toggle('oculto', !info);
+    if (!info) return;
+    const s = Math.ceil(info.ms / 1000);
+    r.textContent = '⏱ ' + s + ' s';
+    r.classList.toggle('meu', !!info.meu);
+    r.classList.toggle('urgente', !!info.meu && s <= 10);
+    if (info.meu && s <= 5 && s !== jogo.ultimoBip && P.Som) { jogo.ultimoBip = s; P.Som.alerta(); }
   }
 
   async function abrirRegras() {
@@ -1055,7 +1138,7 @@
   async function abrirMenu() {
     if (!jogo) return;
     const modos = [['sempre', 'Coach: dicas sempre'], ['pedido', 'Coach: sob pedido'], ['desligado', 'Coach: desligado']];
-    const itens = [['regras', 'Como jogar'], ['placar', 'Placar']].concat(modos.filter(m => m[0] !== jogo.opcoes.coach))
+    const itens = [['regras', 'Como jogar'], ['placar', 'Placar']].concat(jogo.remota ? [] : modos.filter(m => m[0] !== jogo.opcoes.coach))
       .concat([['som', P.Config.get('som') ? 'Desligar o som' : 'Ligar o som'], ['sair', 'Sair da partida']]);
     pausar(true);
     let escolha;
@@ -1084,5 +1167,5 @@
 
   P.Config.aoMudar((k, v) => { if (k === 'tema' && jogo && jogo.ui) { jogo.ui.raiz.dataset.tema = v; $('#tela-uno').dataset.tema = v; } });
 
-  P.UIUnoMesa = { iniciar, encerrar, emJogo: () => !!jogo, pausar, _jogo: () => jogo, cartaEl };
+  P.UIUnoMesa = { iniciar, encerrar, emJogo: () => !!jogo, remota: () => !!(jogo && jogo.remota), pausar, cancelarPendente, relogio, _jogo: () => jogo, cartaEl };
 })(window.Poker = window.Poker || {});

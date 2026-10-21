@@ -204,3 +204,11 @@ Dentro de `servidor/` (na primeira vez: `npm install`):
 - `npm test`: primeiro as regras do jogo direto no Node (`teste/jogo.mjs`, 7 testes: blinds proporcionais, refazer a mão depois de "dormir", cartas só para o dono, eliminação/colocação/prêmios, desistência, jogadas limpas). Depois a simulação com vários clientes WebSocket (`teste/sala.mjs`): sobe o `wrangler dev` sozinho numa porta própria, com o tempo de abandono e o prazo da vez encurtados. São 25 cenários: os 17 da sala de espera e 8 da partida (só o anfitrião começa, cartas só para o dono, jogada fora da vez, jogada valendo para todos, prazo esgotado, reconexão com a mão inteira, partida até o fim com prêmios e desistência).
 - Teste com várias abas: `npm run dev` (servidor em http://localhost:8787) e, em outro terminal, `npm run cliente` (app em http://localhost:8080). Abrir http://localhost:8080 → aba **Mesa com amigos** → criar a mesa → abrir o link em outras abas. Pelo localhost o app usa o servidor local sozinho.
 - No Windows, se a porta 8787 continuar ocupada depois de parar o `npm run dev`, sobrou um `workerd.exe`: fechar pelo Gerenciador de Tarefas.
+
+## Truco e Última! com amigos (21/10/2026)
+
+- Feito e testado: a aba Mesa com amigos escolhe o jogo (poker Sit & Go, truco paulista/paranaense 1×1 ou em dupla, Última! de 2 a 6). Sem bots e sem coach em nenhum jogo online.
+- Servidor: `mesa.js` virou só a sala; o poker foi para `jogos/poker.js`; truco e Última! rodam o próprio motor do app em `jogos/cartas.js` (regras em `jogos/truco.js` e `jogos/ultima.js`), gravando cada embaralhada e decisão para refazer a mão quando o objeto acorda. Testes: `npm test` (jogo.mjs, cartas.mjs, sala.mjs: 29 cenários).
+- Cliente: `js/cartas-remotas.js` faz o papel do motor para `ui-truco-mesa.js` e `ui-uno-mesa.js` (modo `remota`).
+- Testado de ponta a ponta com várias abas do Edge (truco 1×1, dupla, Última! 3 e 5 jogadores, com recarga de página no meio): partidas até o fim, sem erros.
+- Falta: cash game do poker online (desenho: blinds em R$ 0,25/0,50 a 2/5, buy-in 50/100/200 BB, entrar e sair a qualquer hora, recompra, tempo esgotado deixa "fora", o anfitrião encerra e todos veem o resultado); conferir por que o Última! de 5 jogadores levou 10 min numa mão (o teste online.mjs ganhou contagem de pedidos cancelados).
