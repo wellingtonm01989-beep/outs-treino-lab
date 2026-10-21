@@ -130,7 +130,8 @@
         if (!b) throw new Error('Truco: acabaram os baralhos de teste');
         return b.slice();
       }
-      return P.Baralho.embaralhar(R.BARALHO.slice());
+      // cfg.embaralhar: o servidor da mesa com amigos embaralha (e guarda cada ordem para refazer a mão)
+      return (cfg.embaralhar || P.Baralho.embaralhar)(R.BARALHO.slice());
     }
 
     async function decisaoEquipe(eq, metodo, vista0, extra) {

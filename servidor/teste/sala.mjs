@@ -285,7 +285,7 @@ teste('mensagens inválidas', async () => {
 
 teste('excesso de mensagens derruba a conexão', async () => {
   const x = await conectado('metralhadora', ctx.codigo);
-  for (let i = 0; i < 25; i++) x.enviar({ tipo: 'nada' });
+  for (let i = 0; i < 35; i++) x.enviar({ tipo: 'nada' });   // o limite é 30 a cada 10 s
   igual(await x.fechamento(), 4008, 'código');
 });
 
