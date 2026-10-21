@@ -1,8 +1,9 @@
 /* ==========================================================================
    OUTS · servidor — nucleo.js
    Reaproveita no servidor os mesmos arquivos do app (sem cópia): aleatoriedade
-   (crypto), baralho, avaliador de mãos, motor de apostas e as estruturas de
-   blinds e premiação. A ordem importa: cada arquivo usa os anteriores.
+   (crypto), baralho, avaliador de mãos, motor de apostas, as estruturas de
+   blinds e premiação e os motores do truco e do Última!. A ordem importa:
+   cada arquivo usa os anteriores.
    ========================================================================== */
 import './janela.js';
 import '../../js/rng.js';
@@ -10,6 +11,11 @@ import '../../js/baralho.js';
 import '../../js/avaliador.js';
 import '../../js/motor.js';
 import '../../js/torneio.js';
+// truco e Última! (mesa com amigos): regras e motor, sem bots nem coach
+import '../../js/truco-regras.js';
+import '../../js/truco-motor.js';
+import '../../js/uno-regras.js';
+import '../../js/uno-motor.js';
 
 export const P = globalThis.window.Poker;
 

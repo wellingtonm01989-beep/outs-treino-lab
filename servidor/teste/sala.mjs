@@ -10,6 +10,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { jogadaTruco, jogadaUltima } from './jogadas.mjs';
 
 const PASTA = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORTA = 8799;
@@ -68,6 +69,8 @@ class Cliente {
       if (m.tipo === 'mao') this.mao = m;          // última vista recebida (para jogar)
       if (m.tipo === 'jogo') this.jogo = m;
       if (m.tipo === 'fim') this.fim = m;
+      if (m.tipo === 'partida') this.partida = m;
+      if (m.tipo === 'passos') { this.passos = m; (this.todosPassos = this.todosPassos || []).push(...m.passos); }
       this.fila.push(m);
       this.ouvintes.forEach(f => f());
     };
@@ -500,6 +503,138 @@ teste('partida: quem sai fica fora (a mesa espera o prazo e dá fold) e volta qu
   igual((await intruso.espera('erro')).motivo, 'conectado', 'Bia está conectada');
   intruso.enviar({ tipo: 'entrar', nome: 'Zé' });
   igual((await intruso.espera('erro')).motivo, 'comecou', 'nome que não está na partida');
+});
+
+// ------------------------------------------------- truco e Última!
+/** O pedido em aberto para este cliente (do último "passos"), ou null. */
+function pedidoAberto(c) {
+  const m = c.passos;
+  if (!m || !m.aberto || !c.todosPassos) return null;
+  const p = c.todosPassos.slice().reverse().find(x => x.pedido && x.pedido.id === m.aberto.id);
+  return p && p.pedido.comigo ? p : null;
+}
+
+/** Cada cliente responde o próprio pedido com uma jogada válida sorteada, até a condição valer. */
+async function jogarCartasAte(clientes, cond, jogada, ms = 60000, aCada) {
+  const t0 = Date.now(), feitas = new Map();
+  let n = 0;
+  while (!cond()) {
+    if (Date.now() - t0 > ms) throw new Error('tempo esgotado jogando; pedidos: ' + JSON.stringify(clientes.map(c => c.passos && c.passos.aberto)) + ' erros: ' + JSON.stringify(clientes.map(c => c.fila.filter(m => m.tipo === 'erro').slice(0, 4))) + ' conexões: ' + JSON.stringify(clientes.map(c => c.ws.readyState)));
+    for (const c of clientes) {
+      const p = pedidoAberto(c);
+      // como gente de verdade: no máximo 25 mensagens a cada 10 s (o servidor derruba quem passa de 30)
+      c.envios = (c.envios || []).filter(t => Date.now() - t < 10000);
+      if (p && feitas.get(c) !== p.pedido.id && c.envios.length < 25) {
+        c.envios.push(Date.now());
+        feitas.set(c, p.pedido.id);
+        c.enviar({ tipo: 'decisao', id: p.pedido.id, valor: jogada(p.pedido.metodo, p.vista, p.pedido.extra) });
+        n++;
+        if (aCada) await aCada(n, c);
+      }
+    }
+    await dormir(10);
+  }
+  return n;
+}
+
+teste('truco em dupla: trocar de lugar e só começa com os 4', async () => {
+  const r = await criarMesa({ jogo: 'truco', lugares: 4, regras: 'paulista' });
+  igual(r.status, 201, 'cria a mesa de truco');
+  const { codigo, tokenAnfitriao } = await r.json();
+  const cs = [];
+  for (const [i, nome] of ['Ana', 'Bia', 'Caio'].entries()) {
+    const c = await conectado(nome, codigo);
+    c.enviar({ tipo: 'entrar', nome, token: i === 0 ? tokenAnfitriao : undefined });
+    c.token = (await c.espera('voce')).token;
+    cs.push(c);
+  }
+  const [ana, bia, caio] = cs;
+  // Caio quer jogar com a Ana: vai para o lugar 2 (em frente a ela)
+  igual(jogador((await caio.espera(salaCom(s => s.jogadores.length === 3))), 'Caio').lugar, 2, 'Caio sentou no 2');
+  bia.enviar({ tipo: 'lugar', lugar: 2 });
+  igual((await bia.espera('erro')).motivo, 'lugar', 'lugar ocupado');
+  bia.enviar({ tipo: 'lugar', lugar: 3 });
+  const s = await ana.espera(salaCom(x => jogador(x, 'Bia') && jogador(x, 'Bia').lugar === 3));
+  igual(s.config.jogo, 'truco', 'a sala mostra o jogo');
+  ana.enviar({ tipo: 'comecar' });
+  igual((await ana.espera('erro')).motivo, 'comecar', 'com 3 não começa');
+  const duda = await conectado('Duda', codigo);
+  duda.enviar({ tipo: 'entrar', nome: 'Duda' });
+  duda.token = (await duda.espera('voce')).token;
+  cs.push(duda);
+  ana.enviar({ tipo: 'comecar' });
+  for (const c of cs) {
+    const p = await c.espera('partida');
+    igual(p.jogo, 'truco', c.rotulo + ': jogo');
+    igual(p.n, 4, c.rotulo + ': 4 jogadores');
+    await c.espera('passos');
+  }
+  // lugares da sala 0, 1, 2, 3 = Ana, Duda, Caio, Bia: Ana e Caio jogam juntos
+  igual(ana.partida.meuAssento, 0, 'Ana no 0');
+  igual(caio.partida.meuAssento, 2, 'Caio no 2 (parceiro da Ana)');
+  igual(duda.partida.meuAssento, 1, 'Duda no 1');
+  for (const c of cs) ok(c.todosPassos.every(p => !p.vista || p.vista.eu === 0), c.rotulo + ': cada um se vê no lugar 0');
+  Object.assign(ctx, { t1: { codigo, cs } });
+});
+
+teste('truco em dupla: até o fim, com queda e volta no meio', async () => {
+  const { codigo, cs } = ctx.t1;
+  let caiu = false;
+  const jogadas = await jogarCartasAte(cs, () => cs.every(c => c.fim), jogadaTruco, 90000, async (n) => {
+    if (n !== 15 || caiu) return;
+    caiu = true;
+    // a Bia cai e volta pelo token: recebe a partida e os passos da mão desde o começo
+    const bia = cs[1];
+    await bia.fechar();
+    const volta = await conectado('Bia (volta)', codigo);
+    volta.enviar({ tipo: 'entrar', token: bia.token });
+    await volta.espera('voce');
+    igual((await volta.espera('partida')).meuAssento, 3, 'Bia volta para o mesmo lugar');
+    const p = await volta.espera('passos');
+    igual(p.passos[0].i, 0, 'passos desde o começo da mão');
+    volta.token = bia.token;
+    cs[1] = volta;
+  });
+  ok(caiu, 'a queda aconteceu no meio');
+  const r = cs[0].fim.resultado;
+  ok(r.placar[r.vencedor] >= 12, 'placar: ' + JSON.stringify(r));
+  igual(r.equipes[0].join(), 'Ana,Caio', 'equipe da Ana');
+  ok(jogadas > 20, 'jogadas: ' + jogadas);
+  // a carta coberta dos outros nunca chegou
+  for (const c of cs) ok(c.todosPassos.every(p => !p.ev || p.ev.tipo !== 'jogada' || !p.ev.coberta || p.ev.j === 0 || p.ev.carta === null), c.rotulo + ': carta coberta vazou');
+});
+
+teste('Última!: 3 jogadores, prazo esgotado compra e passa sozinho', async () => {
+  const r = await criarMesa({ jogo: 'ultima', lugares: 6, ate: 0, comprarAtePoder: false, juntas: true });
+  const { codigo, tokenAnfitriao } = await r.json();
+  const cs = [];
+  for (const [i, nome] of ['Ana', 'Bia', 'Caio'].entries()) {
+    const c = await conectado(nome, codigo);
+    c.enviar({ tipo: 'entrar', nome, token: i === 0 ? tokenAnfitriao : undefined });
+    c.token = (await c.espera('voce')).token;
+    cs.push(c);
+  }
+  cs[0].enviar({ tipo: 'comecar' });
+  for (const c of cs) { igual((await c.espera('partida')).n, 3, c.rotulo + ': partida de 3'); await c.espera('passos'); }
+  // ninguém responde: quem está na vez compra e passa quando o tempo acaba
+  const vez = cs.find(c => pedidoAberto(c));
+  ok(vez, 'alguém está na vez');
+  const p0 = pedidoAberto(vez);
+  if (p0.pedido.metodo === 'jogar') {
+    await vez.espera(m => m.tipo === 'passos' && m.passos.some(x => x.ev && x.ev.tipo === 'passou' && x.ev.j === 0), TEMPO_ACAO_MS * 3 + 3000);
+  }
+  Object.assign(ctx, { u1: { cs } });
+});
+
+teste('Última!: até o fim; quem compra não mostra as cartas aos outros', async () => {
+  const { cs } = ctx.u1;
+  await jogarCartasAte(cs, () => cs.every(c => c.fim), jogadaUltima, 120000);
+  const r = cs[0].fim.resultado;
+  ok(r.vencedor >= 0 && r.vencedor < 3, 'vencedor: ' + JSON.stringify(r));
+  for (const c of cs) {
+    ok(c.todosPassos.every(p => !p.ev || p.ev.tipo !== 'compra' || p.ev.j === 0 || p.ev.cartas.length === 0), c.rotulo + ': carta comprada de outro vazou');
+    ok(c.todosPassos.every(p => !p.vista || p.vista.eu === 0), c.rotulo + ': vista girada');
+  }
 });
 
 async function rodar() {
