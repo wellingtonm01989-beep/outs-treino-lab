@@ -505,6 +505,64 @@ teste('partida: quem sai fica fora (a mesa espera o prazo e dá fold) e volta qu
   igual((await intruso.espera('erro')).motivo, 'comecou', 'nome que não está na partida');
 });
 
+// ------------------------------------------------------------- cash game
+teste('cash: começa com 2, quem chega senta no meio, prazo esgotado fica fora', async () => {
+  const r = await criarMesa({ jogo: 'poker', modo: 'cash', lugares: 6, sb: 50, bb: 100, buyinBB: 100 });
+  igual(r.status, 201, 'cria a mesa de cash');
+  const { codigo, tokenAnfitriao } = await r.json();
+  const ana = await conectado('Ana', codigo);
+  ana.enviar({ tipo: 'entrar', nome: 'Ana', token: tokenAnfitriao });
+  ana.token = (await ana.espera('voce')).token;
+  const bia = await conectado('Bia', codigo);
+  bia.enviar({ tipo: 'entrar', nome: 'Bia' });
+  bia.token = (await bia.espera('voce')).token;
+  ana.enviar({ tipo: 'comecar' });
+  for (const c of [ana, bia]) {
+    const j = await c.espera(m => m.tipo === 'jogo' && m.numero >= 1);
+    igual(j.modo, 'cash', c.rotulo + ': modo');
+    igual(j.jogadores.find(x => x.nome === c.rotulo).fichas <= 10000, true, c.rotulo + ': buy-in de 100 BB');
+  }
+  // Caio entra com a partida em andamento e recebe cartas a partir de uma próxima mão
+  const caio = await conectado('Caio', codigo);
+  caio.enviar({ tipo: 'entrar', nome: 'Caio' });
+  caio.token = (await caio.espera('voce')).token;
+  const jc = await caio.espera('jogo');
+  ok(jc.jogadores.some(x => x.nome === 'Caio' && x.comprado === 10000), 'Caio sentou com o buy-in');
+  await jogarAte([ana, bia, caio], () => caio.mao && caio.mao.vista.jogadores.some(x => x.assento === caio.jogo.meuAssento && x.cartas && x.cartas.length === 2), pagaTudo, 20000);
+  // ninguém joga: quem está na vez passa/larga e fica fora
+  await dormir(100);
+  const vez = [ana, bia, caio].find(c => daVez(c));
+  ok(vez, 'alguém na vez');
+  const meu = vez.jogo.meuAssento;
+  const j2 = await ana.espera(m => m.tipo === 'jogo' && m.jogadores.find(x => x.assento === meu).fora, TEMPO_ACAO_MS + 3000);
+  ok(j2, 'quem deixou o prazo acabar ficou fora');
+  Object.assign(ctx, { c1: { codigo, ana, bia, caio, foraAssento: meu } });
+});
+
+teste('cash: recompra sem fichas e o anfitrião encerra com o resultado de cada um', async () => {
+  const { ana, bia, caio, foraAssento } = ctx.c1;
+  const todos = [ana, bia, caio];
+  const fora = todos.find(c => c.jogo.meuAssento === foraAssento);
+  fora.enviar({ tipo: 'entrar', token: fora.token, voltar: true });
+  await fora.espera(m => m.tipo === 'jogo' && !m.jogadores.find(x => x.assento === foraAssento).fora);
+  // all-in até alguém zerar
+  await jogarAte(todos, () => ana.jogo.jogadores.some(x => x.fichas === 0), allin, 30000);
+  const zerado = ana.jogo.jogadores.find(x => x.fichas === 0);
+  const quem = todos.find(c => c.jogo.meuAssento === zerado.assento);
+  quem.enviar({ tipo: 'recompra' });
+  const j = await ana.espera(m => m.tipo === 'jogo' && m.jogadores.find(x => x.assento === zerado.assento).comprado === 20000, 5000);
+  ok(j, 'recompra: comprou mais um buy-in');
+  bia.enviar({ tipo: 'encerrar' });
+  igual((await bia.espera(m => m.tipo === 'erro' && m.motivo === 'encerrar')).motivo, 'encerrar', 'só o anfitrião encerra');
+  ana.enviar({ tipo: 'encerrar' });
+  await jogarAte(todos, () => ana.fim, pagaTudo, 30000);
+  const cl = ana.fim.classificacao;
+  igual(ana.fim.modo, 'cash', 'fim do cash');
+  igual(cl.length, 3, 'três na classificação');
+  igual(cl.reduce((s, x) => s + x.resultado, 0), 0, 'o que um ganha o outro perde');
+  ok(cl.every(x => x.resultado === x.fichas - x.comprado), 'resultado = fichas - comprado');
+});
+
 // ------------------------------------------------- truco e Última!
 /** O pedido em aberto para este cliente (do último "passos"), ou null. */
 function pedidoAberto(c) {

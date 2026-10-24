@@ -4,6 +4,7 @@
    opções de cada um na criação da mesa (POST /mesas).
    ========================================================================== */
 import * as Poker from './poker.js';
+import * as Cash from './cash.js';
 import { PartidaCartas } from './cartas.js';
 import { truco } from './truco.js';
 import { ultima } from './ultima.js';
@@ -14,7 +15,7 @@ const CARTAS = { truco, ultima };
 export function validarConfig(c, limites) {
   if (!c || typeof c !== 'object') return { erro: 'Opções da mesa ausentes.' };
   const jogo = c.jogo === undefined ? 'poker' : c.jogo;
-  if (jogo === 'poker') return Poker.validarConfig(c, limites.MAX_PREMIO);
+  if (jogo === 'poker') return c.modo === 'cash' ? Cash.validarConfig(c) : Poker.validarConfig(c, limites.MAX_PREMIO);
   if (CARTAS[jogo]) return CARTAS[jogo].validarConfig(c);
   return { erro: 'Jogo desconhecido.' };
 }
@@ -22,5 +23,6 @@ export function validarConfig(c, limites) {
 /** A partida de uma mesa, conforme o jogo escolhido. */
 export function criarPartida(mesa, config) {
   if (CARTAS[config.jogo]) return new PartidaCartas(mesa, CARTAS[config.jogo]);
+  if (config.modo === 'cash') return new Cash.PokerCash(mesa);
   return new Poker.PokerSNG(mesa);
 }

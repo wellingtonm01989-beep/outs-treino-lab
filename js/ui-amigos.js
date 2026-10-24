@@ -22,8 +22,12 @@
   const FICHAS_MIN = 500, FICHAS_MAX = 100000, PREMIO_MAX = 1000000;   // limites do servidor (premio em centavos)
   const JOGOS = [['poker', 'Poker'], ['truco', 'Truco'], ['ultima', 'Última!']];
   const NOME_JOGO = { poker: 'poker', truco: 'truco', ultima: 'Última!' };
+  // cash game: blinds em centavos de R$ e buy-in em big blinds (os mesmos do servidor, jogos/cash.js)
+  const BLINDS_CASH = [[25, 50], [50, 100], [100, 200], [200, 500]];
+  const BUYIN_BB = [50, 100, 200];
   const FORM_PADRAO = {
-    jogo: 'poker', lugares: 6, fichas: E.SNG_STACK, velocidade: 'regular', premio: 0,
+    jogo: 'poker', modo: 'sng', lugares: 6, fichas: E.SNG_STACK, velocidade: 'regular', premio: 0,
+    cash: { lugares: 6, sb: 50, bb: 100, buyinBB: 100 },
     truco: { lugares: 4, regras: 'paulista' },
     ultima: { lugares: 6, ate: 200, comprarAtePoder: false, juntas: false }
   };
@@ -31,6 +35,7 @@
     const f = Object.assign({}, FORM_PADRAO, P.Armazenamento.ler('amigos.form', {}));
     f.truco = Object.assign({}, FORM_PADRAO.truco, f.truco);
     f.ultima = Object.assign({}, FORM_PADRAO.ultima, f.ultima);
+    f.cash = Object.assign({}, FORM_PADRAO.cash, f.cash);
     return f;
   }
   const st = {
@@ -62,6 +67,7 @@
   /** O jogo da mesa aberta (pela sala), ou o escolhido no formulário. */
   const jogoDaMesa = () => (st.sala && st.sala.config && st.sala.config.jogo) || 'poker';
   const ehCartas = jogo => jogo === 'truco' || jogo === 'ultima';
+  const ehCash = () => !!(st.sala && st.sala.config && st.sala.config.modo === 'cash');
 
   // ------------------------------------------------------- premiação (R$)
   const reais = c => 'R$ ' + (c / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -154,12 +160,15 @@
   }
 
   /** O servidor diz que eu saí da mesa (a mesa joga por mim até eu voltar). */
-  const meuFora = jogo => !!(jogo && jogo.jogadores[jogo.meuAssento] && jogo.jogadores[jogo.meuAssento].fora);
+  const meuFora = jogo => { const eu = jogo && jogo.jogadores.find(j => j.assento === jogo.meuAssento); return !!(eu && eu.fora); };
 
   function abrirMesaDoJogo(m) {
     st.foraDaMesa = false;
+    const cash = m.modo === 'cash';
     P.App.iniciarPartida({
-      modo: 'sng', remota: true, lugares: m.lugares, velocidade: m.velocidade,
+      modo: cash ? 'cash' : 'sng', remota: true, lugares: m.lugares, velocidade: m.velocidade,
+      limite: cash ? { sb: m.sb, bb: m.bb, nome: 'Cash com amigos' } : undefined, buyinBB: cash ? m.buyin / m.bb : undefined,
+      anfitriao: !!(st.eu && st.eu.anfitriao),
       semBanca: true, semSalvar: true, buyin: { total: 0, premio: 0 },
       jogo: m, criarPartida: P.PartidaRemota.criar,
       enviar: obj => !!(st.conexao && st.conexao.enviar(obj)),
@@ -266,12 +275,13 @@
     const f = st.form;
     if (f.jogo === 'truco') return { jogo: 'truco', lugares: f.truco.lugares, regras: f.truco.regras };
     if (f.jogo === 'ultima') return { jogo: 'ultima', lugares: f.ultima.lugares, ate: f.ultima.ate, comprarAtePoder: !!f.ultima.comprarAtePoder, juntas: !!f.ultima.juntas };
+    if (f.modo === 'cash') return { jogo: 'poker', modo: 'cash', lugares: f.cash.lugares, sb: f.cash.sb, bb: f.cash.bb, buyinBB: f.cash.buyinBB };
     return { lugares: f.lugares, fichas: f.fichas, velocidade: f.velocidade, premio: f.premio };
   }
 
   async function criar() {
     if (st.ocupado || !nomeDigitado()) return;
-    if (st.form.jogo === 'poker') {
+    if (st.form.jogo === 'poker' && st.form.modo !== 'cash') {
       const premio = lerReais(st.premioTexto);
       if (premio === null) { st.aviso = 'Premiação inválida: use só números, como 20 ou 20,50 (até R$ 10.000).'; atualizar(); return; }
       st.form.premio = premio;
@@ -454,6 +464,20 @@
 
   function camposPoker(escolher) {
     const f = st.form, dur = E.SNG_DURACAO;
+    const modo = el('div', { class: 'campo' }, el('span', { text: 'Formato' }),
+      opcoes([['sng', 'Sit & Go'], ['cash', 'Cash game']], f.modo, v => escolher('modo', v)));
+    if (f.modo === 'cash') {
+      const c = f.cash;
+      return [modo,
+        el('div', { class: 'campo' }, el('span', { text: 'Lugares na mesa (no máximo)' }),
+          opcoes([2, 3, 4, 5, 6, 7, 8, 9].map(n => [n, String(n)]), c.lugares, v => escolher('cash.lugares', v)),
+          nota('Começa com 2 ou mais; quem chegar depois senta nos lugares livres.')),
+        el('div', { class: 'campo' }, el('span', { text: 'Blinds' }),
+          opcoes(BLINDS_CASH.map(([sb, bb]) => [bb, reais(sb).slice(3) + '/' + reais(bb).slice(3)]), c.bb, v => { const b = BLINDS_CASH.find(x => x[1] === v); c.sb = b[0]; escolher('cash.bb', b[1]); })),
+        el('div', { class: 'campo' }, el('span', { text: 'Buy-in (cada entrada e cada recompra)' }),
+          opcoes(BUYIN_BB.map(x => [x, `${reais(x * c.bb)} (${x} BB)`]), c.buyinBB, v => escolher('cash.buyinBB', v)))
+      ];
+    }
     // fichas: os valores prontos ou qualquer outro
     const fichas = opcoes(FICHAS.map(x => [x, F.fichas(x)]), f.fichas, v => escolher('fichas', v));
     const outras = el('input', { class: 'entrada entrada-fichas' + (FICHAS.indexOf(f.fichas) < 0 ? ' ativo' : ''), type: 'number', min: FICHAS_MIN, max: FICHAS_MAX, step: 100, value: f.fichas, inputmode: 'numeric', title: 'Outro valor de fichas' });
@@ -463,7 +487,7 @@
     const premio = el('input', { class: 'entrada entrada-premio', type: 'text', inputmode: 'decimal', value: st.premioTexto, placeholder: 'Ex.: 20,00', maxlength: 12 });
     premio.addEventListener('input', () => { st.premioTexto = premio.value; atualizarPartes(); });
     premio.addEventListener('keydown', e => { if (e.key === 'Enter') criar(); });
-    return [
+    return [modo,
       el('div', { class: 'campo' }, el('span', { text: 'Lugares na mesa (no máximo)' }),
         opcoes([2, 3, 4, 5, 6, 7, 8, 9].map(n => [n, String(n)]), f.lugares, v => escolher('lugares', v)),
         nota('Não precisa encher: a partida começa com 2 ou mais jogadores, quando você quiser.')),
@@ -509,7 +533,8 @@
   function comoFunciona() {
     const jogo = st.form.jogo;
     const formato = {
-      poker: 'Sit & Go: todos começam com as mesmas fichas, os blinds sobem e quem perde tudo sai. O último que sobrar vence.',
+      poker: st.form.modo === 'cash' ? 'Cash game: blinds fixos, cada um senta com o buy-in e pode recomprar quando ficar sem fichas. Entra e sai quando quiser; você encerra a mesa quando a sessão acabar.'
+        : 'Sit & Go: todos começam com as mesmas fichas, os blinds sobem e quem perde tudo sai. O último que sobrar vence.',
       truco: 'Partida até 12 pontos. No truco em dupla, a partida só começa com os 4 sentados.',
       ultima: 'Ganha quem zerar as cartas (ou, por pontos, quem chegar primeiro ao total).'
     }[jogo];
@@ -522,7 +547,8 @@
         el('li', { text: formato }),
         el('li', { text: 'Sem bots e sem coach: é só entre vocês. Cada jogada tem um prazo; se ele acabar, a mesa joga por você.' }),
         el('li', { text: 'Quando a partida termina, a mesa é apagada e o link para de funcionar.' })),
-      jogo === 'poker' ? el('div', { class: 'amigos-pix', html: '<b>Dinheiro de verdade fica fora do app.</b> A premiação que você define aqui aparece para todos e é dividida pelo número de jogadores, mas o acerto é por Pix, entre vocês. O app não cobra taxa e não mexe com pagamento.' }) : null);
+      jogo === 'poker' ? el('div', { class: 'amigos-pix', html: st.form.modo === 'cash' ? '<b>Dinheiro de verdade fica fora do app.</b> No fim, o app mostra quanto cada um comprou e com quanto saiu; o acerto é por Pix, entre vocês. O app não cobra taxa e não mexe com pagamento.'
+        : '<b>Dinheiro de verdade fica fora do app.</b> A premiação que você define aqui aparece para todos e é dividida pelo número de jogadores, mas o acerto é por Pix, entre vocês. O app não cobra taxa e não mexe com pagamento.' }) : null);
   }
 
   function telaVoltando() {
@@ -546,6 +572,7 @@
     const c = st.sala && st.sala.config;
     if (c && c.jogo === 'truco') return `Bora jogar truco${c.lugares === 4 ? ' em dupla' : ''}? Entra na minha mesa: ${link}`;
     if (c && c.jogo === 'ultima') return `Bora jogar Última!? Entra na minha mesa: ${link}`;
+    if (c && c.modo === 'cash') return `Bora jogar um cash? Blinds ${reais(c.sb).slice(3)}/${reais(c.bb).slice(3)}, buy-in ${reais(c.buyin)}. Entra na minha mesa: ${link}`;
     const premio = c && c.premio;
     return `Bora jogar poker?${premio ? ` Premiação de ${reais(premio)}.` : ''} Entra na minha mesa: ${link}`;
   }
@@ -567,7 +594,8 @@
     const principal = el('section', { class: 'painel amigos-form' },
       el('div', { class: 'amigos-cab' }, el('h3', { text: 'Sala de espera' }), el('span', { class: 'selo info', text: 'Mesa ' + st.codigo }), parte('conexao', 'span')),
       parte('lugares', 'div', 'lugares-amigos'),
-      jogo === 'poker' ? el('div', { class: 'amigos-pix', html: '<b>Dinheiro de verdade fica fora do app.</b> A premiação é dividida conforme quantos começarem a partida, e o acerto é por Pix, entre vocês.' })
+      jogo === 'poker' ? el('div', { class: 'amigos-pix', html: ehCash() ? '<b>Dinheiro de verdade fica fora do app.</b> No fim da sessão, o app mostra o resultado de cada um; o acerto é por Pix, entre vocês.'
+        : '<b>Dinheiro de verdade fica fora do app.</b> A premiação é dividida conforme quantos começarem a partida, e o acerto é por Pix, entre vocês.' })
         : nota('Toque num lugar livre para trocar de lugar.' + (jogo === 'truco' && st.sala && st.sala.config.lugares === 4 ? ' Os lugares 1 e 3 jogam juntos contra o 2 e o 4.' : '')));
     return el('div', { class: 'amigos-grade' }, principal, lado);
   }
@@ -633,7 +661,8 @@
         if (eu && eu.fora) return document.createTextNode('Você saiu da mesa. Enquanto estiver fora, na sua vez a mesa espera o tempo acabar e joga por você. Volte quando quiser, enquanto a partida não terminar.');
         return document.createTextNode('A partida desta mesa está acontecendo agora.');
       }
-      const eu = st.jogo && st.jogo.jogadores[st.jogo.meuAssento];
+      const eu = st.jogo && st.jogo.jogadores.find(j => j.assento === st.jogo.meuAssento);
+      if (eu && ehCash()) return document.createTextNode(eu.fora ? 'Você saiu da mesa: está fora com as suas fichas e não recebe cartas até voltar.' : 'A sessão desta mesa está acontecendo agora.');
       if (eu && eu.posicao) return document.createTextNode(`Você saiu em ${eu.posicao}º lugar. Dá para continuar assistindo até o fim.`);
       if (eu && eu.fora) return document.createTextNode('Você saiu da mesa. Enquanto estiver fora, na sua vez a mesa espera o tempo acabar e dá fold por você (com 1 big blind ou menos, vai all-in). Volte quando quiser, enquanto a partida não terminar.');
       return document.createTextNode('A partida desta mesa está acontecendo agora.');
@@ -655,6 +684,11 @@
       const pronta = st.sala && st.conexaoEstado === 'aberta';
       const status = st.sala ? st.sala.status : 'espera';
       // partida em andamento: quem já estava nela volta para o mesmo lugar pelo nome
+      if (status === 'jogando' && ehCash() && st.sala.jogadores.length < st.sala.config.lugares) {
+        return [el('p', { class: 'amigos-nota', text: 'A sessão já começou: dá para sentar num lugar livre (ou, se você já estava, digite o mesmo nome para voltar).' }),
+          el('button', { class: 'btn btn-ouro btn-sentar', disabled: !pronta || st.ocupado ? true : null, onclick: sentar,
+            text: !pronta ? 'Conectando à mesa…' : st.ocupado ? 'Sentando…' : 'Sentar à mesa' })];
+      }
       if (status === 'jogando') {
         return [el('p', { class: 'amigos-nota', text: 'Se você estava jogando, digite o mesmo nome com que entrou e volte para o seu lugar.' }),
           el('button', { class: 'btn btn-ouro btn-sentar', disabled: !pronta || st.ocupado ? true : null, onclick: sentar,
@@ -690,6 +724,14 @@
           linha('Jogadores', `${s.jogadores.length} de ${c.lugares}`),
           linha('Partida', c.ate ? `até ${c.ate} pontos` : 'uma mão'),
           linha('Regras da casa', casa.length ? casa.join(' · ') : 'nenhuma'));
+      }
+      if (c.modo === 'cash') {
+        return el('div', { class: 'resumo-mesa' },
+          linha('Jogo', 'Poker · cash game'),
+          anf ? linha('Anfitrião', anf.nome) : null,
+          linha('Jogadores', `${s.jogadores.length} de ${c.lugares}`),
+          linha('Blinds', `${reais(c.sb)} / ${reais(c.bb)}`),
+          linha('Buy-in', `${reais(c.buyin)} (${c.buyin / c.bb} BB), com recompra`));
       }
       const premio = c.premio || 0;
       const n = Math.max(2, s.jogadores.length);
@@ -758,7 +800,8 @@
           }),
           nota(c.jogo === 'truco' ? (pronto ? 'Todos sentados: é só começar.' : `O truco ${c.lugares === 4 ? 'em dupla' : '1 contra 1'} começa com ${c.lugares} jogadores (faltam ${precisa - n}).`)
             : n < 2 ? 'Com mais um jogador já dá para começar: não precisa esperar a mesa encher.'
-              : 'Não precisa esperar a mesa encher. Depois de começar, ninguém novo entra.'),
+              : c.modo === 'cash' ? 'Não precisa esperar a mesa encher: quem chegar depois senta nos lugares livres.'
+                : 'Não precisa esperar a mesa encher. Depois de começar, ninguém novo entra.'),
           el('button', { class: 'btn', text: 'Cancelar mesa', onclick: sair })
         ];
       }

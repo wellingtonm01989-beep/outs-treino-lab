@@ -38,6 +38,19 @@
   /** Tabela da classificação final (usada no fim da mesa e na aba Mesa com amigos). */
   function tabelaResultado(fim, meuAssento) {
     const { el } = P.UI;
+    if (fim.modo === 'cash') {
+      // cash game: quanto cada um comprou, com quanto saiu e o resultado (o acerto é entre vocês)
+      const sinal = v => (v > 0 ? '+' : v < 0 ? '−' : '') + reais(Math.abs(v));
+      return el('div', { class: 'resultado-amigos' },
+        el('p', { text: 'Fim da sessão. O acerto é por Pix, entre vocês: quem ficou no positivo recebe de quem ficou no negativo.' }),
+        el('table', { class: 'tabela' },
+          el('thead', {}, el('tr', {}, el('th', { text: 'Jogador' }), el('th', { class: 'dir', text: 'Comprou' }), el('th', { class: 'dir', text: 'Saiu com' }), el('th', { class: 'dir', text: 'Resultado' }))),
+          el('tbody', {}, fim.classificacao.map(c => el('tr', { class: c.assento === meuAssento ? 'voce' : null },
+            el('td', { text: c.nome + (c.assento === meuAssento ? ' (você)' : '') }),
+            el('td', { class: 'dir', text: reais(c.comprado) }),
+            el('td', { class: 'dir', text: reais(c.fichas) }),
+            el('td', { class: 'dir ' + (c.resultado >= 0 ? 'resultado-pos' : 'resultado-neg'), text: sinal(c.resultado) }))))));
+    }
     return el('div', { class: 'resultado-amigos' },
       el('p', { text: fim.premio ? `Premiação de ${reais(fim.premio)}: o acerto é por Pix, entre vocês.` : 'Partida sem premiação.' }),
       el('table', { class: 'tabela' },
@@ -56,6 +69,10 @@
     let jogo = cfg.jogo;                      // última mensagem "jogo" (placar)
     let offset = jogo.agora - Date.now();     // relógio do servidor menos o daqui
     const n = jogo.lugares, eu = jogo.meuAssento;
+    const cash = jogo.modo === 'cash';
+    // no cash os lugares são os da sala (pode haver lugar vazio): o seu jogador é achado pelo assento
+    const meuJ = () => jogo.jogadores.find(j => j.assento === eu);
+    let perguntouRecompra = false, avisouFim = false;
     let ativo = true, fim = null, numero = 0, processados = 0, vista = null, pedido = null, blindsAntes = null, caiu = false;
     const fila = [];
     let processando = false, terminou, pronto;
@@ -111,6 +128,14 @@
     const vivos = () => jogo.jogadores.filter(j => j.posicao === null);
 
     function info() {
+      if (cash) {
+        const meu = meuJ(), r = meu ? meu.fichas - meu.comprado : 0;
+        return {
+          modo: 'cash', rotulo: 'Mesa com amigos · ' + jogo.codigo, lugares: n, maos: numero,
+          blinds: vista ? vista.blinds : { sb: jogo.sb, bb: jogo.bb, ante: 0, anteBB: false },
+          resultado: r, bb100: numero ? r / jogo.bb / numero * 100 : 0, stack: meu ? meu.fichas : 0
+        };
+      }
       const dur = jogo.duracaoNivel;
       const decorrido = Math.max(0, agoraServidor() - jogo.inicio);
       const nivel = Math.floor(decorrido / dur);
@@ -171,6 +196,7 @@
     async function placar(m) {
       jogo = m;
       offset = m.agora - Date.now();
+      if (cash) return placarCash(m);
       for (const j of m.jogadores) {
         if (j.posicao === null || posicoes[j.assento]) continue;
         posicoes[j.assento] = j.posicao;
@@ -184,7 +210,21 @@
       await ui.aoInfo(info());
     }
 
-    async function mao(m) {
+    /** Cash: avisos da mesa e a recompra de quem ficou sem fichas. */
+  async function placarCash(m) {
+    const meu = meuJ();
+    if (m.encerrando && !avisouFim) { avisouFim = true; await ui.aoMensagem('O anfitrião encerrou a mesa: ela termina no fim desta mão.', 'nivel'); }
+    if (m.pausada && !m.terminada) await ui.aoMensagem('Esperando pelo menos 2 jogadores com fichas na mesa.', 'info');
+    await ui.aoInfo(info());
+    if (meu && meu.fichas > 0) perguntouRecompra = false;
+    if (meu && meu.fichas === 0 && !perguntouRecompra && !m.terminada && !m.encerrando) {
+      perguntouRecompra = true;
+      const ok = await P.UI.confirmar('Sem fichas', `Você ficou sem fichas. Recomprar mais ${reais(m.buyin)}? (O acerto é entre vocês, fora do app.)`, 'Recomprar', 'Agora não');
+      if (ok && ativo) cfg.enviar({ tipo: 'recompra' });
+    }
+  }
+
+  async function mao(m) {
       const v = telaVista(m.vista);
       if (m.numero !== numero) {
         if (m.desde !== 0) return;     // pedaço de uma mão que não começou aqui (ao reconectar o servidor manda tudo)
@@ -237,7 +277,7 @@
     async function terminar(m) {
       fim = m;
       cancelarPedido();
-      await P.UI.modal({ titulo: 'Fim da partida', conteudo: tabelaResultado(m, eu), botoes: [{ texto: 'Voltar para a sala', classe: 'btn-ouro', valor: 'ok' }] });
+      await P.UI.modal({ titulo: cash ? 'Fim da sessão' : 'Fim da partida', conteudo: tabelaResultado(m, eu), botoes: [{ texto: 'Voltar para a sala', classe: 'btn-ouro', valor: 'ok' }] });
       desligar();
       if (cfg.aoTerminar) cfg.aoTerminar(m);
     }
@@ -271,7 +311,9 @@
       return null;
     }
 
-    const jogando = () => ativo && !fim && jogo.jogadores[eu].posicao === null;
+    const jogando = () => ativo && !fim && (cash || jogo.jogadores[eu].posicao === null);
+    /** Cash: o anfitrião encerra a mesa (ela termina no fim da mão em andamento). */
+    function encerrarMesa() { if (ativo) cfg.enviar({ tipo: 'encerrar' }); }
 
     /** Avisos da conexão (ui-amigos.js reconecta sozinha). */
     function conexao(estado) {
@@ -281,11 +323,11 @@
     }
 
     const api = {
-      cfg, modo: 'sng', rotulo: 'Mesa com amigos', HEROI: 0, remota: true,
-      rodar, sair, desligar, info, receber, conexao, jogando,
+      cfg, modo: cash ? 'cash' : 'sng', cash, rotulo: 'Mesa com amigos', HEROI: 0, remota: true,
+      rodar, sair, desligar, info, receber, conexao, jogando, encerrarMesa,
       pausarRelogio() {}, relatorio() { return null; },
       mesa: () => mesa, maoAtual: () => null, perfis: () => ({}),
-      ativo: () => ativo, fim: () => fim, premios: () => jogo.premios.slice(),
+      ativo: () => ativo, fim: () => fim, premios: () => (jogo.premios || []).slice(),
       eliminados: () => [], fmt
     };
     return api;

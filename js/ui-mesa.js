@@ -1194,6 +1194,23 @@
 
   async function sair() {
     if (!partida) { P.App.irPara('lobby'); return; }
+    if (cfg.remota && partida.cash) {
+      // cash com amigos: sair fica "fora" com as fichas; o anfitrião também pode encerrar a sessão para todos
+      pausar(true);
+      const botoes = [{ texto: 'Continuar jogando', valor: 'ficar' }, { texto: 'Sair da mesa', valor: 'sair' }]
+        .concat(cfg.anfitriao ? [{ texto: 'Encerrar a mesa para todos', classe: 'btn-ouro', valor: 'encerrar' }] : []);
+      const v = await P.UI.modal({
+        titulo: 'Sair da mesa?', botoes,
+        conteudo: el('p', { text: 'Você fica fora com as suas fichas e não recebe cartas até voltar (pelo link ou pela aba Mesa com amigos).' +
+          (cfg.anfitriao ? ' Encerrando a mesa, a sessão acaba no fim desta mão e todos veem o resultado.' : '') })
+      });
+      pausar(false);
+      if (v === 'encerrar') { partida.encerrarMesa(); return; }
+      if (v !== 'sair') return;
+      encerrar(true);
+      P.App.irPara('amigos');
+      return;
+    }
     if (cfg.remota) {
       if (partida.jogando()) {
         pausar(true);
