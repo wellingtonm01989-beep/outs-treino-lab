@@ -28,7 +28,7 @@
   const LIMITE_VEZES = 4000;       // segurança: uma mão nunca passa disso
 
   /**
-   * cfg: { n (2 a 6), opcoes, placar, dador, maoNumero,
+   * cfg: { n (2 a 10), opcoes, placar, dador, maoNumero,
    *        baralhos (testes: lista de ordens das 108 cartas, uma por mão; a 1ª carta vai para quem está à esquerda do dador),
    *        embaralhar (opcional: o servidor da mesa com amigos embaralha e guarda cada ordem para refazer a mão) }
    */
@@ -36,7 +36,7 @@
     ganchos = ganchos || {};
     const embaralhar = cfg.embaralhar || (arr => P.Baralho.embaralhar(arr));
     const n = cfg.n;
-    if (!(n >= 2 && n <= 6) || agentes.length !== n) throw new Error('Última: de 2 a 6 jogadores');
+    if (!(n >= 2 && n <= 10) || agentes.length !== n) throw new Error('Última: de 2 a 10 jogadores');
     const op = R.opcoes(cfg.opcoes);
     const est = {
       placar: cfg.placar ? cfg.placar.slice() : new Array(n).fill(0),

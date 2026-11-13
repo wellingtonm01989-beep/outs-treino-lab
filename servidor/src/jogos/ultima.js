@@ -1,6 +1,6 @@
 /* ==========================================================================
    OUTS · servidor — jogos/ultima.js
-   O Última! (cartas coloridas, no estilo do Uno) na mesa com amigos, de 2 a 6
+   O Última! (cartas coloridas, no estilo do Uno) na mesa com amigos, de 2 a 10
    jogadores. A partida é o uno-motor.js do app, com as regras de sempre da
    mesa contra os bots: sem o desafio do +4, e +2/+4 sempre passam adiante;
    "comprar até poder jogar" e "jogar cartas iguais juntas" são opções.
@@ -35,7 +35,7 @@ export const ultima = {
   automaticaEmSeguida: ['depoisDeComprar', 'antesDeComprar', 'escolherCor'],
 
   validarConfig(c) {
-    if (!Number.isInteger(c.lugares) || c.lugares < 2 || c.lugares > 6) return { erro: 'O Última! é de 2 a 6 jogadores.' };
+    if (!Number.isInteger(c.lugares) || c.lugares < 2 || c.lugares > 10) return { erro: 'O Última! é de 2 a 10 jogadores.' };
     if (ATE.indexOf(c.ate) < 0) return { erro: 'Duração da partida inválida.' };
     return { config: { jogo: 'ultima', lugares: c.lugares, ate: c.ate, comprarAtePoder: c.comprarAtePoder === true, juntas: c.juntas === true } };
   },

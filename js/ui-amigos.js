@@ -519,7 +519,7 @@
       el('span', {}, el('b', { text: txt }), el('small', { text: ajuda })));
     return [
       el('div', { class: 'campo' }, el('span', { text: 'Lugares na mesa (no máximo)' }),
-        opcoes([2, 3, 4, 5, 6].map(n => [n, String(n)]), u.lugares, v => escolher('ultima.lugares', v)),
+        opcoes([2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => [n, String(n)]), u.lugares, v => escolher('ultima.lugares', v)),
         nota('Não precisa encher: a partida começa com 2 ou mais jogadores, quando você quiser.')),
       el('div', { class: 'campo' }, el('span', { text: 'Partida' }),
         opcoes([[0, 'Uma mão'], [200, '200 pontos'], [500, '500 pontos']], u.ate, v => escolher('ultima.ate', v))),

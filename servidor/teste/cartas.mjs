@@ -215,9 +215,9 @@ await teste('jogada inválida é recusada e o pedido continua em aberto', async 
 });
 
 console.log('Última!');
-await teste('de 2 a 6 jogadores, uma mão, dormindo no meio', async () => {
-  for (let n = 2; n <= 6; n++) {
-    const nomes = ['Ana', 'Bia', 'Caio', 'Duda', 'Eva', 'Fabi'].slice(0, n);
+await teste('de 2 a 10 jogadores, uma mão, dormindo no meio', async () => {
+  for (let n = 2; n <= 10; n++) {
+    const nomes = ['Ana', 'Bia', 'Caio', 'Duda', 'Eva', 'Fabi', 'Gil', 'Hugo', 'Iara', 'Juca'].slice(0, n);
     const sala = new SalaFalsa({ jogo: 'ultima', lugares: n, ate: 0, comprarAtePoder: n % 2 === 0, juntas: n > 3 }, nomes, ultima);
     await sala.comecar();
     const r = await jogarAteOFim(sala, jogadaUltima, { dormir: 0.15, conferir: conferirUltima });

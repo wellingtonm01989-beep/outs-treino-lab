@@ -81,7 +81,7 @@
     }
     // jogadores
     const jog = el('div', { class: 'opcoes-linha' });
-    [2, 3, 4, 5, 6].forEach(x => jog.appendChild(el('button', { class: 'opcao' + (cfg.jogadores === x ? ' ativo' : ''), text: String(x), onclick: () => { cfg.jogadores = x; salvar(); } })));
+    [2, 3, 4, 5, 6, 7, 8, 9, 10].forEach(x => jog.appendChild(el('button', { class: 'opcao' + (cfg.jogadores === x ? ' ativo' : ''), text: String(x), onclick: () => { cfg.jogadores = x; salvar(); } })));
     box.appendChild(el('div', { class: 'campo' }, el('span', { text: 'Jogadores (com você)' }), jog,
       el('small', { class: 'tr-ajuda', text: cfg.jogadores === 2 ? 'Mano a mano: Inverter vale como Pular.' : `Você e ${cfg.jogadores - 1} bots, cada um por si.` })));
     // nível

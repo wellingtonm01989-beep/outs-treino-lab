@@ -221,10 +221,15 @@
     const rx = Math.min(ow / 2, W / 2 - pad - assentoL / 2), ry = (yHeroi - topo) / 2, cyL = (yHeroi + topo) / 2;
     const yMaxLado = vertical ? maoBase - maoH - seatH / 2 - 4 : yHeroi - heroH / 2 - seatH / 2 - maoH * 0.4;
     const pos = [];
+    // de 7 a 10: os lugares vão por igual da sua esquerda, por cima, até a sua direita
+    const volta = angulos ? null : lugaresEmVolta(n - 1, cx - rx, cx + rx, topo, Math.max(topo, yMaxLado));
+    // com a mão em fileiras os lugares sobem; se um encostar no outro, a mão volta para menos fileiras
+    if (volta && arr.filas > 1 && volta.some((p, k) => k && Math.abs(p.x - volta[k - 1].x) < assentoL * 0.95 && Math.abs(p.y - volta[k - 1].y) < seatH * 0.95)) return layout(maoH - 1);
     for (let j = 0; j < n; j++) {
-      const t = angulos[j] * Math.PI / 180;
+      const t = angulos ? angulos[j] * Math.PI / 180 : 0;
       let x = cx + rx * Math.cos(t), y = cyL + ry * Math.sin(t);
       if (j === 0) { x = cx; y = yHeroi; }
+      else if (volta) ({ x, y } = volta[j - 1]);
       else {
         x = limitar(x, assentoL / 2 + pad, W - assentoL / 2 - pad);
         y = limitar(y, topo, Math.max(topo, yMaxLado));
@@ -268,6 +273,34 @@
     logo.style.display = (maoBase - maoH) - (yCentro + cartaL * 0.75 + 30) > 40 ? '' : 'none';
     jogo.geo = { W, H, cx, yCentro, cartaL, pos, compacto };
     apontarVez();
+  }
+
+  /**
+   * m lugares espalhados por igual (pelo comprimento) num arco quase quadrado (superelipse)
+   * que sai de baixo à esquerda (xL, yB), passa por cima (yT) e desce até (xR, yB): aproveita
+   * os cantos da mesa, onde cabem os lugares a mais.
+   */
+  function lugaresEmVolta(m, xL, xR, yT, yB) {
+    const rx = (xR - xL) / 2, ry = yB - yT, xc = (xL + xR) / 2, e = 2 / 4;
+    const pot = v => Math.sign(v) * Math.pow(Math.abs(v), e);
+    const pts = [], N = 240;
+    let total = 0;
+    for (let i = 0; i <= N; i++) {
+      const a = Math.PI + Math.PI * i / N;
+      const p = { x: xc + rx * pot(Math.cos(a)), y: yB + ry * pot(Math.sin(a)) };
+      if (i) total += Math.hypot(p.x - pts[i - 1].x, p.y - pts[i - 1].y);
+      p.s = total;
+      pts.push(p);
+    }
+    const out = [];
+    let i = 1;
+    for (let k = 0; k < m; k++) {
+      const alvo = m > 1 ? total * k / (m - 1) : total / 2;
+      while (i < N && pts[i].s < alvo) i++;
+      const a = pts[i - 1], b = pts[i], f = b.s > a.s ? (alvo - a.s) / (b.s - a.s) : 0;
+      out.push({ x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f });
+    }
+    return out;
   }
 
   /**
@@ -927,7 +960,7 @@
       case 'efeito': {
         if (ev.efeito === 'pular') { balao(ev.alvo, 'Perdeu a vez', 'correu'); splash('PULOU!', ''); }
         else if (ev.efeito === 'inverter') { splash('INVERTEU!', ''); g.sentido.classList.toggle('anti', ev.sentido < 0); g.sentido.classList.remove('gira'); void g.sentido.offsetWidth; g.sentido.classList.add('gira'); }
-        else if (ev.efeito === 'mais2' || ev.efeito === 'mais4') { splash('+' + ev.qtd + '!', ev.efeito === 'mais4' ? 'quatro' : ''); if (P.Som) P.Som.alerta(); }
+        else if (ev.efeito === 'mais2' || ev.efeito === 'mais4') { splash('+' + (ev.qtd || (ev.efeito === 'mais4' ? 4 : 2)) + '!', ev.efeito === 'mais4' ? 'quatro' : ''); if (P.Som) P.Som.alerta(); }
         else if (ev.efeito === 'corInicial') { renderCentro(vista()); balao(ev.j, R.NOMES_COR[ev.cor] + '!', 'cor-' + R.CORES[ev.cor]); }
         await esperar(450 * fv());
         break;
@@ -1032,7 +1065,7 @@
     // mesa com amigos: { controle (cartas-remotas.js), n, cfg (ate, comprarAtePoder, juntas), jogadores (você no 0), aoSair, aoTerminar, aoFechar }
     const remota = opcoes.remota || null;
     if (remota) opcoes = Object.assign({}, opcoes, { coach: 'desligado', semSalvar: true, velocidade: 1 });
-    const n = remota ? remota.n : salva ? salva.cfg.n : Math.max(2, Math.min(6, opcoes.n || cfgU.jogadores));
+    const n = remota ? remota.n : salva ? salva.cfg.n : Math.max(2, Math.min(10, opcoes.n || cfgU.jogadores));
     // sem o desafio do +4 (ele só sai sem a cor da mesa) e +2/+4 sempre passam adiante — vale também para partidas salvas antes
     const base = remota ? { ate: remota.cfg.ate, comprarAtePoder: remota.cfg.comprarAtePoder, juntas: remota.cfg.juntas }
       : salva ? salva.cfg.opcoes : { ate: cfgU.ate, comprarAtePoder: cfgU.comprarAtePoder, juntas: cfgU.juntas };

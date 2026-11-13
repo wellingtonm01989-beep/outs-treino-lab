@@ -207,7 +207,7 @@ Dentro de `servidor/` (na primeira vez: `npm install`):
 
 ## Truco e Última! com amigos (21/10/2026)
 
-- Feito e testado: a aba Mesa com amigos escolhe o jogo (poker Sit & Go, truco paulista/paranaense 1×1 ou em dupla, Última! de 2 a 6). Sem bots e sem coach em nenhum jogo online.
+- Feito e testado: a aba Mesa com amigos escolhe o jogo (poker Sit & Go, truco paulista/paranaense 1×1 ou em dupla, Última! de 2 a 6; depois, de 2 a 10). Sem bots e sem coach em nenhum jogo online.
 - Servidor: `mesa.js` virou só a sala; o poker foi para `jogos/poker.js`; truco e Última! rodam o próprio motor do app em `jogos/cartas.js` (regras em `jogos/truco.js` e `jogos/ultima.js`), gravando cada embaralhada e decisão para refazer a mão quando o objeto acorda. Testes: `npm test` (jogo.mjs, cartas.mjs, sala.mjs: 29 cenários).
 - Cliente: `js/cartas-remotas.js` faz o papel do motor para `ui-truco-mesa.js` e `ui-uno-mesa.js` (modo `remota`).
 - Testado de ponta a ponta com várias abas do Edge (truco 1×1, dupla, Última! 3 e 5 jogadores, com recarga de página no meio): partidas até o fim, sem erros.
