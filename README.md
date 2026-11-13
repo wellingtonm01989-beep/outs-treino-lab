@@ -54,6 +54,8 @@ Na aba **Cacheta**: dois baralhos, 9 cartas para cada um, de 2 a 6 jogadores con
 Na aba **Última!**: o jogo das cartas coloridas (no estilo do Uno), de 2 a 6 jogadores contra bots. Combine a cor, o número ou o símbolo da carta da mesa; Pular, Inverter, +2, coringa e coringa +4 (só sem a cor da mesa). Ao ficar com uma carta, aperte **Última!** — se um bot esquecer, aperte **Pegou!**. Partida de uma mão, até 200 ou até 500 pontos.
 
 - **A mesa não entrega o jogo**: as cartas que servem não ficam destacadas, cada carta comprada é um toque em Comprar (até nos +2 e +4) e, depois de comprar, você decide se joga ou passa.
+- **Mão com muitas cartas**: em vez de espremer todas numa fila, a mão vai para 2 ou 3 fileiras (no celular deitado, só se o meio da mesa continuar cabendo) e o número de cada carta fica na parte que aparece.
+- **Quem está na vez** fica bem marcado: a placa dele fica dourada e maior, o avatar pulsa, os outros ficam apagados e uma seta no meio da mesa gira até ele (verde quando é você).
 - **+2 e +4 passam adiante**: quem recebe pode jogar outro +2 ou +4 em cima (vale +2 sobre +4) e o próximo compra tudo.
 - **Regras da casa** opcionais: comprar até poder jogar e jogar cartas iguais juntas (vários números iguais de uma vez).
 - **Bots** Estrategista, Atacante e Paciente, em três níveis. No Mestre eles leem o que cada um tem pelo que compra e pelas cores que escolhe, e simulam cada jogada até o fim da mão.

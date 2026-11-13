@@ -129,7 +129,9 @@
     g.splash = el('div', { class: 'tr-splash un-splash' });
     g.mao = el('div', { class: 'un-mao' });
     g.cores = el('div', { class: 'un-cores oculto' });
-    g.palco.append(g.centro, g.mao, g.splash, g.cores);
+    // seta no meio da mesa que gira até quem está na vez
+    g.seta = el('div', { class: 'un-seta-vez apagada' }, el('span', { class: 'ponta', html: '<svg viewBox="0 0 24 24"><path d="M4 4l17 8-17 8 4-8z"/></svg>' }));
+    g.palco.append(g.seta, g.centro, g.mao, g.splash, g.cores);
 
     // barra de ações
     g.coachTxt = el('div', { class: 'txt', html: '<span class="calc">O coach comenta cada jogada sua.</span>' });
@@ -172,7 +174,7 @@
   const ANGULOS = { 2: [90, 270], 3: [90, 205, 335], 4: [90, 180, 270, 0], 5: [90, 165, 235, 305, 15], 6: [90, 155, 213, 270, 327, 25] };
   const ANGULOS_VERTICAL = { 2: [90, 270], 3: [90, 215, 325], 4: [90, 175, 270, 5], 5: [90, 160, 235, 305, 20], 6: [90, 152, 215, 270, 325, 28] };
 
-  function layout() {
+  function layout(limiteMao) {
     if (!jogo || !jogo.ui) return;
     const g = jogo.ui, n = jogo.n;
     const W = g.palco.clientWidth, H = g.palco.clientHeight;
@@ -197,10 +199,13 @@
     }
     const costasL = limitar(avatarL * 0.52, 14, 22);
     const sobra = costasL * 1.4 * 0.6;
-    // sua mão: cartas maiores no celular em pé (a largura é acertada depois de pôr os lugares)
+    // sua mão: cartas maiores no celular em pé; muitas cartas vão para mais fileiras
+    // (primeiro com a largura toda, depois acertada pelos lugares que ficam na altura dela)
     const nMao = Math.max(1, g.mao.children.length);
-    let maoL = compacto ? (vertical ? limitar(W * 0.17, 50, 74) : limitar(H * 0.17, 40, 62)) : limitar(Math.min(W * 0.07, H * 0.13), 52, 90);
-    let maoH = maoL * 1.5;
+    const maoLBase = compacto ? (vertical ? limitar(W * 0.17, 50, 74) : limitar(H * 0.17, 40, 62)) : limitar(Math.min(W * 0.07, H * 0.13), 52, 90);
+    const maoAltMax = Math.min(limiteMao || Infinity, H * (compacto && vertical ? 0.37 : 0.3));
+    let arr = arranjoMao(nMao, maoLBase, Math.min(W - 2 * pad, compacto ? W : W * 0.8), maoAltMax, compacto);
+    const maoH = arr.altura;
     const yHeroi = H - pad - heroH / 2;
     const maoBase = yHeroi - heroH / 2 + Math.min(10, heroH * 0.2);
     // mesa oval: dos lugares de cima até a sua placa
@@ -234,17 +239,17 @@
       if (!j || p.y + seatH / 2 < maoBase - maoH) return;
       largMao = Math.min(largMao, 2 * (Math.abs(p.x - cx) - assentoL / 2 - 6));
     });
-    largMao = Math.max(largMao, maoL * 2.2);
-    // muitas cartas: sobrepõe (passo mínimo ~30% da carta) e, se ainda não couber, diminui
-    let passo = maoL * 1.08;
-    if (nMao > 1 && maoL + (nMao - 1) * passo > largMao) passo = (largMao - maoL) / (nMao - 1);
-    if (passo < maoL * 0.3) { maoL = Math.max(34, largMao / (1 + (nMao - 1) * 0.3)); passo = (largMao - maoL) / Math.max(1, nMao - 1); maoH = maoL * 1.5; }
+    largMao = Math.max(largMao, arr.L * 2.2);
+    if (largMao < arr.largura - 0.5) arr = arranjoMao(nMao, maoLBase, largMao, maoH, compacto);
+    posicionarMao(arr);
     // centro: compra e pilha lado a lado, entre os lugares de cima e a sua mão
     let cartaL = compacto ? limitar(Math.min(W * (vertical ? 0.17 : 0.085), H * 0.15), 38, 64) : limitar(Math.min(W * 0.07, H * 0.13), 50, 88);
     // faixa livre no meio: abaixo dos lugares que ficam em cima do centro e acima da sua mão
     const meiaLarg = cartaL * 1.3 + assentoL / 2;
     const livreTopo = Math.max(oTopo + 6, ...pos.filter((p, j) => j && Math.abs(p.x - cx) < meiaLarg).map(p => p.y + seatH / 2));
     const livreBase = maoBase - maoH - 8;
+    // a mão em fileiras não pode espremer a compra e a pilha (com o anel da cor): volta para menos fileiras
+    if (arr.filas > 1 && livreBase - livreTopo - 28 < cartaL * 1.94) return layout(maoH - 1);
     cartaL = Math.max(30, Math.min(cartaL, (livreBase - livreTopo - 28) / 1.5));
     const yCentro = (livreTopo + livreBase) / 2 - 6;
     g.centro.style.left = cx + 'px';
@@ -254,14 +259,63 @@
     g.palco.style.setProperty('--assento-l', assentoL + 'px');
     g.palco.style.setProperty('--heroi-l', heroL + 'px');
     g.palco.style.setProperty('--costas-l', costasL + 'px');
-    g.palco.style.setProperty('--mao-l', maoL + 'px');
-    g.palco.style.setProperty('--mao-passo', passo + 'px');
+    g.palco.style.setProperty('--mao-l', arr.L + 'px');
+    g.palco.style.setProperty('--mao-alt', arr.altura + 'px');
     g.mao.style.left = cx + 'px';
     g.mao.style.top = maoBase + 'px';
     const logo = g.oval.querySelector('.mesa-logo');
     logo.style.top = ((yCentro + cartaL * 0.75 + 30 + maoBase - maoH) / 2 - oTopo) + 'px';
     logo.style.display = (maoBase - maoH) - (yCentro + cartaL * 0.75 + 30) > 40 ? '' : 'none';
     jogo.geo = { W, H, cx, yCentro, cartaL, pos, compacto };
+    apontarVez();
+  }
+
+  /**
+   * Como a sua mão cabe: o maior tamanho de carta em que, com no máximo a altura dada,
+   * cada carta mostra pelo menos ~60% da largura (número e canto inteiros). Se precisar,
+   * a mão vai para 2 ou 3 fileiras (a de cima fica atrás, mostrando o alto das cartas).
+   */
+  function arranjoMao(n, LBase, largura, altMax, compacto) {
+    const LMin = compacto ? 40 : 46, VISIVEL = 0.6, DEGRAU = 0.6;
+    let escolha = null;
+    for (let L = LBase; ; L = Math.max(LMin, L - 2)) {
+      const h = L * 1.5;
+      const maxFilas = limitar(1 + Math.floor((altMax - h) / (h * DEGRAU) + 1e-6), 1, 3);
+      const porFila = Math.max(1, 1 + Math.floor((largura - L) / (L * VISIVEL) + 1e-6));
+      const filas = Math.ceil(n / porFila);
+      if (filas <= maxFilas || L <= LMin) { escolha = { L, filas: Math.min(filas, maxFilas) }; break; }
+    }
+    const { L, filas } = escolha;
+    const h = L * 1.5, degrau = h * DEGRAU;
+    // as fileiras de cima levam as cartas a mais (a de baixo, na frente, fica mais folgada)
+    const base = Math.floor(n / filas), resto = n % filas;
+    const contagem = [];
+    for (let f = 0; f < filas; f++) contagem.push(base + (f < resto ? 1 : 0));
+    const maior = Math.max(...contagem);
+    let passo = L * 1.08;
+    if (maior > 1 && L + (maior - 1) * passo > largura) passo = (largura - L) / (maior - 1);
+    const larguraUsada = L + (maior - 1) * passo;
+    return { L, filas, contagem, passo, degrau, largura, larguraUsada, altura: h + (filas - 1) * degrau };
+  }
+
+  /** Põe cada carta da mão no lugar (fileira e posição) e diz quanto dela aparece. */
+  function posicionarMao(arr) {
+    const g = jogo.ui, botoes = g.mao.children;
+    const { L, filas, contagem, passo, degrau, larguraUsada, altura } = arr;
+    g.mao.style.width = larguraUsada + 'px';
+    g.mao.style.height = altura + 'px';
+    g.mao.classList.toggle('fileiras', filas > 1);
+    let k = 0;
+    for (let f = 0; f < filas; f++) {
+      const qtd = contagem[f], larg = L + (qtd - 1) * passo, x0 = (larguraUsada - larg) / 2;
+      for (let i = 0; i < qtd && k < botoes.length; i++, k++) {
+        const b = botoes[k];
+        b.style.left = (x0 + i * passo) + 'px';
+        b.style.top = (f * degrau) + 'px';
+        b.style.setProperty('--vis-l', (i === qtd - 1 ? L : Math.min(L, passo)) + 'px');
+        b.style.setProperty('--vis-h', (f === filas - 1 ? L * 1.5 : degrau) + 'px');
+      }
+    }
   }
 
   // ============================================================ desenho
@@ -288,7 +342,32 @@
     const este = g.avisoEl;
     if (ms) setTimeout(() => { if (este.parentNode) este.remove(); }, ms);
   }
-  function marcarVez(j) { jogo.ui.lugares.forEach((l, k) => l.raiz.classList.toggle('vez', k === j)); }
+  function marcarVez(j) {
+    jogo.vezAtual = j;
+    jogo.ui.lugares.forEach((l, k) => l.raiz.classList.toggle('vez', k === j));
+    jogo.ui.palco.classList.toggle('com-vez', j >= 0);
+    apontarVez();
+  }
+  /** Gira a seta do meio da mesa até o lugar de quem está na vez (pelo caminho mais curto). */
+  function apontarVez() {
+    if (!jogo || !jogo.ui || !jogo.ui.seta) return;
+    const g = jogo.ui, j = jogo.vezAtual;
+    const p = jogo.geo && j >= 0 ? jogo.geo.pos[j] : null;
+    if (!p) { g.seta.classList.add('apagada'); return; }
+    const rp = g.palco.getBoundingClientRect(), rs = g.sentido.getBoundingClientRect();
+    if (!rs.width) { g.seta.classList.add('apagada'); return; }
+    const x = rs.left - rp.left + rs.width / 2, y = rs.top - rp.top + rs.height / 2;
+    const alvo = Math.atan2(p.y - y, p.x - x) * 180 / Math.PI;
+    const antes = g.seta._ang === undefined ? alvo : g.seta._ang;
+    const ang = antes + ((((alvo - antes) % 360) + 540) % 360 - 180);
+    g.seta._ang = ang;
+    g.seta.style.left = x + 'px';
+    g.seta.style.top = y + 'px';
+    g.seta.style.setProperty('--raio', (rs.width / 2) + 'px');
+    g.seta.style.transform = `rotate(${ang}deg)`;
+    g.seta.classList.toggle('heroi', j === 0);
+    g.seta.classList.remove('apagada');
+  }
 
   /** Placas: quantas cartas cada um tem, os pontos e o selo de Última!. */
   function atualizarLugares(v) {
@@ -1167,5 +1246,5 @@
 
   P.Config.aoMudar((k, v) => { if (k === 'tema' && jogo && jogo.ui) { jogo.ui.raiz.dataset.tema = v; $('#tela-uno').dataset.tema = v; } });
 
-  P.UIUnoMesa = { iniciar, encerrar, emJogo: () => !!jogo, remota: () => !!(jogo && jogo.remota), pausar, cancelarPendente, relogio, _jogo: () => jogo, cartaEl };
+  P.UIUnoMesa = { iniciar, encerrar, emJogo: () => !!jogo, remota: () => !!(jogo && jogo.remota), pausar, cancelarPendente, relogio, _jogo: () => jogo, _renderMao: () => renderMao(), cartaEl };
 })(window.Poker = window.Poker || {});

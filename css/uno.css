@@ -93,6 +93,27 @@
 .tr-lugar .balao.cor-verde { background: #2fbf71; color: #04130a; } .tr-lugar .balao.cor-verde::after { border-top-color: #2fbf71; }
 .tr-lugar .balao.cor-azul { background: #3d8ef0; color: #fff; } .tr-lugar .balao.cor-azul::after { border-top-color: #3d8ef0; }
 
+/* quem está na vez: placa maior e dourada, avatar pulsando; os outros ficam mais apagados */
+.un-lugar { transition: transform 220ms ease, filter 220ms ease, opacity 220ms ease; }
+.un-palco.com-vez .un-lugar:not(.vez) { filter: saturate(.55) brightness(.72); }
+.un-lugar.vez { z-index: 9; transform: translate(-50%, -50%) scale(1.12); }
+.un-lugar.vez .avatar { border-color: var(--ouro-2); animation: un-vez-pulso 1.1s ease-in-out infinite; }
+@keyframes un-vez-pulso { 0%, 100% { box-shadow: 0 0 0 3px rgba(242,216,146,.9), 0 0 10px 2px rgba(242,216,146,.5); } 50% { box-shadow: 0 0 0 6px rgba(242,216,146,.35), 0 0 22px 8px rgba(242,216,146,.55); } }
+.un-lugar.vez .corpo, .tr-palco.compacto .un-lugar.vez:not(.heroi) .info {
+  background: linear-gradient(180deg, var(--ouro-2), var(--ouro)); border-color: #fff3cf;
+  box-shadow: 0 0 0 2px rgba(242,216,146,.6), 0 0 22px rgba(242,216,146,.55);
+}
+.tr-palco.compacto .un-lugar.vez:not(.heroi) .corpo { background: none; box-shadow: none; }
+.un-lugar.vez .nome, .un-lugar.vez .un-pts { color: #1d1606; }
+.un-lugar.vez .tag-perfil { box-shadow: 0 0 0 1px rgba(0,0,0,.35); }
+/* seta no meio da mesa, sobre o anel do sentido, apontando para quem joga */
+.un-seta-vez { position: absolute; z-index: 3; width: 0; height: 0; pointer-events: none; transition: transform 380ms cubic-bezier(.3,.7,.3,1), opacity 200ms; }
+.un-seta-vez.apagada { opacity: 0; }
+.un-seta-vez .ponta { position: absolute; left: calc(var(--raio, 100px) * .9 - 14px); top: -14px; width: 28px; height: 28px; animation: un-seta-vai 1.1s ease-in-out infinite; }
+.un-seta-vez svg { width: 100%; height: 100%; fill: var(--ouro-2); stroke: #1d1606; stroke-width: 1.5; stroke-linejoin: round; filter: drop-shadow(0 0 6px rgba(242,216,146,.8)); }
+.un-seta-vez.heroi svg { fill: #7ee2a8; filter: drop-shadow(0 0 6px rgba(47,191,113,.85)); }
+@keyframes un-seta-vai { 50% { transform: translateX(6px); } }
+
 /* centro: compra, pilha (com o anel da cor da vez) e o sentido */
 .un-centro { position: absolute; transform: translate(-50%, -50%); z-index: 4; display: grid; grid-template-columns: auto auto; align-items: center; gap: calc(var(--carta-l, 60px) * .45); justify-items: center; }
 .un-centro .un-carta { --l: var(--carta-l, 60px); }
@@ -124,11 +145,23 @@
 @keyframes piscar-sentido { 40% { opacity: .9; } }
 
 /* sua mão: sobre a borda da mesa, em leque */
-.un-mao { position: absolute; z-index: 12; transform: translate(-50%, -100%); display: flex; align-items: flex-end; pointer-events: none; }
-.un-carta-mao { position: relative; display: block; border: 0; background: none; padding: 0; cursor: default; font: inherit; pointer-events: auto; -webkit-tap-highlight-color: transparent; transition: transform 140ms ease; }
+/* muitas cartas: em 2 ou 3 fileiras (a de cima atrás); cada carta é posta pelo layout (left/top)
+   e diz quanto dela aparece (--vis-l, --vis-h): o número do meio vai para a parte que aparece */
+.un-mao { position: absolute; z-index: 12; transform: translate(-50%, -100%); pointer-events: none; }
+.un-carta-mao { position: absolute; left: 0; top: 0; isolation: isolate; display: block; border: 0; background: none; padding: 0; cursor: default; font: inherit; pointer-events: auto; -webkit-tap-highlight-color: transparent; transition: transform 140ms ease; }
 .tr-aviso-mesa .un-mini { height: 22px; min-width: 18px; font-size: 11px; }
-.un-carta-mao + .un-carta-mao { margin-left: calc(var(--mao-passo, 60px) - var(--mao-l, 60px)); }
 .un-carta-mao .un-carta { --l: var(--mao-l, 60px); box-shadow: inset 0 0 0 calc(var(--l) * .045) #f7f4ec, inset 0 0 0 calc(var(--l) * .065) rgba(0,0,0,.18), -3px 4px 12px rgba(0,0,0,.5); transition: filter 140ms, transform 140ms; }
+.un-carta-mao .un-carta .meio {
+  left: calc(min(var(--vis-l, var(--l)), var(--l)) / 2); top: min(calc(var(--l) * .75), calc((var(--vis-h, 999px) + var(--l) * .3) / 2));
+  font-size: min(calc(var(--l) * .62), calc(var(--vis-l, var(--l)) * .78), calc(var(--vis-h, 999px) * .62));
+}
+.un-carta-mao .un-carta .meio.longo { font-size: min(calc(var(--l) * .46), calc(var(--vis-l, var(--l)) * .6), calc(var(--vis-h, 999px) * .5)); }
+.un-carta-mao .un-carta.coringa .meio { font-size: min(calc(var(--l) * .38), calc(var(--vis-l, var(--l)) * .5), calc(var(--vis-h, 999px) * .42)); }
+.un-carta-mao .un-carta .disco {
+  left: calc(min(var(--vis-l, var(--l)), var(--l)) / 2); top: min(calc(var(--l) * .75), calc((var(--vis-h, 999px) + var(--l) * .3) / 2));
+  width: min(calc(var(--l) * .74), calc(var(--vis-l, var(--l)) * .86), calc(var(--vis-h, 999px) * .7)); height: auto; aspect-ratio: 1;
+}
+.tr-lugar.heroi.un-lugar .balao { top: calc(-1 * var(--mao-alt, 90px) - 6px); }
 /* na sua vez todas as cartas podem ser tocadas: nada indica quais servem (procurar faz parte do jogo) */
 .un-mao.minha-vez .un-carta-mao { cursor: pointer; }
 @media (hover: hover) { .un-mao.minha-vez .un-carta-mao:hover { transform: translateY(-8px); z-index: 2; } }
