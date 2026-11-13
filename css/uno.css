@@ -250,3 +250,15 @@
 @media (max-width: 640px) {
   .un-acoes:not(:has(.acoes-esquerda > :not(.oculto):not(.oculto-coach))) { min-height: 0; }
 }
+
+/* a sua placa: por baixo das cartas; no celular, fina (avatar, nome e pontos numa linha) */
+.tr-palco.compacto .un-lugar.heroi .corpo { padding: 2px 10px 2px 2px; }
+.tr-palco.compacto .un-lugar.heroi .avatar { width: 28px; height: 28px; }
+.un-lugar.heroi .info { display: flex; align-items: baseline; justify-content: center; gap: 8px; }
+.un-lugar.heroi .un-selo { top: 50%; left: 100%; transform: translate(6px, -50%) rotate(-4deg); }
+/* o que você diz (Última!, perdeu a vez) sai por cima das suas cartas */
+.tr-lugar.heroi.un-lugar .balao { top: calc(-1 * var(--mao-alt, 90px) - 4px); }
+/* PC: sem o coach na barra, os botões ficam no meio da tela */
+@media (min-width: 641px) and (min-height: 501px) {
+  .un-acoes:not(:has(.acoes-esquerda > :not(.oculto):not(.oculto-coach))) { grid-template-columns: auto; justify-content: center; }
+}

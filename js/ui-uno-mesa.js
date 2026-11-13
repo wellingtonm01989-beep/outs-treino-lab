@@ -191,7 +191,7 @@
       avatarL = limitar(assentoL * 0.5, 28, 40);
       seatH = avatarL + 29;
       heroL = limitar(W * 0.36, 110, 150);
-      heroH = limitar(avatarL + 8, 38, 50);
+      heroH = 34;   // a sua placa, fina (avatar, nome e pontos numa linha só), por baixo das cartas
     } else {
       avatarL = limitar(H * 0.06, 32, 44);
       assentoL = limitar(W * 0.15, 120, 156);
@@ -207,10 +207,10 @@
     const maoAltMax = Math.min(limiteMao || Infinity, H * (compacto && vertical ? 0.37 : 0.3));
     let arr = arranjoMao(nMao, maoLBase, Math.min(W - 2 * pad, compacto ? W : W * 0.8), maoAltMax, compacto);
     const maoH = arr.altura;
-    // a sua mão fica embaixo, colada nos botões; a sua placa fica logo acima dela, na beira da mesa
+    // a sua placa fica embaixo, perto dos botões, e a sua mão por cima dela (cobrindo só a beirada)
     const yBase = H - pad - heroH / 2;
-    const maoBase = H - (compacto ? 2 : pad / 2);
-    const yHeroi = maoBase - maoH - heroH / 2 - 4;
+    const yHeroi = yBase;
+    const maoBase = H - pad - heroH * 0.72;
     // mesa oval: dos lugares de cima até embaixo
     const topo = pad + sobra + seatH / 2;
     const oTopo = topo - (compacto ? seatH * 0.1 : 0), oBase = yBase;
@@ -255,7 +255,7 @@
     // faixa livre no meio: abaixo dos lugares que ficam em cima do centro e acima da sua mão
     const meiaLarg = cartaL * 1.3 + assentoL / 2;
     const livreTopo = Math.max(oTopo + 6, ...pos.filter((p, j) => j && Math.abs(p.x - cx) < meiaLarg).map(p => p.y + seatH / 2));
-    const livreBase = yHeroi - heroH / 2 - 6;
+    const livreBase = maoBase - maoH - 8;
     // o que o centro ocupa na altura: o anel da cor em volta das cartas e, embaixo, a cor da vez
     const alturaCentro = L => L * (1.5 + 0.22 + 0.3) + 24;
     // a mão em fileiras não pode espremer a compra e a pilha: volta para menos fileiras
