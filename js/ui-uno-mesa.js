@@ -120,7 +120,7 @@
     g.anel = el('div', { class: 'un-anel' });
     g.sentido = el('div', { class: 'un-sentido', html: '<svg viewBox="0 0 100 100"><path d="M50 8a42 42 0 0 1 36 20" /><path d="M92 50a42 42 0 0 1-20 36" /><path d="M50 92a42 42 0 0 1-36-20" /><path d="M8 50a42 42 0 0 1 20-36" /></svg>' });
     g.corTxt = el('div', { class: 'un-cor-vez' });
-    g.centro = el('div', { class: 'un-centro' }, g.sentido, g.compraEl, el('div', { class: 'un-pilha-caixa' }, g.anel, g.pilha), g.corTxt);
+    g.centro = el('div', { class: 'un-centro' }, g.sentido, g.compraEl, el('div', { class: 'un-pilha-caixa' }, g.anel, g.pilha, g.corTxt));
     g.compraEl.addEventListener('click', () => {
       if (!jogo) return;
       if (jogo.compraPendente) { resolverCompra(); return; }
@@ -131,20 +131,21 @@
     g.cores = el('div', { class: 'un-cores oculto' });
     // seta no meio da mesa que gira até quem está na vez
     g.seta = el('div', { class: 'un-seta-vez apagada' }, el('span', { class: 'ponta', html: '<svg viewBox="0 0 24 24"><path d="M4 4l17 8-17 8 4-8z"/></svg>' }));
-    g.palco.append(g.seta, g.centro, g.mao, g.splash, g.cores);
+    // o que fazer agora (só quando importa: +2 em você, carta comprada, Última! esquecido...)
+    g.instrucao = el('div', { class: 'un-instrucao' });
+    g.palco.append(g.seta, g.centro, g.instrucao, g.mao, g.splash, g.cores);
 
     // barra de ações
     g.coachTxt = el('div', { class: 'txt', html: '<span class="calc">O coach comenta cada jogada sua.</span>' });
     g.coachNota = el('span');
     g.btnDica = el('button', { class: 'btn oculto', text: 'Dica', onclick: e => { e.stopPropagation(); mostrarDica(); } });
     g.coach = el('div', { class: 'tr-coach', title: 'Ver a conta do coach', onclick: () => abrirCoach() }, el('span', { class: 'ic', text: '💡' }), g.coachNota, g.coachTxt, g.btnDica);
-    g.status = el('div', { class: 'tr-status' });
     g.relogio = el('span', { class: 'relogio-vez oculto' });   // prazo da vez (mesa com amigos)
     g.btnA = el('button', { class: 'btn-acao un-btn-ultima', html: 'Última!<small>antes da penúltima</small>' });
     g.btnB = el('button', { class: 'btn-acao btn-aceitar', html: 'Comprar' });
     g.btnC = el('button', { class: 'btn-acao btn-tr-dica', html: 'Dica' });
     g.acoes = el('div', { class: 'barra-acoes tr-acoes un-acoes' },
-      el('div', { class: 'acoes-esquerda' }, g.relogio, g.status, g.coach),
+      el('div', { class: 'acoes-esquerda' }, g.relogio, g.coach),
       el('div', { class: 'acoes-botoes' }, g.btnA, g.btnB, g.btnC));
 
     // painel do coach (PC)
@@ -206,11 +207,13 @@
     const maoAltMax = Math.min(limiteMao || Infinity, H * (compacto && vertical ? 0.37 : 0.3));
     let arr = arranjoMao(nMao, maoLBase, Math.min(W - 2 * pad, compacto ? W : W * 0.8), maoAltMax, compacto);
     const maoH = arr.altura;
-    const yHeroi = H - pad - heroH / 2;
-    const maoBase = yHeroi - heroH / 2 + Math.min(10, heroH * 0.2);
-    // mesa oval: dos lugares de cima até a sua placa
+    // a sua mão fica embaixo, colada nos botões; a sua placa fica logo acima dela, na beira da mesa
+    const yBase = H - pad - heroH / 2;
+    const maoBase = H - (compacto ? 2 : pad / 2);
+    const yHeroi = maoBase - maoH - heroH / 2 - 4;
+    // mesa oval: dos lugares de cima até embaixo
     const topo = pad + sobra + seatH / 2;
-    const oTopo = topo - (compacto ? seatH * 0.1 : 0), oBase = yHeroi;
+    const oTopo = topo - (compacto ? seatH * 0.1 : 0), oBase = yBase;
     const oh = oBase - oTopo;
     const ow = Math.min(W - 2 * pad - assentoL * 0.9, oh * 2.15);
     const cx = W / 2;
@@ -218,8 +221,8 @@
     g.palco.style.setProperty('--borda-l', limitar(Math.min(ow, oh) * (compacto ? 0.035 : 0.026), 8, 20) + 'px');
     // lugares em volta (elipse que passa pelas bordas); os de baixo ficam acima da faixa da sua mão
     const angulos = (vertical ? ANGULOS_VERTICAL : ANGULOS)[n];
-    const rx = Math.min(ow / 2, W / 2 - pad - assentoL / 2), ry = (yHeroi - topo) / 2, cyL = (yHeroi + topo) / 2;
-    const yMaxLado = vertical ? maoBase - maoH - seatH / 2 - 4 : yHeroi - heroH / 2 - seatH / 2 - maoH * 0.4;
+    const rx = Math.min(ow / 2, W / 2 - pad - assentoL / 2), ry = (yBase - topo) / 2, cyL = (yBase + topo) / 2;
+    const yMaxLado = vertical ? maoBase - maoH - seatH / 2 - 4 : yBase - heroH / 2 - seatH / 2 - maoH * 0.4;
     const pos = [];
     // de 7 a 10: os lugares vão por igual da sua esquerda, por cima, até a sua direita
     const volta = angulos ? null : lugaresEmVolta(n - 1, cx - rx, cx + rx, topo, Math.max(topo, yMaxLado));
@@ -252,11 +255,15 @@
     // faixa livre no meio: abaixo dos lugares que ficam em cima do centro e acima da sua mão
     const meiaLarg = cartaL * 1.3 + assentoL / 2;
     const livreTopo = Math.max(oTopo + 6, ...pos.filter((p, j) => j && Math.abs(p.x - cx) < meiaLarg).map(p => p.y + seatH / 2));
-    const livreBase = maoBase - maoH - 8;
-    // a mão em fileiras não pode espremer a compra e a pilha (com o anel da cor): volta para menos fileiras
-    if (arr.filas > 1 && livreBase - livreTopo - 28 < cartaL * 1.94) return layout(maoH - 1);
-    cartaL = Math.max(30, Math.min(cartaL, (livreBase - livreTopo - 28) / 1.5));
-    const yCentro = (livreTopo + livreBase) / 2 - 6;
+    const livreBase = yHeroi - heroH / 2 - 6;
+    // o que o centro ocupa na altura: o anel da cor em volta das cartas e, embaixo, a cor da vez
+    const alturaCentro = L => L * (1.5 + 0.22 + 0.3) + 24;
+    // a mão em fileiras não pode espremer a compra e a pilha: volta para menos fileiras
+    if (arr.filas > 1 && livreBase - livreTopo < alturaCentro(cartaL)) return layout(maoH - 1);
+    cartaL = Math.max(30, Math.min(cartaL, (livreBase - livreTopo - 24) / 2.02));
+    // as cartas no meio da mesa (oval); se não couber, o mais perto do meio que der
+    const yMin = livreTopo + cartaL * 0.97, yMax = livreBase - cartaL * 1.05 - 24;
+    const yCentro = yMin > yMax ? (yMin + yMax) / 2 : limitar(oTopo + oh / 2, yMin, yMax);
     g.centro.style.left = cx + 'px';
     g.centro.style.top = yCentro + 'px';
     g.palco.style.setProperty('--carta-l', cartaL + 'px');
@@ -268,9 +275,17 @@
     g.palco.style.setProperty('--mao-alt', arr.altura + 'px');
     g.mao.style.left = cx + 'px';
     g.mao.style.top = maoBase + 'px';
+    // logo e avisos da sua vez: na maior folga, abaixo ou acima das cartas do meio
     const logo = g.oval.querySelector('.mesa-logo');
-    logo.style.top = ((yCentro + cartaL * 0.75 + 30 + maoBase - maoH) / 2 - oTopo) + 'px';
-    logo.style.display = (maoBase - maoH) - (yCentro + cartaL * 0.75 + 30) > 40 ? '' : 'none';
+    const baixoDe = yCentro + cartaL * 1.05 + 24, baixoAte = livreBase;
+    const cimaDe = livreTopo, cimaAte = yCentro - cartaL * 0.97;
+    const embaixo = baixoAte - baixoDe >= cimaAte - cimaDe;
+    const yFolga = embaixo ? (baixoDe + baixoAte) / 2 : (cimaDe + cimaAte) / 2;
+    const folga = embaixo ? baixoAte - baixoDe : cimaAte - cimaDe;
+    logo.style.top = (yFolga - oTopo) + 'px';
+    logo.style.display = folga > 40 ? '' : 'none';
+    g.instrucao.style.left = cx + 'px';
+    g.instrucao.style.top = (folga > 30 ? yFolga : livreBase - 14) + 'px';
     jogo.geo = { W, H, cx, yCentro, cartaL, pos, compacto };
     apontarVez();
   }
@@ -629,8 +644,14 @@
     g.btnA.className = 'btn-acao un-btn-ultima'; g.btnA.innerHTML = 'Última!<small>antes da penúltima</small>';
     g.btnB.className = 'btn-acao btn-aceitar'; g.btnB.innerHTML = 'Comprar';
     g.btnC.className = 'btn-acao btn-tr-dica'; g.btnC.innerHTML = 'Dica';
-    g.status.innerHTML = texto || '';
+    instrucao(texto);
     g.mao.classList.remove('minha-vez');
+  }
+  /** Aviso em cima da mesa do que fazer agora; vazio, some. */
+  function instrucao(html) {
+    const i = jogo.ui.instrucao;
+    i.innerHTML = html || '';
+    i.classList.toggle('on', !!html);
   }
   function botao(b, classe, html, papel, fn) {
     b.disabled = false; b.className = 'btn-acao ' + classe; b.innerHTML = html; b.dataset.papel = papel; b.onclick = fn;
@@ -654,17 +675,17 @@
       if (vista.podeDesafiar) botao(g.btnC, 'un-btn-desafio', 'Desafiar<small>blefe? ele compra 4</small>', 'desafiar', () => acaoDesafiar());
       else ajustarDica();
       const passar = op.acumular ? ' Ou passe adiante com um +2 ou +4 (toque nele).' : '';
-      g.status.innerHTML = vista.podeDesafiar ? `<b>+4 em você!</b> Compre as 4 ou desafie (se não era blefe, você compra 6).${passar}` : `<b>+${p.qtd} em você!</b> Compre as cartas.${passar}`;
+      instrucao(vista.podeDesafiar ? `<b>+4 em você!</b> Compre as 4 ou desafie (se não era blefe, você compra 6).${passar}` : `<b>+${p.qtd} em você!</b> Compre as cartas.${passar}`);
     } else if (vista.fase === 'depoisDeComprar') {
       const comprada = CO.cartaHtml(vista.comprada);
       if (op.comprarAtePoder) {
         botao(g.btnB, 'btn-aceitar', 'Comprar outra<small>até sair uma que sirva</small>', 'comprarOutra', () => acaoComprarOutra());
         botao(g.btnC, 'btn-correr', 'Passar<small>guardar a carta</small>', 'passar', () => acaoPassar());
-        g.status.innerHTML = `<b>Você comprou ${comprada}</b> Se servir, toque nela para jogar (ou passe); se não, compre outra`;
+        instrucao(`<b>Você comprou ${comprada}</b> Se servir, toque nela para jogar (ou passe); se não, compre outra`);
       } else {
         botao(g.btnB, 'btn-aceitar', 'Passar<small>guardar a carta</small>', 'passar', () => acaoPassar());
         ajustarDica();
-        g.status.innerHTML = `<b>Você comprou ${comprada}</b> Toque nela para jogar, ou passe a vez`;
+        instrucao(`<b>Você comprou ${comprada}</b> Toque nela para jogar, ou passe a vez`);
       }
     } else {
       const sel = jogo.selecao || [];
@@ -672,9 +693,6 @@
         botao(g.btnB, 'btn-aceitar', sel.length === 1 ? 'Jogar<small>ou toque nas iguais</small>' : `Jogar ${sel.length}<small>a última por cima</small>`, 'jogar', () => acaoJogarSelecao());
       } else botao(g.btnB, 'btn-aceitar', 'Comprar<small>uma carta</small>', 'comprar', () => acaoComprar());
       ajustarDica();
-      g.status.innerHTML = op.juntas
-        ? (sel.length ? `<b>${sel.length} ${sel.length === 1 ? 'escolhida' : 'escolhidas'}</b> — toque nas iguais ou aperte Jogar` : '<b>Sua vez:</b> escolha as cartas e aperte Jogar, ou compre')
-        : '<b>Sua vez:</b> toque numa carta para jogar, ou compre';
     }
     g.mao.classList.add('minha-vez');
     marcarSugestoes();
@@ -695,7 +713,7 @@
     g.btnB.classList.add('pulsa');
     const motivo = i.motivo === 'mais2' ? '+2 em você' : i.motivo === 'mais4' ? '+4 em você' : i.motivo === 'pegou' ? 'Pegaram você sem dizer Última!'
       : i.motivo === 'desafio' ? (i.total === 6 ? 'Não era blefe' : 'Pegaram o blefe') : 'Compre';
-    g.status.innerHTML = `<b>${motivo}:</b> toque em Comprar para pegar cada carta (${i.faltam === 1 ? 'falta 1' : 'faltam ' + i.faltam})`;
+    instrucao(`<b>${motivo}:</b> toque em Comprar para pegar cada carta (${i.faltam === 1 ? 'falta 1' : 'faltam ' + i.faltam})`);
   }
   function resolverCompra() {
     const cp = jogo && jogo.compraPendente;
@@ -892,11 +910,11 @@
       if (j === 0) {
         g.btnA.disabled = false; g.btnA.className = 'btn-acao un-btn-ultima pulsa'; g.btnA.innerHTML = 'Última!<small>rápido!</small>';
         g.btnA.onclick = () => fim(0);
-        g.status.innerHTML = '<b>Você não disse Última!</b> Aperte antes que percebam';
+        instrucao('<b>Você não disse Última!</b> Aperte antes que percebam');
       } else {
         g.btnA.disabled = false; g.btnA.className = 'btn-acao un-btn-pegou pulsa'; g.btnA.innerHTML = 'Pegou!<small>' + esc(jogo.jogadores[j].nome) + ' esqueceu</small>';
         g.btnA.onclick = () => fim(0);
-        g.status.innerHTML = `<b>${esc(jogo.jogadores[j].nome)} ficou com uma e não disse Última!</b> Aperte Pegou!`;
+        instrucao(`<b>${esc(jogo.jogadores[j].nome)} ficou com uma e não disse Última!</b> Aperte Pegou!`);
       }
       esperar(limite).then(() => { if (!jogo || jogo.token !== token) return fim(null); fim(primeiro ? primeiro.k : null); });
     });
@@ -923,7 +941,7 @@
         g.pilha.innerHTML = '';
         if (g.avisoEl) { g.avisoEl.remove(); g.avisoEl = null; }
         marcarVez(-1);
-        acoesEspera(`Mão ${ev.maoNumero} · quem dá: <b>${esc(nome(ev.dador))}</b>`);
+        acoesEspera('');
         // distribuição
         g.lugares.forEach(l => { l.costas.innerHTML = ''; l.qtd.textContent = '0'; });
         g.mao.innerHTML = '';
@@ -942,7 +960,6 @@
       }
       case 'vez':
         marcarVez(ev.j);
-        if (ev.j !== 0) g.status.innerHTML = `Vez de <b>${esc(nome(ev.j))}</b>…`;
         break;
       case 'jogada': {
         const v = vista();
